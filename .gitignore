@@ -1,0 +1,27 @@
+# IDE
+.idea/
+*.iml
+
+# Gradle
+.gradle/
+build/
+local.properties
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Other
+captures/
+.externalNativeBuild/
+.cxx/
+
+# iOS
+iosApp/Podfile.lock
+iosApp/Pods/
+iosApp/iosApp.xcworkspace/
+iosApp/iosApp.xcodeproj/
+!iosApp/iosApp.xcodeproj/project.pbxproj
+shared/shared.podspec
