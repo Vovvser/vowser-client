@@ -23,7 +23,7 @@ import com.vowser.client.AppViewModel
 @Composable
 fun App() {
     MaterialTheme {
-        var greetingText by remember { mutableStateOf("Hello, World!") }
+        var greetingText by remember { mutableStateOf("If you click this button, we will send&receive message!") }
         var showImage by remember { mutableStateOf(false) }
 
         val coroutineScope = rememberCoroutineScope()
@@ -39,7 +39,7 @@ fun App() {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Connection Status: $connectionStatus")
             Button(onClick = {
-                greetingText = "Hello, ${getPlatformName()}! If you click this button, we will send&receive message!"
+                greetingText = "Hello, ${getPlatformName()}!"
                 showImage = !showImage
                 // 예시 : Element 클릭 시 clickElement 실행
                 viewModel.sendToolCall("clickElement", mapOf("elementId" to "someButton"))
