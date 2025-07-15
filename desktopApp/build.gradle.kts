@@ -12,6 +12,7 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(project(":shared"))
+                implementation("io.github.aakira:napier:2.6.1")
             }
         }
     }
