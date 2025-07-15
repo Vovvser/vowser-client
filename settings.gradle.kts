@@ -1,4 +1,4 @@
-rootProject.name = "MyApplication"
+rootProject.name = "vowser-client"
 
 include(":androidApp")
 include(":shared")

@@ -1,4 +1,4 @@
-package com.myapplication
+package com.vowserclient
 
 import MainView
 import android.os.Bundle
