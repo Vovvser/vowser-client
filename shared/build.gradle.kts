@@ -2,6 +2,7 @@ plugins {
     kotlin("multiplatform")
     id("com.android.library")
     id("org.jetbrains.compose")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.25"
 }
 
 kotlin {
@@ -28,6 +29,14 @@ kotlin {
                 implementation(compose.material)
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.components.resources)
+                // Ktor
+                implementation("io.ktor:ktor-client-core:2.3.6")
+                implementation("io.ktor:ktor-client-cio:2.3.6")
+                implementation("io.ktor:ktor-client-content-negotiation:2.3.6")
+                implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.6")
+                implementation("io.ktor:ktor-client-websockets:2.3.6")
+                // Napier
+                implementation("io.github.aakira:napier:2.6.1")
             }
         }
         val androidMain by getting {
@@ -52,12 +61,6 @@ kotlin {
 
                 // Playwright
                 implementation("com.microsoft.playwright:playwright:1.40.0")
-
-                // Ktor
-                implementation("io.ktor:ktor-client-cio:2.3.6")
-                implementation("io.ktor:ktor-client-content-negotiation:2.3.6")
-                implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.6")
-                implementation("io.ktor:ktor-client-websockets:2.3.6")
             }
         }
     }
