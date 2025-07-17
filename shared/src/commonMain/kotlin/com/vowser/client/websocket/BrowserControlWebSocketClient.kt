@@ -1,20 +1,26 @@
 package com.vowser.client.websocket
 
 import com.vowser.client.websocket.dto.CallToolRequest
+import com.vowser.client.websocket.dto.BrowserCommand
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.websocket.*
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
+import kotlinx.coroutines.IO
 
 class BrowserControlWebSocketClient {
 
@@ -62,6 +68,7 @@ class BrowserControlWebSocketClient {
                 )
                 Napier.i("Successfully connected to ws://localhost:8080/control", tag = "VowserSocketClient")
                 isConnecting = false
+                startReceivingMessages()
                 return
             } catch (e: Exception) {
                 attempts++
@@ -91,8 +98,40 @@ class BrowserControlWebSocketClient {
             Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
             return emptyFlow()
         }
-        return session!!.incoming.receiveAsFlow().map {
-            (it as? Frame.Text)?.readText() ?: ""
+        return session!!.incoming.receiveAsFlow().mapNotNull {
+            (it as? Frame.Text)?.readText()
+        }
+    }
+
+    /**
+     * 메시지를 수신하고 tool에 따라 다른 동작 수행
+     */
+    private fun startReceivingMessages() {
+        CoroutineScope(Dispatchers.IO).launch {
+            receiveMessages().collect { messageString ->
+                Napier.i("Received raw message: $messageString", tag = "VowserSocketClient")
+                try {
+                    val command = json.decodeFromString<BrowserCommand>(messageString)
+
+                    Napier.i("Decoded command: $command", tag = "VowserSocketClient")
+                    when (command) {
+                        BrowserCommand.GoBack -> {
+                            Napier.i("Executing 'goBack' command.", tag = "VowserSocketClient")
+                            BrowserAutomationBridge.goBackInBrowser()
+                        }
+                        BrowserCommand.GoForward -> {
+                            Napier.i("Executing 'goForward' command.", tag = "VowserSocketClient")
+                            BrowserAutomationBridge.goForwardInBrowser()
+                        }
+                        is BrowserCommand.Navigate -> {
+                            Napier.i("Executing 'navigate' command to URL: ${command.url}", tag = "VowserSocketClient")
+                            BrowserAutomationBridge.navigateInBrowser(command.url)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Napier.e("Failed to parse or execute command from message: $messageString. Error: ${e.message}", e, tag = "VowserSocketClient")
+                }
+            }
         }
     }
 
@@ -111,6 +150,23 @@ class BrowserControlWebSocketClient {
             Napier.i("Sent tool call: ${request.toolName}", tag = "VowserSocketClient")
         } catch (e: Exception) {
             Napier.e("Failed to send message: ${e.message}", e, tag = "VowserSocketClient")
+        }
+    }
+
+    /**
+     * 브라우저 명령어 기반 명령 전달이 필요할 때 사용
+     */
+    suspend fun sendBrowserCommand(command: BrowserCommand) {
+        if (session?.isActive != true) {
+            Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
+            return
+        }
+        try {
+            val jsonString = json.encodeToString(command)
+            session?.send(Frame.Text(jsonString))
+            Napier.i("Sent browser command: $command", tag = "VowserSocketClient")
+        } catch (e: Exception) {
+            Napier.e("Failed to send browser command: ${e.message}", e, tag = "VowserSocketClient")
         }
     }
 

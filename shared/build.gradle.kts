@@ -52,7 +52,7 @@ kotlin {
                 implementation(compose.desktop.common)
 
                 // Playwright
-                implementation("com.microsoft.playwright:playwright:1.40.0")
+                implementation("com.microsoft.playwright:playwright:1.52.0")
             }
         }
     }
@@ -64,7 +64,6 @@ android {
 
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
     sourceSets["main"].res.srcDirs("src/androidMain/res")
-    sourceSets["main"].resources.srcDirs("src/commonMain/resources")
 
     defaultConfig {
         minSdk = (findProperty("android.minSdk") as String).toInt()
