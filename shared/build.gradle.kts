@@ -38,6 +38,8 @@ kotlin {
                 implementation("io.ktor:ktor-client-websockets:2.3.6")
                 // Napier
                 implementation("io.github.aakira:napier:2.6.1")
+                // KoalaPlot for graph visualization
+                implementation("io.github.koalaplot:koalaplot-core:0.6.3")
             }
         }
         val androidMain by getting {
