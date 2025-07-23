@@ -20,6 +20,7 @@ fun ModernAppBar(
     isContributionMode: Boolean,
     onSettingsClick: () -> Unit,
     onStatsToggle: () -> Unit,
+    onModeToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -43,12 +44,24 @@ fun ModernAppBar(
             
             // 앱 제목
             Text(
-                text = "가던길 - Vowser",
+                text = "Vowser",
                 color = Color.White,
                 style = MaterialTheme.typography.h6
             )
             
             Spacer(modifier = Modifier.weight(1f))
+
+            // 기여 모드 토글
+            Switch(
+                checked = isContributionMode,
+                onCheckedChange = { onModeToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = AppTheme.Colors.Contribution,
+                    checkedTrackColor = AppTheme.Colors.Contribution.copy(alpha = 0.5f),
+                    uncheckedThumbColor = Color.Gray,
+                    uncheckedTrackColor = Color.DarkGray
+                )
+            )
             
             // 통계 버튼
             IconButton(onClick = onStatsToggle) {

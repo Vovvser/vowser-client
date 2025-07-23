@@ -46,7 +46,7 @@ fun GraphCanvas(
             layoutNodesWithPhysics(nodes, edges, canvasSize)
         } else nodes
     }
-    
+
     // 펄스 애니메이션
     val pulseAnimation = rememberInfiniteTransition()
     val pulseScale by pulseAnimation.animateFloat(
@@ -57,7 +57,7 @@ fun GraphCanvas(
             repeatMode = RepeatMode.Reverse
         )
     )
-    
+
     Canvas(
         modifier = modifier
             .fillMaxSize()
@@ -68,11 +68,11 @@ fun GraphCanvas(
             }
     ) {
         onCanvasSizeChanged(size)
-        
+
         if (positionedNodes.isNotEmpty()) {
             // 백그라운드 그리드
             drawUltraModernGrid()
-            
+
             // 엣지 그리기 (글로우 효과 포함)
             drawUltraModernEdges(
                 nodes = positionedNodes,
@@ -82,7 +82,7 @@ fun GraphCanvas(
                 offset = offset,
                 isContributionMode = isContributionMode
             )
-            
+
             // 노드 그리기 (글래스모피즘 효과)
             drawUltraModernNodes(
                 nodes = positionedNodes,
@@ -102,7 +102,7 @@ fun GraphCanvas(
 fun DrawScope.drawUltraModernGrid() {
     val gridSize = 40f
     val gridColor = Color.White.copy(alpha = 0.05f)
-    
+
     // 세로선
     var x = 0f
     while (x <= size.width) {
@@ -114,7 +114,7 @@ fun DrawScope.drawUltraModernGrid() {
         )
         x += gridSize
     }
-    
+
     // 가로선
     var y = 0f
     while (y <= size.height) {
@@ -138,15 +138,15 @@ fun DrawScope.drawUltraModernEdges(
     isContributionMode: Boolean
 ) {
     val nodeMap = nodes.associateBy { it.id }
-    
+
     edges.forEach { edge ->
         val fromNode = nodeMap[edge.from]
         val toNode = nodeMap[edge.to]
-        
+
         if (fromNode != null && toNode != null) {
             val isHighlighted = highlightedPath.contains(fromNode.id) && highlightedPath.contains(toNode.id)
             val isRecording = isContributionMode
-            
+
             val startPos = Offset(
                 fromNode.x * scale + offset.x,
                 fromNode.y * scale + offset.y
@@ -155,7 +155,7 @@ fun DrawScope.drawUltraModernEdges(
                 toNode.x * scale + offset.x,
                 toNode.y * scale + offset.y
             )
-            
+
             // 글로우 효과를 위한 여러 레이어
             when {
                 isHighlighted -> {
@@ -212,7 +212,7 @@ fun DrawScope.drawUltraModernEdges(
                     )
                 }
             }
-            
+
             // 방향 화살표
             drawUltraArrowHead(startPos, endPos, isHighlighted, isRecording)
         }
@@ -234,12 +234,12 @@ fun DrawScope.drawUltraModernNodes(
         val isHighlighted = highlightedPath.contains(node.id)
         val isActive = node.id == activeNodeId
         val isSelected = node.id == selectedNodeId
-        
+
         val position = Offset(
             node.x * scale + offset.x,
             node.y * scale + offset.y
         )
-        
+
         val baseRadius = node.type.size / 2f * scale
         val radius = when {
             isActive -> baseRadius * pulseScale * 1.3f
@@ -247,14 +247,14 @@ fun DrawScope.drawUltraModernNodes(
             isHighlighted -> baseRadius * 1.1f
             else -> baseRadius
         }
-        
+
         // 그림자 효과
         drawCircle(
             color = Color.Black.copy(alpha = 0.3f),
             radius = radius + 4f,
             center = position + Offset(2f, 2f)
         )
-        
+
         // 외부 링 (글로우 효과)
         when {
             isActive -> {
@@ -279,7 +279,7 @@ fun DrawScope.drawUltraModernNodes(
                 )
             }
         }
-        
+
         // 메인 노드 (글래스모피즘 효과)
         drawCircle(
             brush = Brush.radialGradient(
@@ -293,7 +293,7 @@ fun DrawScope.drawUltraModernNodes(
             radius = radius,
             center = position
         )
-        
+
         // 내부 하이라이트 (글래스 효과)
         drawCircle(
             brush = Brush.radialGradient(
@@ -307,7 +307,7 @@ fun DrawScope.drawUltraModernNodes(
             radius = radius,
             center = position
         )
-        
+
         // 테두리
         drawCircle(
             color = when {
@@ -323,7 +323,7 @@ fun DrawScope.drawUltraModernNodes(
                 width = if (isActive || isSelected) 3f else 2f
             )
         )
-        
+
         // 노드 타입 아이콘 (중앙)
         val iconSize = radius * 0.6f
         drawUltraNodeIcon(node.type, position, iconSize)
@@ -333,7 +333,7 @@ fun DrawScope.drawUltraModernNodes(
 // 울트라 노드 아이콘 그리기
 fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float) {
     val iconColor = Color.White.copy(alpha = 0.9f)
-    
+
     when (nodeType) {
         NodeType.START -> {
             // 재생 버튼 아이콘
@@ -413,29 +413,29 @@ fun DrawScope.drawUltraArrowHead(
 ) {
     val arrowLength = if (isHighlighted || isRecording) 12f else 8f
     val arrowAngle = PI / 6
-    
+
     val lineAngle = atan2(end.y - start.y, end.x - start.x)
     val adjustedEnd = end - Offset(
         cos(lineAngle).toFloat() * 20f,
         sin(lineAngle).toFloat() * 20f
     )
-    
+
     val arrowColor = when {
         isHighlighted -> Color(0xFF00D4AA)
         isRecording -> Color(0xFFFF4444)
         else -> Color.White.copy(alpha = 0.6f)
     }
-    
+
     val arrowEnd1 = Offset(
         adjustedEnd.x - arrowLength * cos(lineAngle - arrowAngle).toFloat(),
         adjustedEnd.y - arrowLength * sin(lineAngle - arrowAngle).toFloat()
     )
-    
+
     val arrowEnd2 = Offset(
         adjustedEnd.x - arrowLength * cos(lineAngle + arrowAngle).toFloat(),
         adjustedEnd.y - arrowLength * sin(lineAngle + arrowAngle).toFloat()
     )
-    
+
     drawLine(
         color = arrowColor,
         start = adjustedEnd,
@@ -443,7 +443,7 @@ fun DrawScope.drawUltraArrowHead(
         strokeWidth = if (isHighlighted || isRecording) 3f else 2f,
         cap = StrokeCap.Round
     )
-    
+
     drawLine(
         color = arrowColor,
         start = adjustedEnd,

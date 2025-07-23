@@ -167,7 +167,10 @@ fun GraphScreen(
                 isContributionMode = isContributionMode,
                 onSettingsClick = { onScreenChange(AppScreen.SETTINGS) },
                 onStatsToggle = { showStats = !showStats },
-                modifier = Modifier.align(Alignment.TopCenter)
+                onModeToggle = onModeToggle, // Pass the function here
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .align(Alignment.TopCenter)
             )
             
             // 통계 패널 (선택적 표시)
