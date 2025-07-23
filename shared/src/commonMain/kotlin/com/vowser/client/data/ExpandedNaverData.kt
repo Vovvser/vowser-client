@@ -1,7 +1,7 @@
 package com.vowser.client.data
 
 /**
- * 네이버 기준 확장된 웹 탐색 데이터 (4배 확장)
+ * 네이버 기준 확장된 웹 탐색 데이터
  * 실제 네이버 웹사이트 구조를 기반으로 한 상세한 사이트맵
  */
 object ExpandedNaverDataGenerator {
@@ -556,7 +556,7 @@ object ExpandedNaverDataGenerator {
         
         contents.forEach { graph.addNode(it) }
         
-        // === 관계(엣지) 생성 - 대폭 확장 ===
+        // === 관계(엣지) 생성 ===
         
         // === Root -> Websites ===
         listOf(

@@ -1,8 +1,8 @@
 package com.vowser.client.voice
 
 /**
- * 확장된 네이버 기반 음성 명령어 세트
- * 4배 확장된 더미데이터에 맞춘 상세한 명령어들
+ * 네이버 기반 음성 명령어 세트
+ * 더미데이터에 맞춘 상세한 명령어
  */
 object ExpandedVoiceCommands {
     

@@ -1,6 +1,5 @@
 package com.vowser.client.ui.graph
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -14,7 +13,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.unit.dp
 
 /**
- * 2025년 빅테크 디자인 트렌드를 반영한 모던 그래프 시각화 컴포넌트
+ * 모던 그래프 시각화 컴포넌트
  * - 글래스모피즘(Glassmorphism) 효과
  * - 부드러운 애니메이션
  * - 반응형 인터랙션
