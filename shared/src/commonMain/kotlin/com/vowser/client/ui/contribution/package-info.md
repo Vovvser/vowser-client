@@ -4,9 +4,9 @@
 
 ## 주요 파일
 - `ContributionModeComponents.kt` - 기여 모드 전체 UI 컴포넌트
-  - `ContributionModeOverlay` - 기여 모드 오버레이
-  - `ContributionSuccessDialog` - 기여 완료 다이얼로그
-  - `ContributionRecordingPanel` - 기록 진행 상황 패널
+- `ContributionModeOverlay` - 기여 모드 오버레이
+- `ContributionSuccessDialog` - 기여 완료 다이얼로그
+- `ContributionRecordingPanel` - 기록 진행 상황 패널
 
 ## 주요 기능
 - **경로 기록**: 사용자 클릭 순서를 단계적으로 기록

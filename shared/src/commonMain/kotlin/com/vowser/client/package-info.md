@@ -1,10 +1,12 @@
 # Package: com.vowser.client
 
-앱의 메인 진입점과 전체 상태 관리를 담당하는 루트 패키지
+앱의 전체 상태 관리를 담당하는 루트 패키지
 
 ## 주요 파일
-- `App.kt` - Compose UI 메인 진입점, 화면 네비게이션
 - `AppViewModel.kt` - 앱 전체 상태 관리, WebSocket 연결 관리
+
+## 참고사항
+- `App.kt` - Compose UI 메인 진입점은 kotlin 루트 폴더(`/shared/src/commonMain/kotlin/App.kt`)에 위치
 
 ## 하위 패키지
 - `data/` - 데이터 모델 및 생성기
