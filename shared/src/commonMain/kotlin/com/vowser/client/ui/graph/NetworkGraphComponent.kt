@@ -158,8 +158,6 @@ private fun NetworkGraphLegend(modifier: Modifier = Modifier) {
     }
 }
 
-// 중복 함수 제거됨 - GraphPhysics.kt 사용
-
 private fun DrawScope.drawEdges(
     nodes: List<GraphNode>, 
     edges: List<GraphEdge>, 

@@ -1,6 +1,5 @@
 package com.vowser.client.ui.graph
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -14,7 +13,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.unit.dp
 
 /**
- * 2025년 빅테크 디자인 트렌드를 반영한 모던 그래프 시각화 컴포넌트
+ * 모던 그래프 시각화 컴포넌트
  * - 글래스모피즘(Glassmorphism) 효과
  * - 부드러운 애니메이션
  * - 반응형 인터랙션
@@ -100,27 +99,22 @@ fun ModernNetworkGraph(
                     .transformable(state = transformableState)
             )
             
-            // 글래스모피즘 헤더
-            GlassmorphismHeader(
-                title = if (isContributionMode) "기여 모드 - 경로 기록중" else "웹 탐색 경로",
-                nodeCount = nodes.size,
-                isContributionMode = isContributionMode,
-                onModeToggle = { onGraphInteraction(GraphInteractionType.ToggleMode) },
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
+            
             
             // 플로팅 컨트롤 패널
-            FloatingControlPanel(
-                scale = scale,
-                onZoomIn = { scale = (scale * 1.2f).coerceAtMost(3f) },
-                onZoomOut = { scale = (scale / 1.2f).coerceAtLeast(0.5f) },
-                onReset = { 
-                    scale = 1f
-                    offset = Offset.Zero
-                },
-                onCenterView = { onGraphInteraction(GraphInteractionType.CenterView) },
-                modifier = Modifier.align(Alignment.BottomEnd)
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                FloatingControlPanel(
+                    scale = scale,
+                    onZoomIn = { scale = (scale * 1.2f).coerceAtMost(3f) },
+                    onZoomOut = { scale = (scale / 1.2f).coerceAtLeast(0.5f) },
+                    onReset = { 
+                        scale = 1f
+                        offset = Offset.Zero
+                    },
+                    onCenterView = { onGraphInteraction(GraphInteractionType.CenterView) },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
+                )
+            }
             
             // 선택된 노드 정보 패널
             selectedNode?.let { node ->
@@ -135,7 +129,7 @@ fun ModernNetworkGraph(
             ModernLegend(
                 isContributionMode = isContributionMode,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.CenterEnd)
                     .padding(16.dp)
             )
         }

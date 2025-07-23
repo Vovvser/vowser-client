@@ -35,9 +35,9 @@ fun FloatingControlPanel(
         shape = RoundedCornerShape(12.dp),
         elevation = 8.dp
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 줌 인
             FloatingActionButton(
