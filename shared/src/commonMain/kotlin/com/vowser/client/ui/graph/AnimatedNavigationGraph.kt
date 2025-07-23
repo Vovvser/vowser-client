@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -581,4 +583,15 @@ private fun DrawScope.drawAnimatedArrowHead(
 
     drawLine(color = arrowColor, start = endPoint, end = arrowEnd1, strokeWidth = strokeWidth, cap = StrokeCap.Round)
     drawLine(color = arrowColor, start = endPoint, end = arrowEnd2, strokeWidth = strokeWidth, cap = StrokeCap.Round)
+}
+
+/**
+ * 노드 타입에 따른 아이콘 반환
+ */
+private fun getNodeIcon(nodeType: NodeType) = when (nodeType) {
+    NodeType.START -> Icons.Default.PlayArrow
+    NodeType.WEBSITE -> Icons.Default.Home
+    NodeType.PAGE -> Icons.Default.Info
+    NodeType.ACTION -> Icons.Default.CheckCircle
+    NodeType.DEFAULT -> Icons.Default.CheckCircle
 }
