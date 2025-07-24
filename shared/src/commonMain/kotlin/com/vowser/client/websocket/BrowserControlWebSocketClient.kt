@@ -2,6 +2,7 @@ package com.vowser.client.websocket
 
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.BrowserCommand
+import com.vowser.client.websocket.dto.NavigationPath
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -19,6 +20,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.IO
 
@@ -111,21 +115,35 @@ class BrowserControlWebSocketClient {
             receiveMessages().collect { messageString ->
                 Napier.i("Received raw message: $messageString", tag = "VowserSocketClient")
                 try {
-                    val command = json.decodeFromString<BrowserCommand>(messageString)
+                    val jsonElement = json.parseToJsonElement(messageString)
+                    val messageType = jsonElement.jsonObject["type"]?.jsonPrimitive?.content
 
-                    Napier.i("Decoded command: $command", tag = "VowserSocketClient")
-                    when (command) {
-                        BrowserCommand.GoBack -> {
-                            Napier.i("Executing 'goBack' command.", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.goBackInBrowser()
+                    when (messageType) {
+                        "browser_command" -> {
+                            val command = json.decodeFromJsonElement<BrowserCommand>(jsonElement.jsonObject["data"]!!)
+                            Napier.i("Decoded command: $command", tag = "VowserSocketClient")
+                            when (command) {
+                                BrowserCommand.GoBack -> {
+                                    Napier.i("Executing 'goBack' command.", tag = "VowserSocketClient")
+                                    BrowserAutomationBridge.goBackInBrowser()
+                                }
+                                BrowserCommand.GoForward -> {
+                                    Napier.i("Executing 'goForward' command.", tag = "VowserSocketClient")
+                                    BrowserAutomationBridge.goForwardInBrowser()
+                                }
+                                is BrowserCommand.Navigate -> {
+                                    Napier.i("Executing 'navigate' command to URL: ${command.url}", tag = "VowserSocketClient")
+                                    BrowserAutomationBridge.navigateInBrowser(command.url)
+                                }
+                            }
                         }
-                        BrowserCommand.GoForward -> {
-                            Napier.i("Executing 'goForward' command.", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.goForwardInBrowser()
+                        "navigation_path" -> {
+                            val navigationPath = json.decodeFromJsonElement<NavigationPath>(jsonElement.jsonObject["data"]!!)
+                            Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
+                            BrowserAutomationBridge.executeNavigationPath(navigationPath)
                         }
-                        is BrowserCommand.Navigate -> {
-                            Napier.i("Executing 'navigate' command to URL: ${command.url}", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.navigateInBrowser(command.url)
+                        else -> {
+                            Napier.w("Unknown message type: $messageType", tag = "VowserSocketClient")
                         }
                     }
                 } catch (e: Exception) {
