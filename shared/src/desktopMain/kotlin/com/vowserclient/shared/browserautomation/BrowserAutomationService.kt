@@ -162,7 +162,7 @@ object BrowserAutomationService {
         }
     }
 
-    suspend fun typeText(selector: String, text: String) = withContext(Dispatchers.IO) {
+    suspend fun typeText(selector: String, text: String, delayMs: Double? = null) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
                 Napier.e("BrowserAutomationService: Page is not initialized. Cannot type text into element: $selector", tag = "BrowserAutomationService")
@@ -171,7 +171,11 @@ object BrowserAutomationService {
             try {
                 val locator = page.locator(selector)
                 if (locator.count() > 0 && locator.first().isVisible) {
-                    locator.first().fill(text)
+                    if (delayMs != null) {
+                        locator.first().type(text, Locator.TypeOptions().setDelay(delayMs))
+                    } else {
+                        locator.first().fill(text)
+                    }
                     Napier.i { "Typed text '$text' into element with selector: $selector" }
                 } else {
                     Napier.w { "Element with selector $selector not found or not visible for typing." }
@@ -180,6 +184,45 @@ object BrowserAutomationService {
                 Napier.e("Failed to type text into element $selector: ${e.message}", e, tag = "BrowserAutomationService")
             } catch (e: Exception) {
                 Napier.e("Unexpected error typing text into element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+            }
+        }
+    }
+
+    suspend fun hoverElement(selector: String) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                Napier.e("BrowserAutomationService: Page is not initialized. Cannot hover element: $selector", tag = "BrowserAutomationService")
+                return@withContext
+            }
+            try {
+                val locator = page.locator(selector)
+                if (locator.count() > 0 && locator.first().isVisible) {
+                    locator.first().hover()
+                    Napier.i { "Hovered over element with selector: $selector" }
+                } else {
+                    Napier.w { "Element with selector $selector not found or not visible for hovering." }
+                }
+            } catch (e: PlaywrightException) {
+                Napier.e("Failed to hover over element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+            } catch (e: Exception) {
+                Napier.e("Unexpected error hovering over element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+            }
+        }
+    }
+
+    suspend fun scrollPage(x: Double, y: Double) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                Napier.e("BrowserAutomationService: Page is not initialized. Cannot scroll page.", tag = "BrowserAutomationService")
+                return@withContext
+            }
+            try {
+                page.mouse().wheel(x, y)
+                Napier.i { "Scrolled page by x: $x, y: $y" }
+            } catch (e: PlaywrightException) {
+                Napier.e("Failed to scroll page: ${e.message}", e, tag = "BrowserAutomationService")
+            } catch (e: Exception) {
+                Napier.e("Unexpected error scrolling page: ${e.message}", e, tag = "BrowserAutomationService")
             }
         }
     }
