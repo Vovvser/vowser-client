@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-// 간단한 테스트를 위해서 싱글톤으로 구현 -> object 사용
+// 싱글톤으로 구현 -> object 사용
 object BrowserAutomationService {
 
     private lateinit var playwright: Playwright

@@ -4,6 +4,14 @@ import com.vowser.client.websocket.dto.NavigationPath
 import io.github.aakira.napier.Napier
 
 actual object BrowserAutomationBridge {
+
+    private val actionExecutors = mapOf(
+        "navigate" to NavigateActionExecutor(),
+        "click" to ClickActionExecutor(),
+        "type" to TypeActionExecutor(),
+        "submit" to SubmitActionExecutor()
+    )
+
     actual suspend fun goBackInBrowser() {
         Napier.i { "Desktop: BrowserAutomationBridge.goBackInBrowser() 호출됨" }
         BrowserAutomationService.goBack()
@@ -23,31 +31,9 @@ actual object BrowserAutomationBridge {
         Napier.i { "Desktop: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) 호출됨" }
         for (step in path.steps) {
             Napier.i { "Executing step: ${step.action} on ${step.url} with selector ${step.selector}" }
-            when (step.action) {
-                "navigate" -> {
-                    BrowserAutomationService.navigate(step.url)
-                }
-                "click" -> {
-                    step.selector?.let { selector ->
-                        BrowserAutomationService.clickElement(selector)
-                    } ?: Napier.e("Selector is null for click action.")
-                }
-                "type" -> {
-                    step.selector?.let { selector ->
-                        val textToType = step.htmlAttributes?.get("value") ?: step.htmlAttributes?.get("text") ?: ""
-                        BrowserAutomationService.typeText(selector, textToType)
-                    } ?: Napier.e("Selector is null for type action.")
-                }
-                "submit" -> {
-                    step.selector?.let { selector ->
-                        BrowserAutomationService.clickElement(selector) // For now, treat submit as click
-                    } ?: Napier.e("Selector is null for submit action.")
-                }
-                else -> {
-                    Napier.w { "Unknown navigation action: ${step.action}" }
-                }
-            }
-            // TODO: wait conditions (step.waitCondition) 추가
+            actionExecutors[step.action]?.execute(step)
+                ?: Napier.w { "Unknown navigation action or no executor found: ${step.action}" }
+            // TODO: step.waitCondition 기반 wait conditions 추가
         }
         Napier.i { "Navigation path ${path.pathId} execution completed." }
     }

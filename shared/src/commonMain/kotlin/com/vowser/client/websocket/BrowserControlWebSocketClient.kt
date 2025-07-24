@@ -2,7 +2,7 @@ package com.vowser.client.websocket
 
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.BrowserCommand
-import com.vowser.client.websocket.dto.NavigationPath
+import com.vowser.client.websocket.dto.WebSocketMessage
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -20,9 +20,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.IO
 
@@ -33,6 +33,12 @@ class BrowserControlWebSocketClient {
         isLenient = true
         ignoreUnknownKeys = true
         useAlternativeNames = false
+        serializersModule = SerializersModule {
+            polymorphic(WebSocketMessage::class) {
+                subclass(WebSocketMessage.BrowserCommandWrapper::class)
+                subclass(WebSocketMessage.NavigationPathWrapper::class)
+            }
+        }
     }
 
     private val client = HttpClient {
@@ -115,12 +121,11 @@ class BrowserControlWebSocketClient {
             receiveMessages().collect { messageString ->
                 Napier.i("Received raw message: $messageString", tag = "VowserSocketClient")
                 try {
-                    val jsonElement = json.parseToJsonElement(messageString)
-                    val messageType = jsonElement.jsonObject["type"]?.jsonPrimitive?.content
+                    val message = json.decodeFromString<WebSocketMessage>(messageString)
 
-                    when (messageType) {
-                        "browser_command" -> {
-                            val command = json.decodeFromJsonElement<BrowserCommand>(jsonElement.jsonObject["data"]!!)
+                    when (message) {
+                        is WebSocketMessage.BrowserCommandWrapper -> {
+                            val command = message.data
                             Napier.i("Decoded command: $command", tag = "VowserSocketClient")
                             when (command) {
                                 BrowserCommand.GoBack -> {
@@ -137,13 +142,10 @@ class BrowserControlWebSocketClient {
                                 }
                             }
                         }
-                        "navigation_path" -> {
-                            val navigationPath = json.decodeFromJsonElement<NavigationPath>(jsonElement.jsonObject["data"]!!)
+                        is WebSocketMessage.NavigationPathWrapper -> {
+                            val navigationPath = message.data
                             Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
                             BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                        }
-                        else -> {
-                            Napier.w("Unknown message type: $messageType", tag = "VowserSocketClient")
                         }
                     }
                 } catch (e: Exception) {
