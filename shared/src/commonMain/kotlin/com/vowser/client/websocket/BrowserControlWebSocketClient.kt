@@ -2,6 +2,7 @@ package com.vowser.client.websocket
 
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.BrowserCommand
+import com.vowser.client.websocket.dto.WebSocketMessage
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -19,6 +20,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.IO
 
@@ -29,6 +33,12 @@ class BrowserControlWebSocketClient {
         isLenient = true
         ignoreUnknownKeys = true
         useAlternativeNames = false
+        serializersModule = SerializersModule {
+            polymorphic(WebSocketMessage::class) {
+                subclass(WebSocketMessage.BrowserCommandWrapper::class)
+                subclass(WebSocketMessage.NavigationPathWrapper::class)
+            }
+        }
     }
 
     private val client = HttpClient {
@@ -111,21 +121,31 @@ class BrowserControlWebSocketClient {
             receiveMessages().collect { messageString ->
                 Napier.i("Received raw message: $messageString", tag = "VowserSocketClient")
                 try {
-                    val command = json.decodeFromString<BrowserCommand>(messageString)
+                    val message = json.decodeFromString<WebSocketMessage>(messageString)
 
-                    Napier.i("Decoded command: $command", tag = "VowserSocketClient")
-                    when (command) {
-                        BrowserCommand.GoBack -> {
-                            Napier.i("Executing 'goBack' command.", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.goBackInBrowser()
+                    when (message) {
+                        is WebSocketMessage.BrowserCommandWrapper -> {
+                            val command = message.data
+                            Napier.i("Decoded command: $command", tag = "VowserSocketClient")
+                            when (command) {
+                                BrowserCommand.GoBack -> {
+                                    Napier.i("Executing 'goBack' command.", tag = "VowserSocketClient")
+                                    BrowserAutomationBridge.goBackInBrowser()
+                                }
+                                BrowserCommand.GoForward -> {
+                                    Napier.i("Executing 'goForward' command.", tag = "VowserSocketClient")
+                                    BrowserAutomationBridge.goForwardInBrowser()
+                                }
+                                is BrowserCommand.Navigate -> {
+                                    Napier.i("Executing 'navigate' command to URL: ${command.url}", tag = "VowserSocketClient")
+                                    BrowserAutomationBridge.navigateInBrowser(command.url)
+                                }
+                            }
                         }
-                        BrowserCommand.GoForward -> {
-                            Napier.i("Executing 'goForward' command.", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.goForwardInBrowser()
-                        }
-                        is BrowserCommand.Navigate -> {
-                            Napier.i("Executing 'navigate' command to URL: ${command.url}", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.navigateInBrowser(command.url)
+                        is WebSocketMessage.NavigationPathWrapper -> {
+                            val navigationPath = message.data
+                            Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
+                            BrowserAutomationBridge.executeNavigationPath(navigationPath)
                         }
                     }
                 } catch (e: Exception) {
