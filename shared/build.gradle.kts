@@ -58,6 +58,13 @@ kotlin {
                 implementation("com.microsoft.playwright:playwright:1.52.0")
             }
         }
+        getByName("desktopTest") {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+                runtimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+            }
+        }
     }
 }
 
@@ -78,4 +85,8 @@ android {
     kotlin {
         jvmToolchain(17)
     }
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
