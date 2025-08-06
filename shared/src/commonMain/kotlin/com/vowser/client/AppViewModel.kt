@@ -3,7 +3,6 @@ package com.vowser.client
 import com.vowser.client.websocket.BrowserControlWebSocketClient
 import com.vowser.client.websocket.ConnectionStatus
 import com.vowser.client.websocket.dto.CallToolRequest
-import com.vowser.client.websocket.dto.GraphUpdateData
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.data.SpeechRepository
 import io.github.aakira.napier.Napier
@@ -18,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.benasher44.uuid.uuid4
+import com.vowser.client.data.GraphDataConverter
+import com.vowser.client.visualization.GraphVisualizationData
 
 class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)) {
 
@@ -38,12 +39,12 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     val recordingStatus: StateFlow<String> = _recordingStatus.asStateFlow()
 
     // 그래프 상태 관리
-    private val _currentGraphData = MutableStateFlow<GraphUpdateData?>(null)
-    val currentGraphData: StateFlow<GraphUpdateData?> = _currentGraphData.asStateFlow()
-    
+    private val _currentGraphData = MutableStateFlow<GraphVisualizationData?>(null)
+    val currentGraphData: StateFlow<GraphVisualizationData?> = _currentGraphData.asStateFlow()
+
     private val _lastVoiceResult = MutableStateFlow<VoiceProcessingResult?>(null)
     val lastVoiceResult: StateFlow<VoiceProcessingResult?> = _lastVoiceResult.asStateFlow()
-    
+
     private val _graphLoading = MutableStateFlow(false)
     val graphLoading: StateFlow<Boolean> = _graphLoading.asStateFlow()
 
@@ -160,28 +161,35 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
      * WebSocket 콜백 설정
      */
     private fun setupWebSocketCallbacks() {
-        // 그래프 업데이트 콜백
+        webSocketClient.onNavigationPathReceived = { path ->
+            coroutineScope.launch {
+                Napier.i("Converting NavigationPath to GraphVisualizationData", tag = "AppViewModel")
+                val visualizationData = GraphDataConverter.convertFromNavigationPath(path)
+                _currentGraphData.value = visualizationData
+                _graphLoading.value = false
+            }
+        }
+
         webSocketClient.onGraphUpdateReceived = { graphData ->
             coroutineScope.launch {
-                Napier.i("Received graph update: ${graphData.nodes.size} nodes, ${graphData.edges.size} edges", tag = "AppViewModel")
-                _currentGraphData.value = graphData
+                Napier.i("Converting GraphUpdateData to GraphVisualizationData", tag = "AppViewModel")
+                val visualizationData = GraphDataConverter.convertToVisualizationData(graphData)
+                _currentGraphData.value = visualizationData
                 _graphLoading.value = false
-                
+
                 graphData.metadata?.voiceCommand?.let { voiceCommand ->
                     _receivedMessage.value = "Graph updated for: $voiceCommand"
                 }
             }
         }
-        
-        // 음성 처리 결과 콜백
+
         webSocketClient.onVoiceProcessingResultReceived = { voiceResult ->
             coroutineScope.launch {
                 Napier.i("Received voice processing result: ${voiceResult.transcript}", tag = "AppViewModel")
                 _lastVoiceResult.value = voiceResult
-                
+
                 if (voiceResult.success) {
                     _recordingStatus.value = "Voice processed: ${voiceResult.transcript}"
-                    // 그래프 업데이트 요청 - 백엔드가 자동으로 그래프 데이터를 보내줄 예정
                     _graphLoading.value = true
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
@@ -197,7 +205,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         coroutineScope.launch {
             _graphLoading.value = true
             try {
-                // WebSocket을 통해 그래프 새로고침 요청
                 webSocketClient.sendToolCall(CallToolRequest("refresh_graph", mapOf(
                     "sessionId" to sessionId
                 )))

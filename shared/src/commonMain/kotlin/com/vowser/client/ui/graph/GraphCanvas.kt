@@ -19,10 +19,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.*
 
 /**
- * 그래프 캔버스 드로잉 함수들
- */
-
-/**
  * 그래프 캔버스 컴포넌트
  */
 @Composable

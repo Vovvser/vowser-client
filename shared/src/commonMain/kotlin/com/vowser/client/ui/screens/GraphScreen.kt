@@ -18,8 +18,7 @@ import com.vowser.client.ui.components.ModernAppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.StatusBar
 import com.vowser.client.ui.components.VoiceRecordingButton
-import com.vowser.client.websocket.dto.GraphUpdateData
-import com.vowser.client.data.GraphDataConverter
+import com.vowser.client.visualization.GraphVisualizationData
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -33,15 +32,15 @@ fun GraphScreen(
     receivedMessage: String,
     isRecording: Boolean,
     recordingStatus: String,
-    currentGraphData: GraphUpdateData?, // 실시간 그래프 데이터
+    currentGraphData: GraphVisualizationData?,
     onModeToggle: () -> Unit,
     onLoadingStateChange: (Boolean) -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
     onSendToolCall: (String, Map<String, String>) -> Unit,
     onToggleRecording: () -> Unit,
-    onRefreshGraph: () -> Unit, // 그래프 새로고침
-    onNavigateToNode: (String) -> Unit // 노드 탐색
+    onRefreshGraph: () -> Unit,
+    onNavigateToNode: (String) -> Unit
 ) {
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -66,12 +65,9 @@ fun GraphScreen(
     
     // 음성 테스트 시나리오들
     val voiceScenarios = remember { RealNaverDataGenerator.getVoiceTestScenarios() }
-    
-    // 실시간 그래프 데이터 사용 (WebSocket에서 받은 데이터 우선, 없으면 mock 데이터)
-    val graphData = currentGraphData?.let { 
-        GraphDataConverter.convertToVisualizationData(it)
-    } ?: navigationProcessor.getCurrentVisualizationData()
-    
+
+    val graphData = currentGraphData ?: navigationProcessor.getCurrentVisualizationData()
+
     // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
     val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
         ?: currentVoiceTest?.expectedPath?.takeIf { it.isNotEmpty() } 
