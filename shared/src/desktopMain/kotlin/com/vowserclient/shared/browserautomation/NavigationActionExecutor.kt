@@ -33,7 +33,7 @@ class TypeActionExecutor : NavigationActionExecutor {
 class SubmitActionExecutor : NavigationActionExecutor {
     override suspend fun execute(browserActions: BrowserActions, step: NavigationStep) {
         step.selector?.let { selector ->
-            browserActions.click(selector) // For now, treat submit as click
+            ClickActionExecutor().execute(browserActions, step)
         } ?: Napier.e("Selector is null for submit action.")
     }
 }
