@@ -122,45 +122,53 @@ object BrowserAutomationService {
         }
     }
 
-    private suspend fun findVisibleElement(selectors: List<String>): Locator? = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot find element.", tag = "BrowserAutomationService")
-                return@withContext null
-            }
-            for (selector in selectors) {
-                val locator = page.locator(selector)
-                if (locator.count() > 0 && locator.first().isVisible) {
-                    Napier.i { "'$selector' 선택자로 요소를 찾았습니다."}
-                    return@withContext locator
-                }
-            }
-            Napier.w { "No visible element found for selectors: $selectors" }
-            return@withContext null
-        }
-    }
 
-    suspend fun clickElement(selector: String) = withContext(Dispatchers.IO) {
+    suspend fun hoverAndClickElement(selector: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot click element: $selector", tag = "BrowserAutomationService")
+                Napier.e("BrowserAutomationService: Page is not initialized. Cannot hover hoverAndClickElement element: $selector", tag = "BrowserAutomationService")
                 return@withContext
             }
             try {
                 val locator = page.locator(selector)
                 if (locator.count() > 0 && locator.first().isVisible) {
-                    locator.first().click()
-                    Napier.i { "Clicked element with selector: $selector" }
+                    executeHoverHighlightClick(locator, selector)
                 } else {
-                    Napier.w { "Element with selector $selector not found or not visible for clicking." }
+                    Napier.w { "Element with selector $selector not found or not visible for hoverAndClickElement." }
                 }
             } catch (e: PlaywrightException) {
-                Napier.e("Failed to click element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
             } catch (e: Exception) {
-                Napier.e("Unexpected error clicking element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
             }
         }
     }
+
+    private suspend fun executeHoverHighlightClick(locator: Locator, selector: String) = withContext(Dispatchers.IO) {
+        try {
+            val element = locator.first()
+            
+            element.scrollIntoViewIfNeeded()
+            element.hover()
+            page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
+            Napier.i { "Applied highlight to element with selector: $selector" }
+            
+            kotlinx.coroutines.delay(3000)
+
+            element.click()
+            Napier.i { "Clicked element with selector: $selector" }
+
+        } catch (e: Exception) {
+            Napier.e("Failed to execute hover-highlight-click for $selector: ${e.message}", e, tag = "BrowserAutomationService")
+            try {
+                locator.first().click()
+                Napier.i { "Fallback click succeeded for selector: $selector" }
+            } catch (fallbackError: Exception) {
+                Napier.e("Fallback click also failed for $selector: ${fallbackError.message}", fallbackError, tag = "BrowserAutomationService")
+            }
+        }
+    }
+
 
     suspend fun typeText(selector: String, text: String, delayMs: Double? = null) = withContext(Dispatchers.IO) {
         mutex.withLock {
@@ -172,7 +180,7 @@ object BrowserAutomationService {
                 val locator = page.locator(selector)
                 if (locator.count() > 0 && locator.first().isVisible) {
                     if (delayMs != null) {
-                        locator.first().type(text, Locator.TypeOptions().setDelay(delayMs))
+                        locator.first().pressSequentially(text, Locator.PressSequentiallyOptions().setDelay(delayMs))
                     } else {
                         locator.first().fill(text)
                     }
@@ -188,42 +196,82 @@ object BrowserAutomationService {
         }
     }
 
-    suspend fun hoverElement(selector: String) = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot hover element: $selector", tag = "BrowserAutomationService")
-                return@withContext
-            }
-            try {
-                val locator = page.locator(selector)
-                if (locator.count() > 0 && locator.first().isVisible) {
-                    locator.first().hover()
-                    Napier.i { "Hovered over element with selector: $selector" }
-                } else {
-                    Napier.w { "Element with selector $selector not found or not visible for hovering." }
-                }
-            } catch (e: PlaywrightException) {
-                Napier.e("Failed to hover over element $selector: ${e.message}", e, tag = "BrowserAutomationService")
-            } catch (e: Exception) {
-                Napier.e("Unexpected error hovering over element $selector: ${e.message}", e, tag = "BrowserAutomationService")
-            }
+    private val HIGHLIGHT_SCRIPT_CONTENT = """
+    (function(selector) {
+        const styleId = 'wtg-highlight-styles';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            // CSS 문자열은 JavaScript 템플릿 리터럴이 아닌 일반 문자열 연결로 처리
+            style.innerHTML = "[data-wtg-highlighted=\"true\"] {" +
+                "box-shadow: 0 0 0 5px rgba(0, 123, 255, 0.7) !important;" +
+                "background-color: rgba(0, 123, 255, 0.1) !important;" +
+                "transition: box-shadow 0.2s ease-in-out, background-color 0.2s ease-in-out !important;" +
+            "}" +
+            "#wtg-click-indicator {" +
+                "position: absolute !important;" +
+                "background-color: #007bff !important;" +
+                "color: white !important;" +
+                "padding: 5px 10px !important;" +
+                "border-radius: 20px !important;" +
+                "font-size: 12px !important;" +
+                "font-weight: bold !important;" +
+                "white-space: nowrap !important;" +
+                "max-width: 80px !important;" +
+                "overflow: hidden !important;" +
+                "text-overflow: ellipsis !important;" +
+                "z-index: 2147483647 !important;" +
+                "pointer-events: none !important;" +
+                "box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;" +
+                "font-family: 'Inter', sans-serif, Arial, sans-serif !important;" +
+                "opacity: 0;" +
+                "animation: wtg-fade-in 0.3s forwards !important;" +
+            "}" +
+            "@keyframes wtg-fade-in {" +
+                "from { opacity: 0; transform: translateY(10px); }" +
+                "to { opacity: 1; transform: translateY(0); }" +
+            "}";
+            document.head.appendChild(style);
         }
-    }
 
-    suspend fun scrollPage(x: Double, y: Double) = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot scroll page.", tag = "BrowserAutomationService")
-                return@withContext
-            }
-            try {
-                page.mouse().wheel(x, y)
-                Napier.i { "Scrolled page by x: $x, y: $y" }
-            } catch (e: PlaywrightException) {
-                Napier.e("Failed to scroll page: ${e.message}", e, tag = "BrowserAutomationService")
-            } catch (e: Exception) {
-                Napier.e("Unexpected error scrolling page: ${e.message}", e, tag = "BrowserAutomationService")
+        document.querySelectorAll('[data-wtg-highlighted]').forEach(el => {
+            el.style.boxShadow = '';
+            el.style.backgroundColor = '';
+            el.removeAttribute('data-wtg-highlighted');
+        });
+        const existingIndicator = document.getElementById('wtg-click-indicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+
+        const element = document.querySelector(selector);
+        if (!element) {
+            return 'element_not_found';
+        }
+        element.setAttribute('data-wtg-highlighted', 'true');
+
+        const indicator = document.createElement('div');
+        indicator.id = 'wtg-click-indicator';
+        indicator.textContent = '📌 클릭 대상';
+        document.body.appendChild(indicator);
+        indicator.offsetWidth;
+
+        const rect = element.getBoundingClientRect();
+        let indicatorLeft = rect.right + window.scrollX + 10;
+        let indicatorTop = rect.top + window.scrollY - indicator.offsetHeight - 10;
+
+        if (indicatorTop < window.scrollY) {
+            indicatorTop = rect.bottom + window.scrollY + 10;
+        }
+        if (indicatorLeft + indicator.offsetWidth > window.innerWidth + window.scrollX) {
+            indicatorLeft = rect.left + window.scrollX - indicator.offsetWidth - 10;
+            if (indicatorLeft < window.scrollX) {
+                indicatorLeft = window.scrollX + 10;
             }
         }
-    }
+
+        indicator.style.left = indicatorLeft + 'px';
+        indicator.style.top = indicatorTop + 'px';
+        return 'highlight_added';
+    })""".trimIndent()
 }
