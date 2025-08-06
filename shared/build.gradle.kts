@@ -40,6 +40,7 @@ kotlin {
                 implementation("io.github.aakira:napier:2.6.1")
                 // KoalaPlot for graph visualization
                 implementation("io.github.koalaplot:koalaplot-core:0.6.3")
+                implementation("com.benasher44:uuid:0.8.2")
             }
         }
         val androidMain by getting {
