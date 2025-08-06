@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.vowser.client.data.RealNaverDataGenerator
 import com.vowser.client.data.VoiceTestScenario
@@ -16,6 +17,9 @@ import com.vowser.client.ui.error.*
 import com.vowser.client.ui.components.ModernAppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.StatusBar
+import com.vowser.client.ui.components.VoiceRecordingButton
+import com.vowser.client.websocket.dto.GraphUpdateData
+import com.vowser.client.data.GraphDataConverter
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -27,11 +31,17 @@ fun GraphScreen(
     isLoading: Boolean,
     connectionStatus: String,
     receivedMessage: String,
+    isRecording: Boolean,
+    recordingStatus: String,
+    currentGraphData: GraphUpdateData?, // 실시간 그래프 데이터
     onModeToggle: () -> Unit,
     onLoadingStateChange: (Boolean) -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
-    onSendToolCall: (String, Map<String, String>) -> Unit
+    onSendToolCall: (String, Map<String, String>) -> Unit,
+    onToggleRecording: () -> Unit,
+    onRefreshGraph: () -> Unit, // 그래프 새로고침
+    onNavigateToNode: (String) -> Unit // 노드 탐색
 ) {
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -39,7 +49,7 @@ fun GraphScreen(
     var showStats by remember { mutableStateOf(false) }
     
     // 기여 모드 상태
-    var isRecording by remember { mutableStateOf(false) }
+    var isRecordingContribution by remember { mutableStateOf(false) }
     var currentStep by remember { mutableStateOf(0) }
     var lastClickedElement by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
@@ -57,12 +67,19 @@ fun GraphScreen(
     // 음성 테스트 시나리오들
     val voiceScenarios = remember { RealNaverDataGenerator.getVoiceTestScenarios() }
     
-    // 샘플 경로 데이터 - 현재 음성 테스트나 선택된 경로 표시
-    val highlightedPath = currentVoiceTest?.expectedPath?.takeIf { it.isNotEmpty() } 
+    // 실시간 그래프 데이터 사용 (WebSocket에서 받은 데이터 우선, 없으면 mock 데이터)
+    val graphData = currentGraphData?.let { 
+        GraphDataConverter.convertToVisualizationData(it)
+    } ?: navigationProcessor.getCurrentVisualizationData()
+    
+    // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
+    val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
+        ?: currentVoiceTest?.expectedPath?.takeIf { it.isNotEmpty() } 
         ?: selectedPath.takeIf { it.isNotEmpty() } 
         ?: listOf("voice_start", "naver_main")
     
-    val graphData = navigationProcessor.getCurrentVisualizationData()
+    // 실시간 데이터에서 활성 노드 가져오기 
+    val realTimeActiveNodeId = currentGraphData?.activeNodeId
     
     // 로딩 상태 자동 해제
     LaunchedEffect(loadingState) {
@@ -90,16 +107,22 @@ fun GraphScreen(
             ModernNetworkGraph(
                 nodes = graphData.nodes,
                 edges = graphData.edges,
-                highlightedPath = if (selectedPath.isNotEmpty()) selectedPath else highlightedPath,
-                activeNodeId = activeNodeId,
+                highlightedPath = highlightedPath,
+                activeNodeId = realTimeActiveNodeId ?: activeNodeId, // 실시간 데이터 우선
                 isContributionMode = isContributionMode,
                 isLoading = isLoading,
                 onNodeClick = { node ->
-                    activeNodeId = node.id
-                    selectedPath = listOf("root", node.id)
+                    // 실시간 데이터가 없을 때만 로컬 상태 업데이트
+                    if (currentGraphData == null) {
+                        activeNodeId = node.id
+                        selectedPath = listOf("root", node.id)
+                    } else {
+                        // 실시간 데이터가 있을 때는 서버에 탐색 요청
+                        onNavigateToNode(node.id)
+                    }
                     
                     // 기여 모드일 때 클릭 기록
-                    if (isContributionMode && isRecording) {
+                    if (isContributionMode && isRecordingContribution) {
                         currentStep += 1
                         lastClickedElement = node.label
                     }
@@ -119,9 +142,11 @@ fun GraphScreen(
                             selectedPath = emptyList()
                             activeNodeId = null
                             if (isContributionMode) {
-                                isRecording = false
+                                isRecordingContribution = false
                                 currentStep = 0
                             }
+                            // 그래프 새로고침 요청
+                            onRefreshGraph()
                         }
                         else -> {}
                     }
@@ -132,27 +157,27 @@ fun GraphScreen(
             // 기여 모드 오버레이
             if (isContributionMode) {
                 ContributionModeOverlay(
-                    isRecording = isRecording,
+                    isRecording = isRecordingContribution,
                     currentStep = currentStep,
                     totalSteps = 5,
                     lastClickedElement = lastClickedElement,
                     onStartRecording = { 
-                        isRecording = true
+                        isRecordingContribution = true
                         currentStep = 0
                         toastMessage = "경로 기록을 시작합니다"
                         toastType = ToastType.INFO
                     },
                     onStopRecording = { 
-                        isRecording = false
+                        isRecordingContribution = false
                         showSuccessDialog = true
                     },
                     onPauseRecording = { 
-                        isRecording = false
+                        isRecordingContribution = false
                         toastMessage = "기록이 일시정지되었습니다"
                         toastType = ToastType.WARNING
                     },
                     onDiscardRecording = { 
-                        isRecording = false
+                        isRecordingContribution = false
                         currentStep = 0
                         lastClickedElement = null
                         toastMessage = "기록이 취소되었습니다"
@@ -239,6 +264,16 @@ fun GraphScreen(
                     )
                 }
             }
+            
+            // 음성 녹음 버튼 (우측 하단)
+            VoiceRecordingButton(
+                isRecording = isRecording,
+                recordingStatus = recordingStatus,
+                onToggleRecording = onToggleRecording,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            )
             
             // 기여 성공 다이얼로그
             ContributionSuccessDialog(
