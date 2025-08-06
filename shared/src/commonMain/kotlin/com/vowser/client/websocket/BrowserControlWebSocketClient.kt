@@ -3,6 +3,8 @@ package com.vowser.client.websocket
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.BrowserCommand
 import com.vowser.client.websocket.dto.WebSocketMessage
+import com.vowser.client.websocket.dto.GraphUpdateData
+import com.vowser.client.websocket.dto.VoiceProcessingResult
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -28,6 +30,12 @@ import kotlinx.coroutines.IO
 
 class BrowserControlWebSocketClient {
 
+    // 그래프 업데이트 콜백
+    var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
+    
+    // 음성 처리 결과 콜백
+    var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
+
     private val json = Json {
         prettyPrint = true
         isLenient = true
@@ -37,6 +45,11 @@ class BrowserControlWebSocketClient {
             polymorphic(WebSocketMessage::class) {
                 subclass(WebSocketMessage.BrowserCommandWrapper::class)
                 subclass(WebSocketMessage.NavigationPathWrapper::class)
+            }
+            polymorphic(BrowserCommand::class) {
+                subclass(BrowserCommand.Navigate::class)
+                subclass(BrowserCommand.GoBack::class)
+                subclass(BrowserCommand.GoForward::class)
             }
         }
     }
@@ -147,6 +160,18 @@ class BrowserControlWebSocketClient {
                             Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
                             BrowserAutomationBridge.executeNavigationPath(navigationPath)
                         }
+                        is WebSocketMessage.GraphUpdateWrapper -> {
+                            val graphData = message.data
+                            Napier.i("Received graph update for session: ${graphData.sessionId}, nodes: ${graphData.nodes.size}", tag = "VowserSocketClient")
+                            onGraphUpdateReceived?.invoke(graphData)
+                        }
+                        is WebSocketMessage.VoiceProcessingResultWrapper -> {
+                            val result = message.data
+                            Napier.i("Voice processing result: success=${result.success}, transcript='${result.transcript}'", tag = "VowserSocketClient")
+                            onVoiceProcessingResultReceived?.invoke(result)
+                        }
+
+                        else -> {}
                     }
                 } catch (e: Exception) {
                     Napier.e("Failed to parse or execute command from message: $messageString. Error: ${e.message}", e, tag = "VowserSocketClient")
