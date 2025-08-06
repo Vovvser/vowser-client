@@ -9,14 +9,6 @@ import com.vowser.client.ui.screens.SettingsScreen
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.ComposeVisualizationEngine
 
-/**
- * 메인 앱 컴포넌트 - 리팩토링된 버전
- * 
- * 주요 개선사항:
- * - 화면별 로직을 별도 파일로 분리
- * - 테마 관리를 별도 모듈로 분리  
- * - UI 컴포넌트를 재사용 가능한 형태로 모듈화
- */
 @Composable
 fun App() {
     // 앱 전역 상태 관리
@@ -38,6 +30,14 @@ fun App() {
     val connectionStatus by viewModel.connectionStatus.collectAsState()
     val receivedMessage by viewModel.receivedMessage.collectAsState()
     
+    // 음성 녹음 상태 구독
+    val isRecording by viewModel.isRecording.collectAsState()
+    val recordingStatus by viewModel.recordingStatus.collectAsState()
+    
+    // 그래프 데이터 구독
+    val currentGraphData by viewModel.currentGraphData.collectAsState()
+    val graphLoading by viewModel.graphLoading.collectAsState()
+    
     // 테마 적용
     MaterialTheme(
         colors = if (isContributionMode) {
@@ -52,16 +52,22 @@ fun App() {
                 GraphScreen(
                     navigationProcessor = navigationProcessor,
                     isContributionMode = isContributionMode,
-                    isLoading = isLoading,
+                    isLoading = isLoading || graphLoading,
                     connectionStatus = connectionStatus.toString(),
                     receivedMessage = receivedMessage,
+                    isRecording = isRecording,
+                    recordingStatus = recordingStatus,
+                    currentGraphData = currentGraphData,
                     onModeToggle = { isContributionMode = !isContributionMode },
                     onLoadingStateChange = { isLoading = it },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
                     onSendToolCall = { toolName, args -> 
                         viewModel.sendToolCall(toolName, args)
-                    }
+                    },
+                    onToggleRecording = { viewModel.toggleRecording() },
+                    onRefreshGraph = { viewModel.refreshGraph() },
+                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) }
                 )
             }
             AppScreen.SETTINGS -> {
@@ -73,7 +79,4 @@ fun App() {
     }
 }
 
-/**
- * 플랫폼별 구현을 위한 expect 함수  
- */
 expect fun getPlatformName(): String
