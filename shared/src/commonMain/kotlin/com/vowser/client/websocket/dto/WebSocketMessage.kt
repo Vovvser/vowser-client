@@ -15,11 +15,36 @@ data class SearchMetadata(
 )
 
 @Serializable
+data class PathStep(
+    val title: String,
+    val action: String,
+    val url: String,
+    val selector: String = ""
+)
+
+@Serializable
+data class MatchedPath(
+    val pathId: String,
+    val description: String,
+    val score: Double,
+    val startCommand: String,
+    val startUrl: String,
+    val total_weight: Int,
+    val steps: List<PathStep>
+)
+
+@Serializable
+data class PerformanceData(
+    val query_time: Long,
+    val search_time: Long
+)
+
+@Serializable
 data class SearchPathResultData(
     val query: String,
-    val message: String? = null,
-    val matched_paths: List<String> = emptyList(),
-    val search_metadata: SearchMetadata? = null
+    val total_matched: Int,
+    val matched_paths: List<MatchedPath> = emptyList(),
+    val performance: PerformanceData
 )
 
 @Serializable
