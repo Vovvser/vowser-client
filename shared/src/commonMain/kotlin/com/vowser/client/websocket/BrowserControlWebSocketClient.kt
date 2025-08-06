@@ -5,6 +5,8 @@ import com.vowser.client.websocket.dto.BrowserCommand
 import com.vowser.client.websocket.dto.WebSocketMessage
 import com.vowser.client.websocket.dto.GraphUpdateData
 import com.vowser.client.websocket.dto.VoiceProcessingResult
+import com.vowser.client.websocket.dto.NavigationPath
+import com.vowser.client.websocket.dto.NavigationStep
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -27,14 +29,15 @@ import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.Job
 
 class BrowserControlWebSocketClient {
 
-    // 그래프 업데이트 콜백
+    var onNavigationPathReceived: ((NavigationPath) -> Unit)? = null
     var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
-    
-    // 음성 처리 결과 콜백
     var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
+
+    private var currentNavigationJob: Job? = null
 
     private val json = Json {
         prettyPrint = true
@@ -137,6 +140,20 @@ class BrowserControlWebSocketClient {
                     val message = json.decodeFromString<WebSocketMessage>(messageString)
 
                     when (message) {
+                        is WebSocketMessage.NavigationPathWrapper -> {
+                            val navigationPath = message.data
+                            Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
+
+                            onNavigationPathReceived?.invoke(navigationPath)
+
+                            currentNavigationJob?.cancel()
+                            Napier.i("Previous navigation job cancelled.", tag = "VowserSocketClient")
+
+                            currentNavigationJob = CoroutineScope(Dispatchers.IO).launch {
+                                BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                            }
+                        }
+
                         is WebSocketMessage.BrowserCommandWrapper -> {
                             val command = message.data
                             Napier.i("Decoded command: $command", tag = "VowserSocketClient")
@@ -155,11 +172,6 @@ class BrowserControlWebSocketClient {
                                 }
                             }
                         }
-                        is WebSocketMessage.NavigationPathWrapper -> {
-                            val navigationPath = message.data
-                            Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
-                            BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                        }
                         is WebSocketMessage.GraphUpdateWrapper -> {
                             val graphData = message.data
                             Napier.i("Received graph update for session: ${graphData.sessionId}, nodes: ${graphData.nodes.size}", tag = "VowserSocketClient")
@@ -169,6 +181,37 @@ class BrowserControlWebSocketClient {
                             val result = message.data
                             Napier.i("Voice processing result: success=${result.success}, transcript='${result.transcript}'", tag = "VowserSocketClient")
                             onVoiceProcessingResultReceived?.invoke(result)
+                        }
+                        is WebSocketMessage.SearchPathResultWrapper -> {
+                            val searchResult = message.data
+                            Napier.i("Search path result received. Query: ${searchResult.query}, Matched paths: ${searchResult.matched_paths.size}", tag = "VowserSocketClient")
+
+                            if (searchResult.matched_paths.isNotEmpty()) {
+                                val firstPath = searchResult.matched_paths.first()
+                                Napier.i("Executing first matched path: ${firstPath.pathId}", tag = "VowserSocketClient")
+
+                                val navigationSteps = firstPath.steps.map { step ->
+                                    NavigationStep(
+                                        action = step.action,
+                                        url = step.url,
+                                        title = step.title,
+                                        selector = step.selector.takeIf { it.isNotEmpty() }
+                                    )
+                                }
+
+                                val navigationPath = NavigationPath(
+                                    pathId = firstPath.pathId,
+                                    description = firstPath.description,
+                                    steps = navigationSteps
+                                )
+
+                                onNavigationPathReceived?.invoke(navigationPath)
+                                currentNavigationJob?.cancel()
+                                Napier.i("Previous navigation job cancelled before executing search result path.", tag = "VowserSocketClient")
+                                currentNavigationJob = CoroutineScope(Dispatchers.IO).launch {
+                                    BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                                }
+                            }
                         }
 
                         else -> {}
@@ -216,6 +259,7 @@ class BrowserControlWebSocketClient {
     }
 
     suspend fun close() {
+        currentNavigationJob?.cancel()
         session?.close(CloseReason(CloseReason.Codes.NORMAL, "Client initiated disconnect"))
         session = null
         client.close()

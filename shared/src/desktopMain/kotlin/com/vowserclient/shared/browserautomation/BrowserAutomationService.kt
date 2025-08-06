@@ -12,7 +12,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-// 싱글톤으로 구현 -> object 사용
 object BrowserAutomationService {
 
     private lateinit var playwright: Playwright
@@ -131,17 +130,53 @@ object BrowserAutomationService {
             }
             try {
                 val locator = page.locator(selector)
+                locator.waitFor(Locator.WaitForOptions().setTimeout(10000.0))
+                
                 if (locator.count() > 0 && locator.first().isVisible) {
                     executeHoverHighlightClick(locator, selector)
                 } else {
-                    Napier.w { "Element with selector $selector not found or not visible for hoverAndClickElement." }
+                    Napier.w { "Element with selector $selector not found or not visible after waiting." }
+                    tryAlternativeSelectors(selector)
                 }
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                tryAlternativeSelectors(selector)
             } catch (e: Exception) {
                 Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
             }
         }
+    }
+    
+    private suspend fun tryAlternativeSelectors(originalSelector: String) = withContext(Dispatchers.IO) {
+        val alternativeSelectors = when (originalSelector) {
+            "a[href='/webtoon?tab=mon']" -> listOf(
+                "a[href*='tab=mon']",
+                ".tab_list a:contains('월요웹툰')",
+                "[data-tab='mon']",
+                ".tab_mon"
+            )
+            "ul.img_list li:first-child a" -> listOf(
+                ".img_list li:first-child a",
+                ".thumb_area:first-child a",
+                ".daily_img:first-child a"
+            )
+            else -> emptyList()
+        }
+        
+        for (altSelector in alternativeSelectors) {
+            try {
+                Napier.i { "Trying alternative selector: $altSelector" }
+                val locator = page.locator(altSelector)
+                if (locator.count() > 0 && locator.first().isVisible) {
+                    executeHoverHighlightClick(locator, altSelector)
+                    Napier.i { "Successfully clicked using alternative selector: $altSelector" }
+                    return@withContext
+                }
+            } catch (e: Exception) {
+                Napier.w { "Alternative selector $altSelector also failed: ${e.message}" }
+            }
+        }
+        Napier.e { "All alternative selectors failed for original selector: $originalSelector" }
     }
 
     private suspend fun executeHoverHighlightClick(locator: Locator, selector: String) = withContext(Dispatchers.IO) {

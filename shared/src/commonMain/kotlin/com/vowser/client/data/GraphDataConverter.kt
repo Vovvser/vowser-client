@@ -8,19 +8,62 @@ import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.ui.graph.GraphNode
 import com.vowser.client.ui.graph.GraphEdge
 import com.vowser.client.ui.graph.NodeType
+import com.vowser.client.websocket.dto.NavigationPath
 
 /**
- * WebSocket에서 받은 그래프 데이터를 기존 시각화 시스템용으로 변환
+ * 데이터 변환 유틸리티
  */
 object GraphDataConverter {
-    
+
+    /**
+     * NavigationPath를 시각화용 데이터로 변환하는 함수
+     */
+    fun convertFromNavigationPath(path: NavigationPath): GraphVisualizationData {
+        val nodes = mutableListOf<GraphNode>()
+        val edges = mutableListOf<GraphEdge>()
+
+        path.steps.forEachIndexed { index, step ->
+            val nodeId = "step_${path.pathId}_$index"
+            nodes.add(
+                GraphNode(
+                    id = nodeId,
+                    label = step.title,
+                    type = when {
+                        index == 0 -> NodeType.START
+                        step.action == "navigate" -> NodeType.WEBSITE
+                        step.action == "click" -> NodeType.ACTION
+                        else -> NodeType.PAGE
+                    }
+                )
+            )
+
+            if (index > 0) {
+                val previousNodeId = "step_${path.pathId}_${index - 1}"
+                edges.add(
+                    GraphEdge(
+                        from = previousNodeId,
+                        to = nodeId,
+                        label = step.action
+                    )
+                )
+            }
+        }
+
+        return GraphVisualizationData(
+            nodes = nodes,
+            edges = edges,
+            highlightedPath = nodes.map { it.id },
+            activeNodeId = nodes.firstOrNull()?.id
+        )
+    }
+
     /**
      * GraphUpdateData를 GraphVisualizationData로 변환
      */
     fun convertToVisualizationData(graphUpdate: GraphUpdateData): GraphVisualizationData {
         val nodes = graphUpdate.nodes.map { convertNode(it) }
         val edges = graphUpdate.edges.map { convertEdge(it) }
-        
+
         return GraphVisualizationData(
             nodes = nodes,
             edges = edges,
@@ -28,10 +71,7 @@ object GraphDataConverter {
             activeNodeId = graphUpdate.activeNodeId
         )
     }
-    
-    /**
-     * WebSocket 노드를 시각화용 GraphNode로 변환
-     */
+
     private fun convertNode(wsNode: WsGraphNode): GraphNode {
         return GraphNode(
             id = wsNode.id,
@@ -41,7 +81,7 @@ object GraphDataConverter {
             y = wsNode.position?.y?.toFloat() ?: 0f
         )
     }
-    
+
     /**
      * WebSocket 엣지를 시각화용 GraphEdge로 변환
      */
@@ -52,7 +92,7 @@ object GraphDataConverter {
             label = wsEdge.label
         )
     }
-    
+
     /**
      * WebSocket 노드 타입을 NodeType으로 변환
      */
@@ -63,8 +103,8 @@ object GraphDataConverter {
             WsGraphNodeType.CATEGORY -> NodeType.PAGE
             WsGraphNodeType.PAGE -> NodeType.PAGE
             WsGraphNodeType.ACTION -> NodeType.ACTION
-            WsGraphNodeType.VOICE_START -> NodeType.START // 음성 시작은 START로 처리
-            WsGraphNodeType.RESULT -> NodeType.ACTION // 결과는 ACTION으로 처리
+            WsGraphNodeType.VOICE_START -> NodeType.START
+            WsGraphNodeType.RESULT -> NodeType.ACTION
         }
     }
 }

@@ -14,10 +14,6 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 모던 그래프 시각화 컴포넌트
- * - 글래스모피즘(Glassmorphism) 효과
- * - 부드러운 애니메이션
- * - 반응형 인터랙션
- * - 접근성 친화적 디자인
  */
 
 @Composable
@@ -37,7 +33,7 @@ fun ModernNetworkGraph(
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var selectedNode by remember { mutableStateOf<GraphNode?>(null) }
-    
+
     // 애니메이션 상태
     val animatedScale by animateFloatAsState(
         targetValue = scale,
@@ -46,7 +42,7 @@ fun ModernNetworkGraph(
             stiffness = Spring.StiffnessLow
         )
     )
-    
+
     val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(0.5f, 3f)
         val maxX = (canvasSize.width * (scale - 1)) / 2f
@@ -98,16 +94,14 @@ fun ModernNetworkGraph(
                     .fillMaxSize()
                     .transformable(state = transformableState)
             )
-            
-            
-            
+
             // 플로팅 컨트롤 패널
             Box(modifier = Modifier.fillMaxSize()) {
                 FloatingControlPanel(
                     scale = scale,
                     onZoomIn = { scale = (scale * 1.2f).coerceAtMost(3f) },
                     onZoomOut = { scale = (scale / 1.2f).coerceAtLeast(0.5f) },
-                    onReset = { 
+                    onReset = {
                         scale = 1f
                         offset = Offset.Zero
                     },
@@ -115,8 +109,7 @@ fun ModernNetworkGraph(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
                 )
             }
-            
-            // 선택된 노드 정보 패널
+
             selectedNode?.let { node ->
                 NodeInfoPanel(
                     node = node,
@@ -124,8 +117,7 @@ fun ModernNetworkGraph(
                     modifier = Modifier.align(Alignment.BottomStart)
                 )
             }
-            
-            // 모던 범례
+
             ModernLegend(
                 isContributionMode = isContributionMode,
                 modifier = Modifier
@@ -136,7 +128,6 @@ fun ModernNetworkGraph(
     }
 }
 
-// 그래프 상호작용 타입
 enum class GraphInteractionType {
     ToggleMode,
     CenterView,
