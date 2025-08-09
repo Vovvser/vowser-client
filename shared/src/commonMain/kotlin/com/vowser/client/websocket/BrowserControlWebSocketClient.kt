@@ -133,6 +133,7 @@ class BrowserControlWebSocketClient {
      * 메시지를 수신하고 tool에 따라 다른 동작 수행
      */
     private fun startReceivingMessages() {
+        Napier.i("=== DEBUG: startReceivingMessages() 호출됨 ===", tag = "VowserSocketClient")
         CoroutineScope(Dispatchers.IO).launch {
             receiveMessages().collect { messageString ->
                 Napier.i("Received raw message: $messageString", tag = "VowserSocketClient")
@@ -150,7 +151,9 @@ class BrowserControlWebSocketClient {
                             Napier.i("Previous navigation job cancelled.", tag = "VowserSocketClient")
 
                             currentNavigationJob = CoroutineScope(Dispatchers.IO).launch {
+                                Napier.i("=== DEBUG: BrowserAutomationBridge.executeNavigationPath 호출 시작 ===", tag = "VowserSocketClient")
                                 BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                                Napier.i("=== DEBUG: BrowserAutomationBridge.executeNavigationPath 호출 완료 ===", tag = "VowserSocketClient")
                             }
                         }
 
