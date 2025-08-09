@@ -130,7 +130,16 @@ object BrowserAutomationService {
             }
             try {
                 val locator = page.locator(selector)
-                locator.waitFor(Locator.WaitForOptions().setTimeout(10000.0))
+                
+                // 먼저 요소 존재 여부를 빠르게 확인
+                if (locator.count() == 0) {
+                    Napier.w { "Element with selector $selector not found on page, trying alternatives." }
+                    tryAlternativeSelectors(selector)
+                    return@withContext
+                }
+                
+                // 타임아웃을 3초로 단축, 여러 요소 있으면 첫 번째 선택
+                locator.first().waitFor(Locator.WaitForOptions().setTimeout(3000.0))
                 
                 if (locator.count() > 0 && locator.first().isVisible) {
                     executeHoverHighlightClick(locator, selector)
@@ -160,13 +169,45 @@ object BrowserAutomationService {
                 ".thumb_area:first-child a",
                 ".daily_img:first-child a"
             )
+            // YouTube 검색창 alternative selectors
+            "input#search" -> listOf(
+                "input[name='search_query']",
+                "#search input",
+                "[aria-label*='검색']",
+                "[aria-label*='Search']",
+                "#search-input input",
+                "input[type='text']"
+            )
+            // YouTube 필터 버튼 alternative selectors  
+            "button[aria-label='검색 필터']" -> listOf(
+                "button[aria-label*='필터']",
+                "button[aria-label*='Filter']",
+                ".filter-button",
+                "#filter-menu button",
+                "button[title*='필터']"
+            )
             else -> emptyList()
+        }
+        
+        if (alternativeSelectors.isEmpty()) {
+            Napier.w { "No alternative selectors available for: $originalSelector. Skipping this step." }
+            return@withContext
         }
         
         for (altSelector in alternativeSelectors) {
             try {
                 Napier.i { "Trying alternative selector: $altSelector" }
                 val locator = page.locator(altSelector)
+                
+                // 빠른 존재 확인
+                if (locator.count() == 0) {
+                    Napier.w { "Alternative selector $altSelector not found" }
+                    continue
+                }
+                
+                // 짧은 타임아웃으로 대기, 여러 요소 있으면 첫 번째 선택
+                locator.first().waitFor(Locator.WaitForOptions().setTimeout(2000.0))
+                
                 if (locator.count() > 0 && locator.first().isVisible) {
                     executeHoverHighlightClick(locator, altSelector)
                     Napier.i { "Successfully clicked using alternative selector: $altSelector" }
@@ -176,7 +217,7 @@ object BrowserAutomationService {
                 Napier.w { "Alternative selector $altSelector also failed: ${e.message}" }
             }
         }
-        Napier.e { "All alternative selectors failed for original selector: $originalSelector" }
+        Napier.w { "All alternative selectors failed for original selector: $originalSelector. Continuing anyway." }
     }
 
     private suspend fun executeHoverHighlightClick(locator: Locator, selector: String) = withContext(Dispatchers.IO) {
