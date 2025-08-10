@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.vowser.client.data.RealNaverDataGenerator
 import com.vowser.client.data.VoiceTestScenario
@@ -17,7 +16,6 @@ import com.vowser.client.ui.error.*
 import com.vowser.client.ui.components.ModernAppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.StatusBar
-import com.vowser.client.ui.components.VoiceRecordingButton
 import com.vowser.client.visualization.GraphVisualizationData
 
 /**
@@ -186,11 +184,14 @@ fun GraphScreen(
             ModernAppBar(
                 connectionStatus = connectionStatus,
                 isContributionMode = isContributionMode,
+                isRecording = isRecording,
+                recordingStatus = recordingStatus,
                 onSettingsClick = { onScreenChange(AppScreen.SETTINGS) },
                 onStatsToggle = { showStats = !showStats },
-                onModeToggle = onModeToggle, // Pass the function here
+                onModeToggle = onModeToggle,
+                onToggleRecording = onToggleRecording,
                 modifier = Modifier
-                    .fillMaxWidth(0.6f)
+                    .fillMaxWidth(0.7f)
                     .align(Alignment.TopCenter)
             )
             
@@ -261,15 +262,6 @@ fun GraphScreen(
                 }
             }
             
-            // 음성 녹음 버튼 (우측 하단)
-            VoiceRecordingButton(
-                isRecording = isRecording,
-                recordingStatus = recordingStatus,
-                onToggleRecording = onToggleRecording,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            )
             
             // 기여 성공 다이얼로그
             ContributionSuccessDialog(
