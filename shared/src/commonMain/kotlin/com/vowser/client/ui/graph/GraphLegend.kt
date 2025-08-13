@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 모던 그래프 범례 컴포넌트
+ * 그래프 범례 컴포넌트
  */
 @Composable
 fun ModernLegend(
@@ -57,9 +57,7 @@ fun ModernLegend(
                         text = when (nodeType) {
                             NodeType.START -> "시작점"
                             NodeType.WEBSITE -> "웹사이트"
-                            NodeType.PAGE -> "페이지"
                             NodeType.ACTION -> "액션"
-                            NodeType.DEFAULT -> "기본"
                         },
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 11.sp
