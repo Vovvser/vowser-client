@@ -7,7 +7,6 @@ import com.vowser.client.ui.screens.AppScreen
 import com.vowser.client.ui.screens.GraphScreen
 import com.vowser.client.ui.screens.SettingsScreen
 import com.vowser.client.ui.theme.AppTheme
-import com.vowser.client.visualization.ComposeVisualizationEngine
 
 @Composable
 fun App() {
@@ -23,7 +22,7 @@ fun App() {
     // 네비게이션 프로세서 초기화 - 실제 네이버 데이터 사용
     val expandedGraph = remember { RealNaverDataGenerator.createExpandedNaverData() }
     val navigationProcessor = remember { 
-        NavigationProcessor(expandedGraph, ComposeVisualizationEngine()) 
+        NavigationProcessor(expandedGraph) 
     }
     
     // WebSocket 상태 구독
@@ -59,7 +58,6 @@ fun App() {
                     recordingStatus = recordingStatus,
                     currentGraphData = currentGraphData,
                     onModeToggle = { isContributionMode = !isContributionMode },
-                    onLoadingStateChange = { isLoading = it },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
                     onSendToolCall = { toolName, args -> 

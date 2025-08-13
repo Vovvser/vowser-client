@@ -38,18 +38,10 @@ fun StatusBar(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = if (currentVoiceTest != null) "🎤 음성 테스트" else "최근: $receivedMessage",
+                    text = "최근: $receivedMessage",
                     color = Color.White,
                     style = MaterialTheme.typography.caption
                 )
-                currentVoiceTest?.let { test ->
-                    Text(
-                        text = "\"${test.voiceCommand}\" → ${test.description}",
-                        color = AppTheme.Colors.Contribution,
-                        style = MaterialTheme.typography.caption,
-                        maxLines = 1
-                    )
-                }
             }
             
             // 음성 테스트 버튼
@@ -61,7 +53,7 @@ fun StatusBar(
                 )
             ) {
                 Text(
-                    text = if (currentVoiceTest != null) "다음 테스트" else "음성 테스트",
+                    text = "모의 테스트",
                     color = Color.White
                 )
             }
