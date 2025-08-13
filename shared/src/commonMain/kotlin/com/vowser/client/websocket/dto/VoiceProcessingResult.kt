@@ -14,7 +14,7 @@ data class VoiceProcessingResult(
     val command: VoiceCommand? = null,        // 해석된 음성 명령
     val navigationPath: List<String> = emptyList(), // 실행될 탐색 경로
     val error: VoiceProcessingError? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = 0L
 )
 
 /**
