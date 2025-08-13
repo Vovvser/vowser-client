@@ -16,6 +16,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
 import kotlin.math.*
 
 /**
@@ -33,8 +39,6 @@ fun GraphCanvas(
     isContributionMode: Boolean,
     selectedNode: GraphNode?,
     onCanvasSizeChanged: (Size) -> Unit,
-    onNodeClick: (GraphNode) -> Unit,
-    onNodeLongClick: (GraphNode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val positionedNodes = remember(nodes, edges, canvasSize) {
@@ -42,6 +46,9 @@ fun GraphCanvas(
             layoutNodesWithPhysics(nodes, edges, canvasSize)
         } else nodes
     }
+
+    // 텍스트 측정을 위한 TextMeasurer
+    val textMeasurer = rememberTextMeasurer()
 
     // 펄스 애니메이션
     val pulseAnimation = rememberInfiniteTransition()
@@ -69,17 +76,18 @@ fun GraphCanvas(
             // 백그라운드 그리드
             drawUltraModernGrid()
 
-            // 엣지 그리기 (글로우 효과 포함)
+            // 엣지 그리기
             drawUltraModernEdges(
                 nodes = positionedNodes,
                 edges = edges,
                 highlightedPath = highlightedPath,
                 scale = scale,
                 offset = offset,
-                isContributionMode = isContributionMode
+                isContributionMode = isContributionMode,
+                textMeasurer = textMeasurer
             )
 
-            // 노드 그리기 (글래스모피즘 효과)
+            // 노드 그리기
             drawUltraModernNodes(
                 nodes = positionedNodes,
                 highlightedPath = highlightedPath,
@@ -88,13 +96,14 @@ fun GraphCanvas(
                 scale = scale,
                 offset = offset,
                 pulseScale = pulseScale,
-                isContributionMode = isContributionMode
+                isContributionMode = isContributionMode,
+                textMeasurer = textMeasurer
             )
         }
     }
 }
 
-// 울트라 모던 그리드 그리기
+//그리드 그리기
 fun DrawScope.drawUltraModernGrid() {
     val gridSize = 40f
     val gridColor = Color.White.copy(alpha = 0.05f)
@@ -124,14 +133,15 @@ fun DrawScope.drawUltraModernGrid() {
     }
 }
 
-// 울트라 모던한 엣지 그리기 (글로우 효과)
+//엣지 그리기
 fun DrawScope.drawUltraModernEdges(
     nodes: List<GraphNode>,
     edges: List<GraphEdge>,
     highlightedPath: List<String>,
     scale: Float,
     offset: Offset,
-    isContributionMode: Boolean
+    isContributionMode: Boolean,
+    textMeasurer: TextMeasurer
 ) {
     val nodeMap = nodes.associateBy { it.id }
 
@@ -211,11 +221,59 @@ fun DrawScope.drawUltraModernEdges(
 
             // 방향 화살표
             drawUltraArrowHead(startPos, endPos, isHighlighted, isRecording)
+            
+            // 엣지 라벨 그리기 (스케일 적용 시에만)
+            if (scale > 0.7f && !edge.label.isNullOrBlank()) {
+                val midPoint = Offset(
+                    (startPos.x + endPos.x) / 2f,
+                    (startPos.y + endPos.y) / 2f
+                )
+                
+                val textStyle = TextStyle(
+                    color = when {
+                        isHighlighted -> Color(0xFF00D4AA)
+                        isRecording -> Color(0xFFFF4444)
+                        else -> Color.White.copy(alpha = 0.8f)
+                    },
+                    fontSize = (8 * scale).sp,
+                    fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
+                )
+                
+                val textLayoutResult = textMeasurer.measure(
+                    text = edge.label,
+                    style = textStyle
+                )
+                
+                // 텍스트 배경 (반투명 박스)
+                val textSize = textLayoutResult.size
+                val bgPadding = 4f
+                drawRoundRect(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    topLeft = Offset(
+                        midPoint.x - textSize.width / 2f - bgPadding,
+                        midPoint.y - textSize.height / 2f - bgPadding
+                    ),
+                    size = Size(
+                        textSize.width.toFloat() + bgPadding * 2,
+                        textSize.height.toFloat() + bgPadding * 2
+                    ),
+                    cornerRadius = CornerRadius(4f)
+                )
+                
+                // 텍스트 그리기
+                drawText(
+                    textLayoutResult = textLayoutResult,
+                    topLeft = Offset(
+                        midPoint.x - textSize.width / 2f,
+                        midPoint.y - textSize.height / 2f
+                    )
+                )
+            }
         }
     }
 }
 
-// 울트라 모던한 노드 그리기 (글래스모피즘)
+//노드 그리기
 fun DrawScope.drawUltraModernNodes(
     nodes: List<GraphNode>,
     highlightedPath: List<String>,
@@ -224,7 +282,8 @@ fun DrawScope.drawUltraModernNodes(
     scale: Float,
     offset: Offset,
     pulseScale: Float,
-    isContributionMode: Boolean
+    isContributionMode: Boolean,
+    textMeasurer: TextMeasurer
 ) {
     nodes.forEach { node ->
         val isHighlighted = highlightedPath.contains(node.id)
@@ -251,7 +310,7 @@ fun DrawScope.drawUltraModernNodes(
             center = position + Offset(2f, 2f)
         )
 
-        // 외부 링 (글로우 효과)
+        // 외부 링
         when {
             isActive -> {
                 drawCircle(
@@ -276,7 +335,7 @@ fun DrawScope.drawUltraModernNodes(
             }
         }
 
-        // 메인 노드 (글래스모피즘 효과)
+        // 메인 노드
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -290,7 +349,7 @@ fun DrawScope.drawUltraModernNodes(
             center = position
         )
 
-        // 내부 하이라이트 (글래스 효과)
+        // 내부 하이라이트
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -323,10 +382,63 @@ fun DrawScope.drawUltraModernNodes(
         // 노드 타입 아이콘 (중앙)
         val iconSize = radius * 0.6f
         drawUltraNodeIcon(node.type, position, iconSize)
+        
+        // 노드 라벨 그리기 (스케일이 충분할 때만)
+        if (scale > 0.8f) {
+            val textStyle = TextStyle(
+                color = when {
+                    isActive -> Color(0xFFFF6B6B)
+                    isSelected -> Color(0xFF4ECDC4)
+                    isHighlighted -> Color(0xFF00D4AA)
+                    else -> Color.White.copy(alpha = 0.9f)
+                },
+                fontSize = (10 * scale).sp,
+                fontWeight = if (isHighlighted || isActive) FontWeight.Bold else FontWeight.Medium
+            )
+            
+            // 긴 라벨은 줄바꿈
+            val displayText = if (node.label.length > 15) {
+                node.label.take(12) + "..."
+            } else {
+                node.label
+            }
+            
+            val textLayoutResult = textMeasurer.measure(
+                text = displayText,
+                style = textStyle
+            )
+            
+            val textPosition = Offset(
+                position.x - textLayoutResult.size.width / 2f,
+                position.y + radius + 8f
+            )
+            
+            // 텍스트 배경 (반투명)
+            val textSize = textLayoutResult.size
+            val bgPadding = 6f
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.8f),
+                topLeft = Offset(
+                    textPosition.x - bgPadding,
+                    textPosition.y - bgPadding
+                ),
+                size = Size(
+                    textSize.width.toFloat() + bgPadding * 2,
+                    textSize.height.toFloat() + bgPadding * 2
+                ),
+                cornerRadius = CornerRadius(6f)
+            )
+            
+            // 텍스트 그리기
+            drawText(
+                textLayoutResult = textLayoutResult,
+                topLeft = textPosition
+            )
+        }
     }
 }
 
-// 울트라 노드 아이콘 그리기
+//노드 아이콘 그리기
 fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float) {
     val iconColor = Color.White.copy(alpha = 0.9f)
 
@@ -365,17 +477,6 @@ fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float)
                 strokeWidth = 2f
             )
         }
-        NodeType.PAGE -> {
-            // 문서 아이콘
-            val rectSize = size * 0.6f
-            drawRoundRect(
-                color = iconColor,
-                topLeft = Offset(center.x - rectSize * 0.4f, center.y - rectSize * 0.5f),
-                size = Size(rectSize * 0.8f, rectSize),
-                cornerRadius = CornerRadius(2f),
-                style = Stroke(width = 2f)
-            )
-        }
         NodeType.ACTION -> {
             // 커서 아이콘
             drawPath(
@@ -389,18 +490,10 @@ fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float)
                 color = iconColor
             )
         }
-        NodeType.DEFAULT -> {
-            // 기본 점
-            drawCircle(
-                color = iconColor,
-                radius = size * 0.2f,
-                center = center
-            )
-        }
     }
 }
 
-// 울트라 화살표 머리 그리기
+//화살표 머리 그리기
 fun DrawScope.drawUltraArrowHead(
     start: Offset,
     end: Offset,
@@ -412,8 +505,8 @@ fun DrawScope.drawUltraArrowHead(
 
     val lineAngle = atan2(end.y - start.y, end.x - start.x)
     val adjustedEnd = end - Offset(
-        cos(lineAngle).toFloat() * 20f,
-        sin(lineAngle).toFloat() * 20f
+        cos(lineAngle) * 20f,
+        sin(lineAngle) * 20f
     )
 
     val arrowColor = when {

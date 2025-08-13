@@ -25,8 +25,6 @@ fun ModernNetworkGraph(
     activeNodeId: String? = null,
     isContributionMode: Boolean = false,
     isLoading: Boolean = false,
-    onNodeClick: (GraphNode) -> Unit = {},
-    onNodeLongClick: (GraphNode) -> Unit = {},
     onGraphInteraction: (GraphInteractionType) -> Unit = {}
 ) {
     var canvasSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
@@ -85,11 +83,6 @@ fun ModernNetworkGraph(
                 isContributionMode = isContributionMode,
                 selectedNode = selectedNode,
                 onCanvasSizeChanged = { canvasSize = it },
-                onNodeClick = { node ->
-                    selectedNode = node
-                    onNodeClick(node)
-                },
-                onNodeLongClick = onNodeLongClick,
                 modifier = Modifier
                     .fillMaxSize()
                     .transformable(state = transformableState)
@@ -131,7 +124,5 @@ fun ModernNetworkGraph(
 enum class GraphInteractionType {
     ToggleMode,
     CenterView,
-    ZoomIn,
-    ZoomOut,
     Reset
 }

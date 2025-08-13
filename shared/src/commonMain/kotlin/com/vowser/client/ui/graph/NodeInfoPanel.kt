@@ -88,9 +88,7 @@ fun NodeInfoPanel(
                         text = when (node.type) {
                             NodeType.START -> "시작점"
                             NodeType.WEBSITE -> "웹사이트"
-                            NodeType.PAGE -> "페이지"
                             NodeType.ACTION -> "액션"
-                            NodeType.DEFAULT -> "기본"
                         },
                         color = node.type.color,
                         fontSize = 12.sp,

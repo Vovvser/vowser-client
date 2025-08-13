@@ -11,7 +11,6 @@ import io.ktor.client.engine.cio.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +19,8 @@ import com.benasher44.uuid.uuid4
 import com.vowser.client.data.GraphDataConverter
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.websocket.dto.NavigationPath
+import com.vowser.client.websocket.dto.AllPathsResponse
+import com.vowser.client.websocket.dto.PathDetail
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.delay
 
@@ -32,7 +33,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     val receivedMessage: StateFlow<String> = _receivedMessage.asStateFlow()
 
     private val webSocketClient = BrowserControlWebSocketClient()
-    private var messageCollectionJob: Job? = null
 
     // 음성 녹음 관련
     private val _isRecording = MutableStateFlow(false)
@@ -46,7 +46,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     val currentGraphData: StateFlow<GraphVisualizationData?> = _currentGraphData.asStateFlow()
 
     private val _lastVoiceResult = MutableStateFlow<VoiceProcessingResult?>(null)
-    val lastVoiceResult: StateFlow<VoiceProcessingResult?> = _lastVoiceResult.asStateFlow()
 
     private val _graphLoading = MutableStateFlow(false)
     val graphLoading: StateFlow<Boolean> = _graphLoading.asStateFlow()
@@ -65,7 +64,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             try {
                 webSocketClient.connect()
                 _connectionStatus.value = ConnectionStatus.Connected
-                // startMessageCollection() 제거 - BrowserControlWebSocketClient에서 자체적으로 메시지 처리
             } catch (e: Exception) {
                 Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e)
                 _connectionStatus.value = ConnectionStatus.Error
@@ -76,7 +74,100 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
 
     fun sendToolCall(toolName: String, args: Map<String, String>) {
         coroutineScope.launch {
-            webSocketClient.sendToolCall(CallToolRequest(toolName, args))
+            if (toolName == "mock_navigation_data") {
+                handleMockNavigationData()
+            } else {
+                webSocketClient.sendToolCall(CallToolRequest(toolName, args))
+            }
+        }
+    }
+    
+    private suspend fun handleMockNavigationData() {
+        try {
+            _graphLoading.value = true
+            Napier.i("Processing mock navigation data", tag = "AppViewModel")
+            
+            // 새로운 날씨 검색 결과로 모의 AllPathsResponse 객체 생성
+            val mockNavigationSteps = listOf(
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://naver.com",
+                    title = "naver.com 메인",
+                    action = "navigate",
+                    selector = ""
+                ),
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://www.naver.com",
+                    title = "날씨",
+                    action = "click",
+                    selector = "a[href*='weather.naver.com']"
+                ),
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://weather.naver.com",
+                    title = "지역선택",
+                    action = "click",
+                    selector = ".region_select .btn_region"
+                ),
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://weather.naver.com/region/list",
+                    title = "부산",
+                    action = "click",
+                    selector = ".region_list .region_item[data-region='busan'] a"
+                ),
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://weather.naver.com/today/09440111",
+                    title = "미세먼지",
+                    action = "click",
+                    selector = ".content_tabmenu .tab_item[data-tab='air'] a"
+                ),
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://weather.naver.com/air/09440111",
+                    title = "주간",
+                    action = "click",
+                    selector = ".air_chart_area .btn_chart_period[data-period='week']"
+                ),
+                com.vowser.client.websocket.dto.NavigationStep(
+                    url = "https://weather.naver.com/air/09440111?period=week",
+                    title = "지역비교",
+                    action = "click",
+                    selector = ".compare_area .btn_compare"
+                )
+            )
+            
+            val mockPathDetail = PathDetail(
+                pathId = "09e2a975413c0e18a7cd9d0f57b15dea",
+                score = 0.489,
+                total_weight = 73,
+                steps = mockNavigationSteps
+            )
+            
+            val mockAllPaths = AllPathsResponse(
+                query = "우리 지역 날씨 알고 싶어",
+                paths = listOf(mockPathDetail)
+            )
+            
+            // 그래프 UI 업데이트
+            val visualizationData = GraphDataConverter.convertFromAllPaths(mockAllPaths)
+            Napier.i("Mock graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = "AppViewModel")
+            _currentGraphData.value = visualizationData
+            _graphLoading.value = false
+            
+            // 첫번째 경로 자동 실행 (playwright)
+            Napier.i("Auto-executing mock navigation path: ${mockPathDetail.pathId}", tag = "AppViewModel")
+            try {
+                val navigationPath = NavigationPath(
+                    pathId = mockPathDetail.pathId,
+                    steps = mockPathDetail.steps,
+                    description = "Mock test execution from UI"
+                )
+                BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                Napier.i("Successfully started automation for mock path: ${mockPathDetail.pathId}", tag = "AppViewModel")
+            } catch (e: Exception) {
+                Napier.e("Failed to execute mock navigation path: ${e.message}", e, tag = "AppViewModel")
+            }
+            
+        } catch (e: Exception) {
+            Napier.e("Failed to process mock navigation data: ${e.message}", e, tag = "AppViewModel")
+            _graphLoading.value = false
         }
     }
 
@@ -84,16 +175,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         coroutineScope.launch {
             webSocketClient.reconnect()
             _connectionStatus.value = ConnectionStatus.Connecting
-            // startMessageCollection() 제거 - BrowserControlWebSocketClient에서 자체적으로 메시지 처리
-        }
-    }
-
-    fun closeConnection() {
-        coroutineScope.launch {
-            webSocketClient.close()
-            _connectionStatus.value = ConnectionStatus.Disconnected
-            messageCollectionJob?.cancel()
-            speechRepository.close()
         }
     }
 
@@ -155,8 +236,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
      * WebSocket 콜백 설정
      */
     private fun setupWebSocketCallbacks() {
-        // [신규] 모든 경로 정보를 받았을 때의 콜백 설정
-        // (BrowserControlWebSocketClient 내부에 onAllPathsReceived 콜백 속성 추가 필요)
         Napier.i("Setting up WebSocket callbacks", tag = "AppViewModel")
         webSocketClient.onAllPathsReceived = { allPaths ->
             coroutineScope.launch {
