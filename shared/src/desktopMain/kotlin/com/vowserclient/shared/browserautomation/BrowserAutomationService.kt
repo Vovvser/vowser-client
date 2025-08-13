@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator
 import com.microsoft.playwright.Page
 import com.microsoft.playwright.Playwright
 import com.microsoft.playwright.PlaywrightException
+import com.microsoft.playwright.options.MouseButton
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -231,12 +232,48 @@ object BrowserAutomationService {
             
             kotlinx.coroutines.delay(3000)
 
+            // 새 탭 열림을 방지하기 위해 target 속성을 제거
+            try {
+                page.evaluate("""
+                    (function() {
+                        const selector = arguments[0];
+                        const element = document.querySelector(selector);
+                        if (element) {
+                            element.removeAttribute('target');
+                            return true;
+                        }
+                        return false;
+                    })
+                """.trimIndent(), selector)
+                Napier.i { "Removed target attribute for selector: $selector" }
+            } catch (jsError: Exception) {
+                Napier.w { "Failed to remove target attribute: ${jsError.message}" }
+            }
+            
+            // 일반 클릭 수행 (target 제거 후)
             element.click()
             Napier.i { "Clicked element with selector: $selector" }
 
         } catch (e: Exception) {
             Napier.e("Failed to execute hover-highlight-click for $selector: ${e.message}", e, tag = "BrowserAutomationService")
             try {
+                // 폴백에서도 새 탭 방지 로직 적용
+                try {
+                    page.evaluate("""
+                        (function() {
+                            const selector = arguments[0];
+                            const element = document.querySelector(selector);
+                            if (element) {
+                                element.removeAttribute('target');
+                                return true;
+                            }
+                            return false;
+                        })
+                    """.trimIndent(), selector)
+                } catch (jsError: Exception) {
+                    Napier.w { "Failed to remove target attribute in fallback: ${jsError.message}" }
+                }
+                
                 locator.first().click()
                 Napier.i { "Fallback click succeeded for selector: $selector" }
             } catch (fallbackError: Exception) {

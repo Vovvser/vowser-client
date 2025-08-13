@@ -1,9 +1,18 @@
 package com.vowser.client.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.vowser.client.data.RealNaverDataGenerator
 import com.vowser.client.data.VoiceTestScenario
@@ -64,7 +73,7 @@ fun GraphScreen(
     // 음성 테스트 시나리오들
     val voiceScenarios = remember { RealNaverDataGenerator.getVoiceTestScenarios() }
 
-    val graphData = currentGraphData ?: navigationProcessor.getCurrentVisualizationData()
+    val graphData = currentGraphData
 
     // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
     val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
@@ -97,14 +106,15 @@ fun GraphScreen(
         }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // 메인 그래프 화면
-            ModernNetworkGraph(
-                nodes = graphData.nodes,
-                edges = graphData.edges,
-                highlightedPath = highlightedPath,
-                activeNodeId = realTimeActiveNodeId ?: activeNodeId, // 실시간 데이터 우선
-                isContributionMode = isContributionMode,
-                isLoading = isLoading,
+            if (graphData != null) {
+                // 메인 그래프 화면
+                ModernNetworkGraph(
+                    nodes = graphData.nodes,
+                    edges = graphData.edges,
+                    highlightedPath = highlightedPath,
+                    activeNodeId = realTimeActiveNodeId ?: activeNodeId,
+                    isContributionMode = isContributionMode,
+                    isLoading = isLoading,
                 onNodeClick = { node ->
                     // 실시간 데이터가 없을 때만 로컬 상태 업데이트
                     if (currentGraphData == null) {
@@ -147,6 +157,15 @@ fun GraphScreen(
                 },
                 modifier = Modifier.fillMaxSize()
             )
+            } else {
+                // 빈 상태 UI - 음성 명령 안내
+                EmptyStateUI(
+                    isRecording = isRecording,
+                    recordingStatus = recordingStatus,
+                    onToggleRecording = onToggleRecording,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             
             // 기여 모드 오버레이
             if (isContributionMode) {
@@ -289,6 +308,87 @@ fun GraphScreen(
                 onDismiss = {
                     showSuccessDialog = false
                 }
+            )
+        }
+    }
+}
+
+/**
+ * 빈 상태 UI - 음성 명령 안내
+ */
+@Composable
+private fun EmptyStateUI(
+    isRecording: Boolean,
+    recordingStatus: String,
+    onToggleRecording: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            // 마이크 아이콘
+            Icon(
+                imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
+                contentDescription = if (isRecording) "Recording" else "Not Recording",
+                tint = if (isRecording) Color.Red else Color.Gray,
+                modifier = Modifier.size(64.dp)
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // 메인 메시지
+            Text(
+                text = if (isRecording) {
+                    "음성 명령을 말해보세요"
+                } else {
+                    "음성으로 명령해보세요!"
+                },
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = Color.Black
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 상태 메시지
+            Text(
+                text = recordingStatus,
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center,
+                color = Color.Black.copy(alpha = 0.7f)
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // 녹음 버튼
+            FloatingActionButton(
+                onClick = onToggleRecording,
+                backgroundColor = if (isRecording) Color.Red else MaterialTheme.colors.primary,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
+                    contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
+                    tint = Color.White
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 설명 텍스트
+            Text(
+                text = "버튼을 눌러 음성 명령을 시작하세요\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                color = Color.Black.copy(alpha = 0.5f),
+                lineHeight = 20.sp
             )
         }
     }
