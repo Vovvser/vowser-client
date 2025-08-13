@@ -19,6 +19,9 @@ import kotlinx.coroutines.launch
 import com.benasher44.uuid.uuid4
 import com.vowser.client.data.GraphDataConverter
 import com.vowser.client.visualization.GraphVisualizationData
+import com.vowser.client.websocket.dto.NavigationPath
+import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
+import kotlinx.coroutines.delay
 
 class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)) {
 
@@ -52,8 +55,8 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     val sessionId = uuid4().toString()
 
     init {
-        connectWebSocket()
         setupWebSocketCallbacks()
+        connectWebSocket()
     }
 
     private fun connectWebSocket() {
@@ -62,7 +65,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             try {
                 webSocketClient.connect()
                 _connectionStatus.value = ConnectionStatus.Connected
-                startMessageCollection()
+                // startMessageCollection() 제거 - BrowserControlWebSocketClient에서 자체적으로 메시지 처리
             } catch (e: Exception) {
                 Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e)
                 _connectionStatus.value = ConnectionStatus.Error
@@ -70,15 +73,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         }
     }
 
-    private fun startMessageCollection() {
-        messageCollectionJob?.cancel()
-        messageCollectionJob = coroutineScope.launch {
-            webSocketClient.receiveMessages().collect {
-                _receivedMessage.value = it
-                Napier.i("ViewModel: Received message: $it")
-            }
-        }
-    }
 
     fun sendToolCall(toolName: String, args: Map<String, String>) {
         coroutineScope.launch {
@@ -90,7 +84,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         coroutineScope.launch {
             webSocketClient.reconnect()
             _connectionStatus.value = ConnectionStatus.Connecting
-            startMessageCollection()
+            // startMessageCollection() 제거 - BrowserControlWebSocketClient에서 자체적으로 메시지 처리
         }
     }
 
@@ -152,8 +146,8 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         } else {
             _recordingStatus.value = "No audio data recorded"
         }
-        
-        kotlinx.coroutines.delay(3000)
+
+        delay(3000)
         _recordingStatus.value = "Ready to record"
     }
 
@@ -161,24 +155,36 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
      * WebSocket 콜백 설정
      */
     private fun setupWebSocketCallbacks() {
-        webSocketClient.onNavigationPathReceived = { path ->
+        // [신규] 모든 경로 정보를 받았을 때의 콜백 설정
+        // (BrowserControlWebSocketClient 내부에 onAllPathsReceived 콜백 속성 추가 필요)
+        Napier.i("Setting up WebSocket callbacks", tag = "AppViewModel")
+        webSocketClient.onAllPathsReceived = { allPaths ->
             coroutineScope.launch {
-                Napier.i("Converting NavigationPath to GraphVisualizationData", tag = "AppViewModel")
-                val visualizationData = GraphDataConverter.convertFromNavigationPath(path)
+                Napier.i("Received all paths for query: ${allPaths.query}", tag = "AppViewModel")
+
+                // 1. 그래프 UI 업데이트
+                // AllPathsResponse를 시각화 데이터로 변환 (GraphDataConverter에 새 함수 추가 필요)
+                val visualizationData = GraphDataConverter.convertFromAllPaths(allPaths)
+                Napier.i("Graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = "AppViewModel")
                 _currentGraphData.value = visualizationData
                 _graphLoading.value = false
-            }
-        }
+                Napier.i("Graph data updated and loading set to false", tag = "AppViewModel")
 
-        webSocketClient.onGraphUpdateReceived = { graphData ->
-            coroutineScope.launch {
-                Napier.i("Converting GraphUpdateData to GraphVisualizationData", tag = "AppViewModel")
-                val visualizationData = GraphDataConverter.convertToVisualizationData(graphData)
-                _currentGraphData.value = visualizationData
-                _graphLoading.value = false
-
-                graphData.metadata?.voiceCommand?.let { voiceCommand ->
-                    _receivedMessage.value = "Graph updated for: $voiceCommand"
+                // 첫번째 경로 자동 실행 (가중치가 가장 높음)
+                val firstPath = allPaths.paths.firstOrNull()
+                if (firstPath != null) {
+                    Napier.i("Auto-executing the first path: ${firstPath.pathId}", tag = "AppViewModel")
+                    try {
+                        val navigationPath = NavigationPath(
+                            pathId = firstPath.pathId,
+                            steps = firstPath.steps,
+                            description = "Auto-executed path from voice command"
+                        )
+                        BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                        Napier.i("Successfully started automation for path: ${firstPath.pathId}", tag = "AppViewModel")
+                    } catch (e: Exception) {
+                        Napier.e("Failed to execute navigation path: ${e.message}", e, tag = "AppViewModel")
+                    }
                 }
             }
         }
@@ -196,6 +202,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                 }
             }
         }
+        Napier.i("WebSocket callbacks setup completed", tag = "AppViewModel")
     }
 
     /**

@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 /**
- * 예외처리 및 로딩 상태를 위한 모던 UI 컴포넌트
+ * 예외처리 및 로딩 상태를 위한 컴포넌트
  * - 우아한 에러 표시
  * - 스마트 로딩 인디케이터
  * - 네트워크 연결 상태 표시

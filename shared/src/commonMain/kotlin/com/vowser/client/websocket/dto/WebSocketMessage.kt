@@ -7,14 +7,6 @@ import kotlinx.serialization.Serializable
 data class ErrorData(val message: String)
 
 @Serializable
-data class SearchMetadata(
-    val total_found: Int,
-    val search_time_ms: Long,
-    val vector_search_used: Boolean,
-    val min_score_threshold: Double
-)
-
-@Serializable
 data class PathStep(
     val title: String,
     val action: String,
@@ -52,10 +44,6 @@ sealed interface WebSocketMessage {
     @Serializable
     @SerialName("browser_command")
     data class BrowserCommandWrapper(val data: BrowserCommand) : WebSocketMessage
-
-    @Serializable
-    @SerialName("navigation_path")
-    data class NavigationPathWrapper(val data: NavigationPath) : WebSocketMessage
     
     @Serializable
     @SerialName("graph_update")
@@ -72,4 +60,9 @@ sealed interface WebSocketMessage {
     @Serializable
     @SerialName("search_path_result")
     data class SearchPathResultWrapper(val status: String, val data: SearchPathResultData) : WebSocketMessage
+
+    @Serializable
+    @SerialName("all_navigation_paths")
+    data class AllPathsWrapper(val data: AllPathsResponse) : WebSocketMessage // 1단계에서 만든 DTO 사용
+
 }

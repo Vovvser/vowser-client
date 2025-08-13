@@ -1,12 +1,13 @@
 package com.vowser.client.websocket
 
+import com.vowser.client.websocket.dto.AllPathsResponse
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.BrowserCommand
 import com.vowser.client.websocket.dto.WebSocketMessage
 import com.vowser.client.websocket.dto.GraphUpdateData
 import com.vowser.client.websocket.dto.VoiceProcessingResult
-import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.websocket.dto.NavigationStep
+import com.vowser.client.websocket.dto.PathDetail
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -27,13 +28,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
-import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 
 class BrowserControlWebSocketClient {
 
-    var onNavigationPathReceived: ((NavigationPath) -> Unit)? = null
+    var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
     var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
     var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
 
@@ -46,8 +46,12 @@ class BrowserControlWebSocketClient {
         useAlternativeNames = false
         serializersModule = SerializersModule {
             polymorphic(WebSocketMessage::class) {
+                subclass(WebSocketMessage.AllPathsWrapper::class)
                 subclass(WebSocketMessage.BrowserCommandWrapper::class)
-                subclass(WebSocketMessage.NavigationPathWrapper::class)
+                subclass(WebSocketMessage.GraphUpdateWrapper::class)
+                subclass(WebSocketMessage.VoiceProcessingResultWrapper::class)
+                subclass(WebSocketMessage.ErrorWrapper::class)
+                subclass(WebSocketMessage.SearchPathResultWrapper::class)
             }
             polymorphic(BrowserCommand::class) {
                 subclass(BrowserCommand.Navigate::class)
@@ -94,6 +98,7 @@ class BrowserControlWebSocketClient {
                 )
                 Napier.i("Successfully connected to ws://localhost:8080/control", tag = "VowserSocketClient")
                 isConnecting = false
+                Napier.i("Callback status - onAllPathsReceived: ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = "VowserSocketClient")
                 startReceivingMessages()
                 return
             } catch (e: Exception) {
@@ -141,83 +146,47 @@ class BrowserControlWebSocketClient {
                     val message = json.decodeFromString<WebSocketMessage>(messageString)
 
                     when (message) {
-                        is WebSocketMessage.NavigationPathWrapper -> {
-                            val navigationPath = message.data
-                            Napier.i("Decoded navigation path: $navigationPath", tag = "VowserSocketClient")
-
-                            onNavigationPathReceived?.invoke(navigationPath)
-
-                            currentNavigationJob?.cancel()
-                            Napier.i("Previous navigation job cancelled.", tag = "VowserSocketClient")
-
-                            currentNavigationJob = CoroutineScope(Dispatchers.IO).launch {
-                                Napier.i("=== DEBUG: BrowserAutomationBridge.executeNavigationPath 호출 시작 ===", tag = "VowserSocketClient")
-                                BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                                Napier.i("=== DEBUG: BrowserAutomationBridge.executeNavigationPath 호출 완료 ===", tag = "VowserSocketClient")
-                            }
+                        is WebSocketMessage.AllPathsWrapper -> {
+                            val allPathsData = message.data
+                            Napier.i("Decoded all paths data for query: ${allPathsData.query}", tag = "VowserSocketClient")
+                            Napier.i("onAllPathsReceived callback is ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = "VowserSocketClient")
+                            onAllPathsReceived?.invoke(allPathsData)
+                            Napier.i("onAllPathsReceived callback invoked", tag = "VowserSocketClient")
                         }
 
-                        is WebSocketMessage.BrowserCommandWrapper -> {
-                            val command = message.data
-                            Napier.i("Decoded command: $command", tag = "VowserSocketClient")
-                            when (command) {
-                                BrowserCommand.GoBack -> {
-                                    Napier.i("Executing 'goBack' command.", tag = "VowserSocketClient")
-                                    BrowserAutomationBridge.goBackInBrowser()
-                                }
-                                BrowserCommand.GoForward -> {
-                                    Napier.i("Executing 'goForward' command.", tag = "VowserSocketClient")
-                                    BrowserAutomationBridge.goForwardInBrowser()
-                                }
-                                is BrowserCommand.Navigate -> {
-                                    Napier.i("Executing 'navigate' command to URL: ${command.url}", tag = "VowserSocketClient")
-                                    BrowserAutomationBridge.navigateInBrowser(command.url)
-                                }
-                            }
-                        }
-                        is WebSocketMessage.GraphUpdateWrapper -> {
-                            val graphData = message.data
-                            Napier.i("Received graph update for session: ${graphData.sessionId}, nodes: ${graphData.nodes.size}", tag = "VowserSocketClient")
-                            onGraphUpdateReceived?.invoke(graphData)
-                        }
-                        is WebSocketMessage.VoiceProcessingResultWrapper -> {
-                            val result = message.data
-                            Napier.i("Voice processing result: success=${result.success}, transcript='${result.transcript}'", tag = "VowserSocketClient")
-                            onVoiceProcessingResultReceived?.invoke(result)
-                        }
                         is WebSocketMessage.SearchPathResultWrapper -> {
                             val searchResult = message.data
-                            Napier.i("Search path result received. Query: ${searchResult.query}, Matched paths: ${searchResult.matched_paths.size}", tag = "VowserSocketClient")
+                            Napier.i("Search path result received. Query: ${searchResult.query}", tag = "VowserSocketClient")
 
-                            if (searchResult.matched_paths.isNotEmpty()) {
-                                val firstPath = searchResult.matched_paths.first()
-                                Napier.i("Executing first matched path: ${firstPath.pathId}", tag = "VowserSocketClient")
-
-                                val navigationSteps = firstPath.steps.map { step ->
-                                    NavigationStep(
-                                        action = step.action,
-                                        url = step.url,
-                                        title = step.title,
-                                        selector = step.selector.takeIf { it.isNotEmpty() }
-                                    )
-                                }
-
-                                val navigationPath = NavigationPath(
-                                    pathId = firstPath.pathId,
-                                    description = firstPath.description,
-                                    steps = navigationSteps
+                            val pathDetails = searchResult.matched_paths.map { matchedPath ->
+                                PathDetail(
+                                    pathId = matchedPath.pathId,
+                                    score = matchedPath.score,
+                                    total_weight = matchedPath.total_weight,
+                                    last_used = null,
+                                    estimated_time = null,
+                                    steps = matchedPath.steps.map { step ->
+                                        NavigationStep(
+                                            url = step.url,
+                                            title = step.title,
+                                            action = step.action,
+                                            selector = step.selector
+                                        )
+                                    }
                                 )
-
-                                onNavigationPathReceived?.invoke(navigationPath)
-                                currentNavigationJob?.cancel()
-                                Napier.i("Previous navigation job cancelled before executing search result path.", tag = "VowserSocketClient")
-                                currentNavigationJob = CoroutineScope(Dispatchers.IO).launch {
-                                    BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                                }
                             }
+
+                            val allPathsResponse = AllPathsResponse(
+                                query = searchResult.query,
+                                paths = pathDetails
+                            )
+
+                            onAllPathsReceived?.invoke(allPathsResponse)
                         }
 
-                        else -> {}
+                        else -> {
+                            Napier.w("Unhandled WebSocketMessage type received.", tag = "VowserSocketClient")
+                        }
                     }
                 } catch (e: Exception) {
                     Napier.e("Failed to parse or execute command from message: $messageString. Error: ${e.message}", e, tag = "VowserSocketClient")
