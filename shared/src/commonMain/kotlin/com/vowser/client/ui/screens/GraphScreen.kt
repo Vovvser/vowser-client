@@ -14,7 +14,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import com.vowser.client.data.RealNaverDataGenerator
 import com.vowser.client.data.VoiceTestScenario
 import com.vowser.client.navigation.NavigationProcessor
 import com.vowser.client.ui.graph.ModernNetworkGraph
@@ -41,7 +40,6 @@ fun GraphScreen(
     recordingStatus: String,
     currentGraphData: GraphVisualizationData?,
     onModeToggle: () -> Unit,
-    onLoadingStateChange: (Boolean) -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
     onSendToolCall: (String, Map<String, String>) -> Unit,
@@ -68,12 +66,6 @@ fun GraphScreen(
     
     // 음성 테스트 상태
     var currentVoiceTest by remember { mutableStateOf<VoiceTestScenario?>(null) }
-    var voiceTestIndex by remember { mutableStateOf(0) }
-    
-    // 음성 테스트 시나리오들
-    val voiceScenarios = remember { RealNaverDataGenerator.getVoiceTestScenarios() }
-
-    val graphData = currentGraphData
 
     // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
     val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
@@ -97,44 +89,19 @@ fun GraphScreen(
     ErrorBoundary(
         errorState = errorState,
         onRetry = { 
-            errorState = ErrorState.None
             loadingState = LoadingState.Loading
-        },
-        onReportError = { error ->
-            toastMessage = "오류가 신고되었습니다."
-            toastType = ToastType.SUCCESS
         }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (graphData != null) {
+            if (currentGraphData != null) {
                 // 메인 그래프 화면
                 ModernNetworkGraph(
-                    nodes = graphData.nodes,
-                    edges = graphData.edges,
+                    nodes = currentGraphData.nodes,
+                    edges = currentGraphData.edges,
                     highlightedPath = highlightedPath,
                     activeNodeId = realTimeActiveNodeId ?: activeNodeId,
                     isContributionMode = isContributionMode,
                     isLoading = isLoading,
-                onNodeClick = { node ->
-                    // 실시간 데이터가 없을 때만 로컬 상태 업데이트
-                    if (currentGraphData == null) {
-                        activeNodeId = node.id
-                        selectedPath = listOf("root", node.id)
-                    } else {
-                        // 실시간 데이터가 있을 때는 서버에 탐색 요청
-                        onNavigateToNode(node.id)
-                    }
-                    
-                    // 기여 모드일 때 클릭 기록
-                    if (isContributionMode && isRecordingContribution) {
-                        currentStep += 1
-                        lastClickedElement = node.label
-                    }
-                },
-                onNodeLongClick = { node ->
-                    toastMessage = "노드 정보: ${node.label}"
-                    toastType = ToastType.INFO
-                },
                 onGraphInteraction = { interactionType ->
                     when (interactionType) {
                         GraphInteractionType.ToggleMode -> onModeToggle()
@@ -249,22 +216,85 @@ fun GraphScreen(
                 currentVoiceTest = currentVoiceTest,
                 onReconnect = onReconnect,
                 onTestCommand = {
-                    // 음성 테스트 시나리오 순환
-                    if (voiceScenarios.isNotEmpty()) {
-                        val nextScenario = voiceScenarios[voiceTestIndex % voiceScenarios.size]
-                        currentVoiceTest = nextScenario
-                        voiceTestIndex += 1
-                        
-                        // 경로 하이라이트
-                        selectedPath = nextScenario.expectedPath
-                        activeNodeId = nextScenario.targetNodeId
-                        
-                        // 토스트 메시지로 음성 명령 표시
-                        toastMessage = "🎤 \"${nextScenario.voiceCommand}\""
-                        toastType = ToastType.INFO
-                        
-                        loadingState = LoadingState.Loading
+                    // 새로운 날씨 검색 결과 모의 테스트 데이터
+                    val mockData = """
+                    {
+                      "type": "all_navigation_paths",
+                      "data": {
+                        "query": "우리 지역 날씨 알고 싶어",
+                        "paths": [
+                          {
+                            "pathId": "09e2a975413c0e18a7cd9d0f57b15dea",
+                            "score": 0.489,
+                            "total_weight": 73,
+                            "last_used": null,
+                            "estimated_time": null,
+                            "steps": [
+                              {
+                                "url": "https://naver.com",
+                                "title": "naver.com 메인",
+                                "action": "navigate",
+                                "selector": "",
+                                "htmlAttributes": null
+                              },
+                              {
+                                "url": "https://www.naver.com",
+                                "title": "날씨",
+                                "action": "click",
+                                "selector": "a[href*='weather.naver.com']",
+                                "htmlAttributes": null
+                              },
+                              {
+                                "url": "https://weather.naver.com",
+                                "title": "지역선택",
+                                "action": "click",
+                                "selector": ".region_select .btn_region",
+                                "htmlAttributes": null
+                              },
+                              {
+                                "url": "https://weather.naver.com/region/list",
+                                "title": "부산",
+                                "action": "click",
+                                "selector": ".region_list .region_item[data-region='busan'] a",
+                                "htmlAttributes": null
+                              },
+                              {
+                                "url": "https://weather.naver.com/today/09440111",
+                                "title": "미세먼지",
+                                "action": "click",
+                                "selector": ".content_tabmenu .tab_item[data-tab='air'] a",
+                                "htmlAttributes": null
+                              },
+                              {
+                                "url": "https://weather.naver.com/air/09440111",
+                                "title": "주간",
+                                "action": "click",
+                                "selector": ".air_chart_area .btn_chart_period[data-period='week']",
+                                "htmlAttributes": null
+                              },
+                              {
+                                "url": "https://weather.naver.com/air/09440111?period=week",
+                                "title": "지역비교",
+                                "action": "click",
+                                "selector": ".compare_area .btn_compare",
+                                "htmlAttributes": null
+                              }
+                            ]
+                          }
+                        ]
+                      }
                     }
+                    """.trimIndent()
+                    
+                    // 서버에 모의 데이터 전송
+                    onSendToolCall("mock_navigation_data", mapOf("data" to mockData))
+                    
+                    // 그래프 표시 위해 로딩 상태로 전환
+                    loadingState = LoadingState.Loading
+                    
+                    // 토스트 메시지 표시
+                    toastMessage = "날씨 탐색 경로를 분석하는 중..."
+                    toastType = ToastType.INFO
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
