@@ -106,7 +106,7 @@ fun GraphCanvas(
 //그리드 그리기
 fun DrawScope.drawUltraModernGrid() {
     val gridSize = 40f
-    val gridColor = Color.White.copy(alpha = 0.05f)
+    val gridColor = Color.Black.copy(alpha = 0.05f)
 
     // 세로선
     var x = 0f
@@ -167,7 +167,7 @@ fun DrawScope.drawUltraModernEdges(
                 isHighlighted -> {
                     // 외부 글로우
                     drawLine(
-                        color = Color(0xFF00D4AA).copy(alpha = 0.3f),
+                        color = Color(0xFF5dbe50).copy(alpha = 0.3f),
                         start = startPos,
                         end = endPos,
                         strokeWidth = 12f,
@@ -175,7 +175,7 @@ fun DrawScope.drawUltraModernEdges(
                     )
                     // 내부 글로우
                     drawLine(
-                        color = Color(0xFF00D4AA).copy(alpha = 0.7f),
+                        color = Color(0xFF5dbe50).copy(alpha = 0.7f),
                         start = startPos,
                         end = endPos,
                         strokeWidth = 6f,
@@ -183,7 +183,7 @@ fun DrawScope.drawUltraModernEdges(
                     )
                     // 코어 라인
                     drawLine(
-                        color = Color(0xFF00D4AA),
+                        color = Color(0xFF5dbe50),
                         start = startPos,
                         end = endPos,
                         strokeWidth = 3f,
@@ -210,7 +210,7 @@ fun DrawScope.drawUltraModernEdges(
                 else -> {
                     // 일반 상태
                     drawLine(
-                        color = Color.White.copy(alpha = 0.3f),
+                        color = Color.Black.copy(alpha = 0.3f),
                         start = startPos,
                         end = endPos,
                         strokeWidth = 2f,
@@ -231,9 +231,9 @@ fun DrawScope.drawUltraModernEdges(
                 
                 val textStyle = TextStyle(
                     color = when {
-                        isHighlighted -> Color(0xFF00D4AA)
+                        isHighlighted -> Color(0xFF5dbe50)
                         isRecording -> Color(0xFFFF4444)
-                        else -> Color.White.copy(alpha = 0.8f)
+                        else -> Color.Black.copy(alpha = 0.8f)
                     },
                     fontSize = (8 * scale).sp,
                     fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
@@ -248,7 +248,7 @@ fun DrawScope.drawUltraModernEdges(
                 val textSize = textLayoutResult.size
                 val bgPadding = 4f
                 drawRoundRect(
-                    color = Color.Black.copy(alpha = 0.7f),
+                    color = Color.White.copy(alpha = 0.7f),
                     topLeft = Offset(
                         midPoint.x - textSize.width / 2f - bgPadding,
                         midPoint.y - textSize.height / 2f - bgPadding
@@ -303,94 +303,142 @@ fun DrawScope.drawUltraModernNodes(
             else -> baseRadius
         }
 
-        // 그림자 효과
-        drawCircle(
-            color = Color.Black.copy(alpha = 0.3f),
-            radius = radius + 4f,
-            center = position + Offset(2f, 2f)
-        )
-
-        // 외부 링
-        when {
-            isActive -> {
-                drawCircle(
-                    color = Color(0xFFFF6B6B).copy(alpha = 0.4f),
-                    radius = radius + 8f,
-                    center = position
-                )
+        if (node.type == NodeType.START) {
+            // 마름모 모양 그리기
+            val diamondPath = Path().apply {
+                moveTo(position.x, position.y - radius) // Top
+                lineTo(position.x + radius, position.y) // Right
+                lineTo(position.x, position.y + radius) // Bottom
+                lineTo(position.x - radius, position.y) // Left
+                close()
             }
-            isSelected -> {
-                drawCircle(
-                    color = Color(0xFF4ECDC4).copy(alpha = 0.5f),
-                    radius = radius + 6f,
-                    center = position
-                )
+
+            // 외부 링
+            when {
+                isActive -> drawPath(path = diamondPath, color = Color(0xFFFF6B6B).copy(alpha = 0.4f), style = Stroke(width = 16f))
+                isSelected -> drawPath(path = diamondPath, color = Color(0xFF4ECDC4).copy(alpha = 0.5f), style = Stroke(width = 12f))
+                isHighlighted -> drawPath(path = diamondPath, color = Color(0xFF5dbe50).copy(alpha = 0.4f), style = Stroke(width = 8f))
             }
-            isHighlighted -> {
-                drawCircle(
-                    color = Color(0xFF00D4AA).copy(alpha = 0.4f),
-                    radius = radius + 4f,
-                    center = position
+
+            // 메인 노드
+            drawPath(
+                path = diamondPath,
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        node.type.color.copy(alpha = 0.8f),
+                        node.type.color.copy(alpha = 0.4f)
+                    ),
+                    center = position,
+                    radius = radius
                 )
-            }
-        }
-
-        // 메인 노드
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    node.type.color.copy(alpha = 0.8f),
-                    node.type.color.copy(alpha = 0.4f)
-                ),
-                center = position,
-                radius = radius
-            ),
-            radius = radius,
-            center = position
-        )
-
-        // 내부 하이라이트
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.3f),
-                    Color.Transparent
-                ),
-                center = position - Offset(radius * 0.3f, radius * 0.3f),
-                radius = radius * 0.5f
-            ),
-            radius = radius,
-            center = position
-        )
-
-        // 테두리
-        drawCircle(
-            color = when {
-                isActive -> Color(0xFFFF6B6B)
-                isSelected -> Color(0xFF4ECDC4)
-                isHighlighted -> Color(0xFF00D4AA)
-                isContributionMode -> Color(0xFFFF4444).copy(alpha = 0.7f)
-                else -> Color.White.copy(alpha = 0.5f)
-            },
-            radius = radius,
-            center = position,
-            style = Stroke(
-                width = if (isActive || isSelected) 3f else 2f
             )
-        )
+
+            // 테두리
+            drawPath(
+                path = diamondPath,
+                color = when {
+                    isActive -> Color(0xFFFF6B6B)
+                    isSelected -> Color(0xFF4ECDC4)
+                    isHighlighted -> Color(0xFF5dbe50)
+                    isContributionMode -> Color(0xFFFF4444).copy(alpha = 0.7f)
+                    else -> Color.Black.copy(alpha = 0.5f)
+                },
+                style = Stroke(
+                    width = if (isActive || isSelected) 3f else 2f
+                )
+            )
+
+        } else {
+            // 기존 원형 노드 그리기
+            // 그림자 효과
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.3f),
+                radius = radius + 4f,
+                center = position + Offset(2f, 2f)
+            )
+
+            // 외부 링
+            when {
+                isActive -> {
+                    drawCircle(
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.4f),
+                        radius = radius + 8f,
+                        center = position
+                    )
+                }
+                isSelected -> {
+                    drawCircle(
+                        color = Color(0xFF4ECDC4).copy(alpha = 0.5f),
+                        radius = radius + 6f,
+                        center = position
+                    )
+                }
+                isHighlighted -> {
+                    drawCircle(
+                        color = Color(0xFF5dbe50).copy(alpha = 0.4f),
+                        radius = radius + 4f,
+                        center = position
+                    )
+                }
+            }
+
+            // 메인 노드
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        node.type.color.copy(alpha = 0.8f),
+                        node.type.color.copy(alpha = 0.4f)
+                    ),
+                    center = position,
+                    radius = radius
+                ),
+                radius = radius,
+                center = position
+            )
+
+            // 내부 하이라이트
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0.1f),
+                        Color.Transparent
+                    ),
+                    center = position - Offset(radius * 0.3f, radius * 0.3f),
+                    radius = radius * 0.5f
+                ),
+                radius = radius,
+                center = position
+            )
+
+            // 테두리
+            drawCircle(
+                color = when {
+                    isActive -> Color(0xFFFF6B6B)
+                    isSelected -> Color(0xFF4ECDC4)
+                    isHighlighted -> Color(0xFF5dbe50)
+                    isContributionMode -> Color(0xFFFF4444).copy(alpha = 0.7f)
+                    else -> Color.Black.copy(alpha = 0.5f)
+                },
+                radius = radius,
+                center = position,
+                style = Stroke(
+                    width = if (isActive || isSelected) 3f else 2f
+                )
+            )
+        }
 
         // 노드 타입 아이콘 (중앙)
         val iconSize = radius * 0.6f
         drawUltraNodeIcon(node.type, position, iconSize)
-        
+
         // 노드 라벨 그리기 (스케일이 충분할 때만)
         if (scale > 0.8f) {
             val textStyle = TextStyle(
                 color = when {
                     isActive -> Color(0xFFFF6B6B)
                     isSelected -> Color(0xFF4ECDC4)
-                    isHighlighted -> Color(0xFF00D4AA)
-                    else -> Color.White.copy(alpha = 0.9f)
+                    isHighlighted -> Color(0xFF5dbe50)
+                    else -> Color.Black.copy(alpha = 0.9f)
                 },
                 fontSize = (10 * scale).sp,
                 fontWeight = if (isHighlighted || isActive) FontWeight.Bold else FontWeight.Medium
@@ -417,7 +465,7 @@ fun DrawScope.drawUltraModernNodes(
             val textSize = textLayoutResult.size
             val bgPadding = 6f
             drawRoundRect(
-                color = Color.Black.copy(alpha = 0.8f),
+                color = Color.White.copy(alpha = 0.8f),
                 topLeft = Offset(
                     textPosition.x - bgPadding,
                     textPosition.y - bgPadding
@@ -440,7 +488,7 @@ fun DrawScope.drawUltraModernNodes(
 
 //노드 아이콘 그리기
 fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float) {
-    val iconColor = Color.White.copy(alpha = 0.9f)
+    val iconColor = Color.Black.copy(alpha = 0.9f)
 
     when (nodeType) {
         NodeType.START -> {
@@ -510,9 +558,9 @@ fun DrawScope.drawUltraArrowHead(
     )
 
     val arrowColor = when {
-        isHighlighted -> Color(0xFF00D4AA)
+        isHighlighted -> Color(0xFF5dbe50)
         isRecording -> Color(0xFFFF4444)
-        else -> Color.White.copy(alpha = 0.6f)
+        else -> Color.Black.copy(alpha = 0.6f)
     }
 
     val arrowEnd1 = Offset(

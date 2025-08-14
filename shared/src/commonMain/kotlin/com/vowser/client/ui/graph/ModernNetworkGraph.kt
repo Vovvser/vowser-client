@@ -54,15 +54,7 @@ fun ModernNetworkGraph(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF0D1117), // GitHub dark background
-                        Color(0xFF161B22),
-                        Color(0xFF21262D)
-                    )
-                )
-            )
+            .background(Color.White)
     ) {
         // 로딩 상태 처리
         if (isLoading) {

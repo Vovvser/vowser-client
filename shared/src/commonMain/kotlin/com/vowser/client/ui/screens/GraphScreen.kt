@@ -406,7 +406,7 @@ private fun EmptyStateUI(
                 Icon(
                     imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
                     contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
-                    tint = Color.White
+                    tint = Color.Black
                 )
             }
             
