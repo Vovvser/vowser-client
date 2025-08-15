@@ -14,6 +14,7 @@ fun App() {
     var currentScreen by remember { mutableStateOf(AppScreen.GRAPH) }
     var isContributionMode by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var isDarkTheme by remember { mutableStateOf(false) }
     
     // 의존성 초기화
     val coroutineScope = rememberCoroutineScope()
@@ -38,12 +39,15 @@ fun App() {
     val graphLoading by viewModel.graphLoading.collectAsState()
     
     // 테마 적용
+    val colors = when {
+        isDarkTheme && isContributionMode -> AppTheme.ContributionThemeDark
+        isDarkTheme && !isContributionMode -> AppTheme.NormalThemeDark
+        !isDarkTheme && isContributionMode -> AppTheme.ContributionThemeLight
+        else -> AppTheme.NormalThemeLight
+    }
+    
     MaterialTheme(
-        colors = if (isContributionMode) {
-            AppTheme.ContributionTheme
-        } else {
-            AppTheme.NormalTheme
-        }
+        colors = colors
     ) {
         // 화면 라우팅
         when (currentScreen) {
@@ -70,6 +74,8 @@ fun App() {
             }
             AppScreen.SETTINGS -> {
                 SettingsScreen(
+                    isDarkTheme = isDarkTheme,
+                    onThemeToggle = { isDarkTheme = it },
                     onBackPress = { currentScreen = AppScreen.GRAPH }
                 )
             }

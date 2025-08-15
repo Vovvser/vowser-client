@@ -76,14 +76,14 @@ fun LoadingGraphAnimation(
             
             Text(
                 text = if (isContributionMode) "경로를 기록하고 있습니다..." else "그래프를 로드하고 있습니다...",
-                color = Color.White,
+                color = MaterialTheme.colors.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
             
             Text(
                 text = "잠시만 기다려 주세요",
-                color = Color.White.copy(alpha = 0.7f),
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
                 fontSize = 14.sp
             )
         }

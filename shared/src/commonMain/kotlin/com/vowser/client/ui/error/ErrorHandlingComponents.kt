@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 
 /**
@@ -71,7 +72,7 @@ fun SmartLoadingIndicator(
         ) {
             Box(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.9f))
+                    .background(MaterialTheme.colors.surface.copy(alpha = 0.9f))
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -96,6 +97,7 @@ fun SmartLoadingIndicator(
         }
     }
 }
+
 
 @Composable
 private fun LoadingContent(
@@ -122,7 +124,9 @@ private fun LoadingContent(
             repeatMode = RepeatMode.Reverse
         )
     )
-    
+
+    val primaryColor = MaterialTheme.colors.primary;
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -135,12 +139,12 @@ private fun LoadingContent(
                 CircularProgressIndicator(
                     progress = progress,
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0969DA),
+                    color = primaryColor,
                     strokeWidth = 6.dp
                 )
                 Text(
                     text = "${(progress * 100).toInt()}%",
-                    color = Color.White,
+                    color = MaterialTheme.colors.onSurface,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -153,7 +157,7 @@ private fun LoadingContent(
                 ) {
                     val strokeWidth = 6.dp.toPx()
                     drawArc(
-                        color = Color(0xFF0969DA),
+                        color = primaryColor,
                         startAngle = 0f,
                         sweepAngle = 270f,
                         useCenter = false,
@@ -169,7 +173,7 @@ private fun LoadingContent(
         
         Text(
             text = message,
-            color = Color.White,
+            color = MaterialTheme.colors.onSurface,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
@@ -194,7 +198,7 @@ private fun LoadingContent(
                         modifier = Modifier
                             .size(8.dp)
                             .scale(dotScale)
-                            .background(Color.White.copy(alpha = 0.7f), CircleShape)
+                            .background(MaterialTheme.colors.onSurface.copy(alpha = 0.7f), CircleShape)
                     )
                 }
             }
@@ -323,7 +327,7 @@ fun NetworkConnectionIndicator(
 ) {
     val isConnected = connectionStatus.lowercase().contains("connected")
     val isConnecting = connectionStatus.lowercase().contains("connecting")
-    
+
     AnimatedVisibility(
         visible = !isConnected,
         enter = slideInVertically { -it } + fadeIn(),
@@ -332,46 +336,45 @@ fun NetworkConnectionIndicator(
     ) {
         Card(
             modifier = Modifier
-                .padding(8.dp)
-                .background(
-                    color = if (isConnecting) Color(0xFFFFA500) else Color(0xFFFF4444),
-                    shape = RoundedCornerShape(8.dp)
-                ),
+                .padding(8.dp),
             shape = RoundedCornerShape(8.dp),
-            elevation = 8.dp
+            elevation = 8.dp,
+            backgroundColor = MaterialTheme.colors.surface
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val contentColor = if (isConnecting) AppTheme.Colors.Warning else AppTheme.Colors.Error
+
                 if (isConnecting) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
-                        color = Color.White
+                        color = contentColor
                     )
                 } else {
                     Icon(
                         Icons.Default.Warning,
                         contentDescription = "Disconnected",
-                        tint = Color.White,
+                        tint = contentColor,
                         modifier = Modifier.size(16.dp)
                     )
                 }
-                
+
                 Text(
                     text = if (isConnecting) "연결 중..." else "연결 끊김",
-                    color = Color.White,
+                    color = MaterialTheme.colors.onSurface,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
-                
+
                 if (!isConnecting && onReconnect != null) {
                     TextButton(
                         onClick = onReconnect,
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = Color.White
+                            contentColor = MaterialTheme.colors.primary
                         ),
                         modifier = Modifier.padding(0.dp)
                     ) {
@@ -549,7 +552,7 @@ fun ToastMessage(
             onDismiss()
         }
     }
-    
+
     AnimatedVisibility(
         visible = isVisible,
         enter = slideInVertically { -it } + fadeIn(),
@@ -557,24 +560,22 @@ fun ToastMessage(
     ) {
         Card(
             modifier = Modifier
-                .padding(16.dp)
-                .background(
-                    color = when (type) {
-                        ToastType.SUCCESS -> Color(0xFF4CAF50)
-                        ToastType.ERROR -> Color(0xFFFF4444)
-                        ToastType.WARNING -> Color(0xFFFF9800)
-                        ToastType.INFO -> Color(0xFF2196F3)
-                    },
-                    shape = RoundedCornerShape(8.dp)
-                ),
+                .padding(16.dp),
             shape = RoundedCornerShape(8.dp),
-            elevation = 8.dp
+            elevation = 8.dp,
+            backgroundColor = MaterialTheme.colors.surface
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                val iconColor = when (type) {
+                    ToastType.SUCCESS -> AppTheme.Colors.Success
+                    ToastType.ERROR -> AppTheme.Colors.Error
+                    ToastType.WARNING -> AppTheme.Colors.Warning
+                    ToastType.INFO -> AppTheme.Colors.Info
+                }
                 Icon(
                     imageVector = when (type) {
                         ToastType.SUCCESS -> Icons.Default.CheckCircle
@@ -583,13 +584,13 @@ fun ToastMessage(
                         ToastType.INFO -> Icons.Default.Info
                     },
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = iconColor,
                     modifier = Modifier.size(20.dp)
                 )
-                
+
                 Text(
                     text = message,
-                    color = Color.White,
+                    color = MaterialTheme.colors.onSurface,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )

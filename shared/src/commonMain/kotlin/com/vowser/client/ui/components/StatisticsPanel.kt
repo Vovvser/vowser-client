@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.vowser.client.navigation.NavigationProcessor
 
@@ -26,7 +25,6 @@ fun StatisticsPanel(
         modifier = modifier
             .width(300.dp)
             .padding(16.dp),
-        backgroundColor = Color.Black.copy(alpha = 0.9f),
         elevation = 12.dp
     ) {
         Column(
@@ -41,19 +39,17 @@ fun StatisticsPanel(
             ) {
                 Text(
                     text = "그래프 통계",
-                    color = Color.White,
                     style = MaterialTheme.typography.h6
                 )
                 IconButton(onClick = onClose) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color.White
+                        contentDescription = "Close"
                     )
                 }
             }
             
-            Divider(color = Color.White.copy(alpha = 0.3f))
+            Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f))
             
             // 통계 항목들
             StatItem("총 노드", "${stats.totalNodes}개")
@@ -75,12 +71,11 @@ private fun StatItem(label: String, value: String) {
     ) {
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.7f),
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
             style = MaterialTheme.typography.body2
         )
         Text(
             text = value,
-            color = Color.White,
             style = MaterialTheme.typography.body2
         )
     }

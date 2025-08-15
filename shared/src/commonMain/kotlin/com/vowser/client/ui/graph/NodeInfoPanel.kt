@@ -10,8 +10,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,24 +25,14 @@ fun NodeInfoPanel(
 ) {
     Card(
         modifier = modifier
-            .padding(16.dp)
-            .background(
-                color = Color.Black.copy(alpha = 0.8f),
-                shape = RoundedCornerShape(16.dp)
-            ),
+            .padding(16.dp),
         shape = RoundedCornerShape(16.dp),
-        elevation = 12.dp
+        elevation = 12.dp,
+        backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.8f)
     ) {
         Box(
             modifier = Modifier
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF1C2128),
-                            Color(0xFF0D1117)
-                        )
-                    )
-                )
+                .background(MaterialTheme.colors.surface)
                 .padding(16.dp)
         ) {
             Column {
@@ -55,7 +43,7 @@ fun NodeInfoPanel(
                 ) {
                     Text(
                         text = "노드 정보",
-                        color = Color.White,
+                        color = MaterialTheme.colors.onSurface,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -63,7 +51,7 @@ fun NodeInfoPanel(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color.White.copy(alpha = 0.7f)
+                            tint = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -100,14 +88,14 @@ fun NodeInfoPanel(
                 
                 Text(
                     text = node.label,
-                    color = Color.White,
+                    color = MaterialTheme.colors.onSurface,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 
                 Text(
                     text = "ID: ${node.id}",
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
                     fontSize = 12.sp
                 )
                 
@@ -133,12 +121,12 @@ fun InfoChip(label: String, value: String) {
     Column {
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.6f),
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
             fontSize = 10.sp
         )
         Text(
             text = value,
-            color = Color.White,
+            color = MaterialTheme.colors.onSurface,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium
         )

@@ -1,7 +1,6 @@
 package com.vowser.client.ui.graph
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
@@ -9,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.*
 import androidx.compose.ui.unit.dp
 
 /**
@@ -54,7 +52,6 @@ fun ModernNetworkGraph(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
     ) {
         // 로딩 상태 처리
         if (isLoading) {

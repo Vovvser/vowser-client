@@ -24,12 +24,11 @@ fun StatusBar(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        backgroundColor = Color.Black.copy(alpha = 0.8f),
-        elevation = 4.dp
+            .padding(14.dp),
+        elevation = 3.dp
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -39,7 +38,6 @@ fun StatusBar(
             ) {
                 Text(
                     text = "최근: $receivedMessage",
-                    color = Color.White,
                     style = MaterialTheme.typography.caption
                 )
             }
@@ -49,25 +47,24 @@ fun StatusBar(
                 onClick = onTestCommand,
                 colors = ButtonDefaults.buttonColors(
                     backgroundColor = if (currentVoiceTest != null) 
-                        AppTheme.Colors.Contribution else AppTheme.Colors.Success
+                        AppTheme.Colors.Contribution else AppTheme.Colors.Success,
+                    contentColor = Color.White
                 )
             ) {
-                Text(
-                    text = "모의 테스트",
-                    color = Color.White
-                )
+                Text("모의 테스트")
             }
             
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(7.dp))
             
             // 재연결 버튼
             Button(
                 onClick = onReconnect,
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(0xFF8250DF)
+                    backgroundColor = Color(133,118,162),
+                    contentColor = Color.White
                 )
             ) {
-                Text("재연결", color = Color.White)
+                Text("재연결")
             }
         }
     }
