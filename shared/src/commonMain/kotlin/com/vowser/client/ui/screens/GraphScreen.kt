@@ -3,10 +3,8 @@ package com.vowser.client.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
-import androidx.compose.material.ContentAlpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,8 +24,11 @@ import com.vowser.client.ui.error.*
 import com.vowser.client.ui.components.ModernAppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.StatusBar
+import com.vowser.client.ui.components.StatusCard
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -351,6 +352,7 @@ fun GraphScreen(
 /**
  * 빈 상태 UI - 음성 명령 안내
  */
+@OptIn(ExperimentalResourceApi::class)
 @Composable
 private fun EmptyStateUI(
     isRecording: Boolean,
@@ -367,14 +369,14 @@ private fun EmptyStateUI(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(32.dp)
         ) {
-            Icon(
-                imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
-                contentDescription = if (isRecording) "Recording" else "Not Recording",
-                tint = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
-                modifier = Modifier.size(64.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
+//            Icon(
+//                imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
+//                contentDescription = if (isRecording) "Recording" else "Not Recording",
+//                tint = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
+//                modifier = Modifier.size(64.dp)
+//            )
+//
+//            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = if (isRecording) {
@@ -390,11 +392,10 @@ private fun EmptyStateUI(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = recordingStatus,
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
+            // 상태 메시지
+            StatusCard(
+                statusMessage = recordingStatus,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -404,11 +405,20 @@ private fun EmptyStateUI(
                 backgroundColor = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.primary,
                 modifier = Modifier.size(56.dp)
             ) {
-                Icon(
-                    imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
-                    contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
-                    tint = if (isRecording) Color.White else MaterialTheme.colors.onPrimary
-                )
+                if (isRecording) {
+                    Icon(
+                        painter = painterResource("drawable/stop.png"),
+                        contentDescription = "Stop Recording",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Start Recording",
+                        tint = MaterialTheme.colors.onPrimary
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
