@@ -1,5 +1,6 @@
 package com.vowserclient.shared.browserautomation
 
+import com.vowser.client.websocket.dto.NavigationPath
 import io.github.aakira.napier.Napier
 
 actual object BrowserAutomationBridge {
@@ -15,6 +16,11 @@ actual object BrowserAutomationBridge {
 
     actual suspend fun navigateInBrowser(url: String) {
         Napier.i { "Android: BrowserAutomationBridge.navigateInBrowser($url) - Not implemented yet" }
+        // TODO: Android 브라우저 자동화 구현
+    }
+
+    actual suspend fun executeNavigationPath(path: NavigationPath) {
+        Napier.i { "Android: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) - Not implemented yet" }
         // TODO: Android 브라우저 자동화 구현
     }
 }

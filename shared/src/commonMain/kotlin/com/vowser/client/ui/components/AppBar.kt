@@ -34,7 +34,6 @@ fun ModernAppBar(
 ) {
     Card(
         modifier = modifier.padding(16.dp),
-        backgroundColor = Color.Black.copy(alpha = 0.7f),
         elevation = 8.dp
     ) {
         Row(
@@ -48,13 +47,12 @@ fun ModernAppBar(
                     Icons.Default.CheckCircle else Icons.Default.Clear,
                 contentDescription = "Connection Status",
                 tint = if (connectionStatus.contains("Connected")) 
-                    AppTheme.Colors.Contribution else AppTheme.Colors.Error
+                    AppTheme.Colors.Success else AppTheme.Colors.Error
             )
             
             // 앱 제목
             Text(
                 text = "Vowser",
-                color = Color.White,
                 style = MaterialTheme.typography.h6
             )
             
@@ -65,10 +63,10 @@ fun ModernAppBar(
                 checked = isContributionMode,
                 onCheckedChange = { onModeToggle() },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = AppTheme.Colors.Contribution,
-                    checkedTrackColor = AppTheme.Colors.Contribution.copy(alpha = 0.5f),
-                    uncheckedThumbColor = Color.Gray,
-                    uncheckedTrackColor = Color.DarkGray
+                    checkedThumbColor = MaterialTheme.colors.primary,
+                    checkedTrackColor = MaterialTheme.colors.primary.copy(alpha = 0.5f),
+                    uncheckedThumbColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
+                    uncheckedTrackColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled)
                 )
             )
             
@@ -83,8 +81,7 @@ fun ModernAppBar(
             IconButton(onClick = onStatsToggle) {
                 Icon(
                     Icons.Default.Info,
-                    contentDescription = "Statistics",
-                    tint = Color.White
+                    contentDescription = "Statistics"
                 )
             }
             
@@ -92,8 +89,7 @@ fun ModernAppBar(
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White
+                    contentDescription = "Settings"
                 )
             }
         }
@@ -112,7 +108,7 @@ private fun AppBarMicrophoneButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 녹음 상태 텍스트 (컴팩트하게)
+        // 녹음 상태 텍스트
         AnimatedVisibility(
             visible = recordingStatus != "Ready to record" && isRecording,
             enter = fadeIn(),
@@ -121,7 +117,7 @@ private fun AppBarMicrophoneButton(
             Text(
                 text = "REC",
                 fontSize = 8.sp,
-                color = Color.Red,
+                color = AppTheme.Colors.Error,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 2.dp)
             )
@@ -134,7 +130,7 @@ private fun AppBarMicrophoneButton(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(
-                    if (isRecording) Color.Red.copy(alpha = 0.2f) else Color.Transparent
+                    if (isRecording) AppTheme.Colors.Error.copy(alpha = 0.2f) else Color.Transparent
                 )
         ) {
             AnimatedContent(
@@ -146,12 +142,12 @@ private fun AppBarMicrophoneButton(
                 Text(
                     text = if (recording) "⏹" else "🎤",
                     fontSize = 16.sp,
-                    color = if (recording) Color.Red else Color.White
+                    color = if (recording) AppTheme.Colors.Error else MaterialTheme.colors.onSurface
                 )
             }
         }
 
-        // 녹음 중 펄스 인디케이터 (간소화)
+        // 녹음 중 펄스 인디케이터
         AnimatedVisibility(
             visible = isRecording,
             enter = scaleIn() + fadeIn(),
@@ -177,7 +173,7 @@ private fun AppBarMicrophoneButton(
                             .size(3.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isVisible) Color.Red else Color.Gray.copy(alpha = 0.3f)
+                                if (isVisible) AppTheme.Colors.Error else MaterialTheme.colors.onSurface.copy(alpha = 0.3f)
                             )
                     )
                 }

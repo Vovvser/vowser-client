@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 
 /**
@@ -30,7 +31,6 @@ import kotlinx.coroutines.delay
  * - 기여 진행 상황 표시
  * - 접근성 친화적 피드백
  */
-
 @Composable
 fun ContributionModeOverlay(
     isRecording: Boolean,
@@ -52,31 +52,31 @@ fun ContributionModeOverlay(
             onStartRecording = onStartRecording,
             onStopRecording = onStopRecording,
             onPauseRecording = onPauseRecording,
-            modifier = Modifier.align(Alignment.TopCenter)
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp)
         )
-        
+
         // 실시간 클릭 피드백
         if (isRecording && lastClickedElement != null) {
             ClickFeedbackAnimation(
                 elementName = lastClickedElement,
-                modifier = Modifier.align(Alignment.Center)
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 100.dp)
             )
         }
-        
+
         // 기여 가이드 패널
         ContributionGuidePanel(
             isRecording = isRecording,
             currentStep = currentStep,
-            modifier = Modifier.align(Alignment.CenterStart)
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 172.dp)
         )
-        
+
         // 기록 컨트롤 패널
         RecordingControlPanel(
             isRecording = isRecording,
             onStopRecording = onStopRecording,
             onPauseRecording = onPauseRecording,
             onDiscardRecording = onDiscardRecording,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 84.dp)
         )
     }
 }
@@ -99,69 +99,64 @@ private fun ContributionHeader(
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // 기록 상태 인디케이터
             RecordingStatusIndicator(isRecording = isRecording)
-            
+
             Column {
                 Text(
                     text = if (isRecording) "경로 기록 중..." else "기여 모드 대기",
-                    color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
-                
+
                 if (isRecording) {
                     Text(
                         text = "단계: $currentStep / $totalSteps",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.8f),
                         fontSize = 14.sp
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.weight(1f))
-            
-            // 컨트롤 버튼들
+
             if (!isRecording) {
-                Button(
-                    onClick = onStartRecording,
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF00D4AA)
-                    )
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
+                Button(onClick = onStartRecording, content = {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colors.onPrimary)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("시작", color = Color.White)
-                }
+                    Text("시작", color = MaterialTheme.colors.onPrimary)
+                })
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(
                         onClick = onPauseRecording,
                         modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.2f), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.PlayArrow, 
-                            contentDescription = "Pause",
-                            tint = Color.White
-                        )
-                    }
-                    
+                            .background(MaterialTheme.colors.onSurface.copy(alpha = 0.2f), CircleShape)
+                            .size(40.dp),
+                        content = {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Pause",
+                                tint = MaterialTheme.colors.onSurface
+                            )
+                        }
+                    )
+
                     IconButton(
                         onClick = onStopRecording,
                         modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.2f), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Check, 
-                            contentDescription = "Stop",
-                            tint = Color.White
-                        )
-                    }
+                            .background(MaterialTheme.colors.onSurface.copy(alpha = 0.2f), CircleShape)
+                            .size(40.dp),
+                        content = {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = "Stop",
+                                tint = MaterialTheme.colors.onSurface
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -174,7 +169,7 @@ private fun RecordingStatusIndicator(
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition()
-    
+
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (isRecording) 1.3f else 1f,
@@ -183,16 +178,10 @@ private fun RecordingStatusIndicator(
             repeatMode = RepeatMode.Reverse
         )
     )
-    
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = if (isRecording) 360f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        )
-    )
-    
+
+    val primaryColor = MaterialTheme.colors.primary
+    val secondaryColor = MaterialTheme.colors.secondary
+
     Box(
         modifier = modifier.size(48.dp),
         contentAlignment = Alignment.Center
@@ -204,33 +193,31 @@ private fun RecordingStatusIndicator(
         ) {
             val center = Offset(size.width / 2f, size.height / 2f)
             val radius = size.minDimension / 4f
-            
+
             if (isRecording) {
-                // 기록 중 - 펄스링 효과
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.3f),
+                    color = primaryColor.copy(alpha = 0.3f),
                     radius = radius * 1.5f,
                     center = center
                 )
                 drawCircle(
-                    color = Color.White,
+                    color = primaryColor,
                     radius = radius,
                     center = center
                 )
             } else {
-                // 대기 중 - 간단한 원
                 drawCircle(
-                    color = Color(0xFF00D4AA),
+                    color = secondaryColor,
                     radius = radius,
                     center = center
                 )
             }
         }
-        
+
         Icon(
             imageVector = if (isRecording) Icons.Default.CheckCircle else Icons.Default.LocationOn,
             contentDescription = if (isRecording) "Recording" else "Ready",
-            tint = if (isRecording) Color(0xFFFF4444) else Color.White,
+            tint = if (isRecording) primaryColor else secondaryColor,
             modifier = Modifier.size(24.dp)
         )
     }
@@ -242,13 +229,13 @@ private fun ClickFeedbackAnimation(
     modifier: Modifier = Modifier
 ) {
     var showAnimation by remember { mutableStateOf(true) }
-    
+
     LaunchedEffect(elementName) {
         showAnimation = true
-        delay(2000)
+        delay(3000)
         showAnimation = false
     }
-    
+
     AnimatedVisibility(
         visible = showAnimation,
         enter = fadeIn() + slideInVertically { -it / 2 },
@@ -256,13 +243,9 @@ private fun ClickFeedbackAnimation(
         modifier = modifier
     ) {
         Card(
-            modifier = Modifier
-                .background(
-                    color = Color(0xFF00D4AA),
-                    shape = RoundedCornerShape(12.dp)
-                ),
             elevation = 8.dp,
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            backgroundColor = MaterialTheme.colors.primary
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -272,13 +255,13 @@ private fun ClickFeedbackAnimation(
                 Icon(
                     Icons.Default.LocationOn,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colors.onPrimary,
                     modifier = Modifier.size(24.dp)
                 )
-                
+
                 Text(
                     text = "클릭됨: $elementName",
-                    color = Color.White,
+                    color = MaterialTheme.colors.onPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -303,7 +286,6 @@ private fun ContributionGuidePanel(
             modifier = Modifier
                 .width(280.dp)
                 .padding(16.dp),
-            backgroundColor = Color.Black.copy(alpha = 0.9f),
             elevation = 8.dp,
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -318,26 +300,25 @@ private fun ContributionGuidePanel(
                     Icon(
                         Icons.Default.Info,
                         contentDescription = null,
-                        tint = Color(0xFF00D4AA),
+                        tint = MaterialTheme.colors.primary,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "기여 가이드",
-                        color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
-                Divider(color = Color.White.copy(alpha = 0.3f))
-                
+
+                Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f))
+
                 val guideSteps = listOf(
                     "1. 목표 페이지로 이동하세요",
                     "2. 필요한 요소들을 클릭하세요",
                     "3. 경로가 자동으로 기록됩니다",
-                    "4. 완료되면 저장 버튼을 누르세요"
+                    "4. 완료되면 저장 버튼을 누르세요."
                 )
-                
+
                 guideSteps.forEachIndexed { index, step ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -347,10 +328,10 @@ private fun ContributionGuidePanel(
                             modifier = Modifier
                                 .size(20.dp)
                                 .background(
-                                    color = if (index < currentStep) 
-                                        Color(0xFF00D4AA) 
-                                    else 
-                                        Color.White.copy(alpha = 0.3f),
+                                    color = if (index < currentStep)
+                                        MaterialTheme.colors.primary
+                                    else
+                                        MaterialTheme.colors.onSurface.copy(alpha = 0.3f),
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
@@ -359,24 +340,24 @@ private fun ContributionGuidePanel(
                                 Icon(
                                     Icons.Default.Check,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colors.onPrimary,
                                     modifier = Modifier.size(12.dp)
                                 )
                             } else {
                                 Text(
                                     text = "${index + 1}",
-                                    color = Color.White,
+                                    color = MaterialTheme.colors.onSurface,
                                     fontSize = 10.sp
                                 )
                             }
                         }
-                        
+
                         Text(
                             text = step,
-                            color = if (index < currentStep) 
-                                Color.White 
-                            else 
-                                Color.White.copy(alpha = 0.6f),
+                            color = if (index < currentStep)
+                                MaterialTheme.colors.onSurface
+                            else
+                                MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
                             fontSize = 12.sp
                         )
                     }
@@ -402,7 +383,6 @@ private fun RecordingControlPanel(
     ) {
         Card(
             modifier = Modifier.padding(16.dp),
-            backgroundColor = Color.Black.copy(alpha = 0.9f),
             elevation = 12.dp,
             shape = RoundedCornerShape(16.dp)
         ) {
@@ -411,58 +391,55 @@ private fun RecordingControlPanel(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 일시정지 버튼
                 Button(
                     onClick = onPauseRecording,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFFFFA500)
+                        backgroundColor = AppTheme.Colors.Warning,
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = "Pause",
-                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("일시정지", color = Color.White, fontSize = 14.sp)
+                    Text("일시정지", fontSize = 14.sp)
                 }
-                
-                // 완료 버튼
+
                 Button(
                     onClick = onStopRecording,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF00D4AA)
+                        backgroundColor = AppTheme.Colors.Success,
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
                         Icons.Default.Check,
                         contentDescription = "Save",
-                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("완료", color = Color.White, fontSize = 14.sp)
+                    Text("완료", fontSize = 14.sp)
                 }
-                
-                // 취소 버튼
+
                 Button(
                     onClick = onDiscardRecording,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFFFF4444)
+                        backgroundColor = AppTheme.Colors.Error,
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Discard",
-                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("취소", color = Color.White, fontSize = 14.sp)
+                    Text("취소", fontSize = 14.sp)
                 }
             }
         }
@@ -488,7 +465,7 @@ fun ContributionSuccessDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(MaterialTheme.colors.onSurface.copy(alpha = 0.7f))
                 .clickable { onDismiss() },
             contentAlignment = Alignment.Center
         ) {
@@ -496,7 +473,6 @@ fun ContributionSuccessDialog(
                 modifier = Modifier
                     .width(400.dp)
                     .clickable(enabled = false) { },
-                backgroundColor = Color.White,
                 elevation = 16.dp,
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -505,38 +481,35 @@ fun ContributionSuccessDialog(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 성공 아이콘
                     Box(
                         modifier = Modifier
                             .size(80.dp)
-                            .background(Color(0xFF00D4AA).copy(alpha = 0.2f), CircleShape),
+                            .background(MaterialTheme.colors.primary.copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = "Success",
-                            tint = Color(0xFF00D4AA),
+                            tint = MaterialTheme.colors.primary,
                             modifier = Modifier.size(48.dp)
                         )
                     }
-                    
+
                     Text(
                         text = "경로 기록 완료!",
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        fontWeight = FontWeight.Bold
                     )
-                    
+
                     Text(
                         text = "새로운 웹 탐색 경로가 성공적으로 기록되었습니다.",
                         fontSize = 14.sp,
-                        color = Color.Black.copy(alpha = 0.7f),
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
                     )
-                    
-                    // 경로 정보 카드
+
                     Card(
-                        backgroundColor = Color(0xFFF8F9FA),
+                        backgroundColor = MaterialTheme.colors.background,
                         elevation = 0.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -549,8 +522,7 @@ fun ContributionSuccessDialog(
                             InfoRow("예상 시간", "${estimatedTime}초")
                         }
                     }
-                    
-                    // 액션 버튼들
+
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -559,27 +531,24 @@ fun ContributionSuccessDialog(
                             onClick = onDiscard,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFFFF4444)
+                                contentColor = MaterialTheme.colors.error
                             )
                         ) {
                             Text("삭제")
                         }
-                        
+
                         OutlinedButton(
                             onClick = onEdit,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("수정")
                         }
-                        
+
                         Button(
                             onClick = onSave,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                backgroundColor = Color(0xFF00D4AA)
-                            )
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("저장", color = Color.White)
+                            Text("저장")
                         }
                     }
                 }
@@ -597,13 +566,12 @@ private fun InfoRow(label: String, value: String) {
         Text(
             text = label,
             fontSize = 12.sp,
-            color = Color.Black.copy(alpha = 0.6f)
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
         )
         Text(
             text = value,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Black
+            fontWeight = FontWeight.Medium
         )
     }
 }

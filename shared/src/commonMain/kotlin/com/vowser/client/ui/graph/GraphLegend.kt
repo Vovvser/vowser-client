@@ -23,11 +23,7 @@ fun ModernLegend(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier
-            .background(
-                color = Color.Black.copy(alpha = 0.6f),
-                shape = RoundedCornerShape(12.dp)
-            ),
+        modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         elevation = 4.dp
     ) {
@@ -37,7 +33,7 @@ fun ModernLegend(
         ) {
             Text(
                 text = "범례",
-                color = Color.White,
+                color = MaterialTheme.colors.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -59,7 +55,7 @@ fun ModernLegend(
                             NodeType.WEBSITE -> "웹사이트"
                             NodeType.ACTION -> "액션"
                         },
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.8f),
                         fontSize = 11.sp
                     )
                 }
@@ -69,7 +65,7 @@ fun ModernLegend(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "🔴 기여 모드 활성",
-                    color = Color(0xFFFF4444),
+                    color = Color(0xFF9F4147),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
