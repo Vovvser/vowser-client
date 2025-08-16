@@ -108,7 +108,7 @@ private fun AppBarMicrophoneButton(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 녹음 상태 텍스트 (컴팩트하게)
+        // 녹음 상태 텍스트
         AnimatedVisibility(
             visible = recordingStatus != "Ready to record" && isRecording,
             enter = fadeIn(),
@@ -147,7 +147,7 @@ private fun AppBarMicrophoneButton(
             }
         }
 
-        // 녹음 중 펄스 인디케이터 (간소화)
+        // 녹음 중 펄스 인디케이터
         AnimatedVisibility(
             visible = isRecording,
             enter = scaleIn() + fadeIn(),
