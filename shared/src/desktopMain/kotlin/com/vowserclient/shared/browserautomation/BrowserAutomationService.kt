@@ -123,11 +123,11 @@ object BrowserAutomationService {
     }
 
 
-    suspend fun hoverAndClickElement(selector: String) = withContext(Dispatchers.IO) {
+    suspend fun hoverAndClickElement(selector: String): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
                 Napier.e("BrowserAutomationService: Page is not initialized. Cannot hover hoverAndClickElement element: $selector", tag = "BrowserAutomationService")
-                return@withContext
+                return@withContext false
             }
             try {
                 val locator = page.locator(selector)
@@ -135,29 +135,28 @@ object BrowserAutomationService {
                 // 먼저 요소 존재 여부를 빠르게 확인
                 if (locator.count() == 0) {
                     Napier.w { "Element with selector $selector not found on page, trying alternatives." }
-                    tryAlternativeSelectors(selector)
-                    return@withContext
+                    return@withContext tryAlternativeSelectors(selector)
                 }
                 
-                // 타임아웃을 3초로 단축, 여러 요소 있으면 첫 번째 선택
                 locator.first().waitFor(Locator.WaitForOptions().setTimeout(3000.0))
                 
                 if (locator.count() > 0 && locator.first().isVisible) {
-                    executeHoverHighlightClick(locator, selector)
+                    return@withContext executeHoverHighlightClick(locator, selector)
                 } else {
                     Napier.w { "Element with selector $selector not found or not visible after waiting." }
-                    tryAlternativeSelectors(selector)
+                    return@withContext tryAlternativeSelectors(selector)
                 }
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
-                tryAlternativeSelectors(selector)
+                return@withContext tryAlternativeSelectors(selector)
             } catch (e: Exception) {
                 Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                return@withContext false
             }
         }
     }
     
-    private suspend fun tryAlternativeSelectors(originalSelector: String) = withContext(Dispatchers.IO) {
+    private suspend fun tryAlternativeSelectors(originalSelector: String): Boolean = withContext(Dispatchers.IO) {
         val alternativeSelectors = when (originalSelector) {
             "a[href='/webtoon?tab=mon']" -> listOf(
                 "a[href*='tab=mon']",
@@ -192,7 +191,7 @@ object BrowserAutomationService {
         
         if (alternativeSelectors.isEmpty()) {
             Napier.w { "No alternative selectors available for: $originalSelector. Skipping this step." }
-            return@withContext
+            return@withContext false
         }
         
         for (altSelector in alternativeSelectors) {
@@ -206,22 +205,24 @@ object BrowserAutomationService {
                     continue
                 }
                 
-                // 짧은 타임아웃으로 대기, 여러 요소 있으면 첫 번째 선택
                 locator.first().waitFor(Locator.WaitForOptions().setTimeout(2000.0))
                 
                 if (locator.count() > 0 && locator.first().isVisible) {
-                    executeHoverHighlightClick(locator, altSelector)
-                    Napier.i { "Successfully clicked using alternative selector: $altSelector" }
-                    return@withContext
+                    val success = executeHoverHighlightClick(locator, altSelector)
+                    if (success) {
+                        Napier.i { "Successfully clicked using alternative selector: $altSelector" }
+                        return@withContext true
+                    }
                 }
             } catch (e: Exception) {
                 Napier.w { "Alternative selector $altSelector also failed: ${e.message}" }
             }
         }
         Napier.w { "All alternative selectors failed for original selector: $originalSelector. Continuing anyway." }
+        return@withContext false
     }
 
-    private suspend fun executeHoverHighlightClick(locator: Locator, selector: String) = withContext(Dispatchers.IO) {
+    private suspend fun executeHoverHighlightClick(locator: Locator, selector: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val element = locator.first()
             
@@ -232,7 +233,6 @@ object BrowserAutomationService {
             
             kotlinx.coroutines.delay(3000)
 
-            // 새 탭 열림을 방지하기 위해 target 속성을 제거
             try {
                 page.evaluate("""
                     (function() {
@@ -250,14 +250,13 @@ object BrowserAutomationService {
                 Napier.w { "Failed to remove target attribute: ${jsError.message}" }
             }
             
-            // 일반 클릭 수행 (target 제거 후)
             element.click()
             Napier.i { "Clicked element with selector: $selector" }
+            return@withContext true
 
         } catch (e: Exception) {
             Napier.e("Failed to execute hover-highlight-click for $selector: ${e.message}", e, tag = "BrowserAutomationService")
             try {
-                // 폴백에서도 새 탭 방지 로직 적용
                 try {
                     page.evaluate("""
                         (function() {
@@ -276,8 +275,10 @@ object BrowserAutomationService {
                 
                 locator.first().click()
                 Napier.i { "Fallback click succeeded for selector: $selector" }
+                return@withContext true
             } catch (fallbackError: Exception) {
                 Napier.e("Fallback click also failed for $selector: ${fallbackError.message}", fallbackError, tag = "BrowserAutomationService")
+                return@withContext false
             }
         }
     }
