@@ -135,7 +135,11 @@ private fun DrawScope.drawUltraModernEdges(
         val toNode = nodeMap[edge.to]
 
         if (fromNode != null && toNode != null) {
-            val isHighlighted = highlightedPath.contains(fromNode.id) && highlightedPath.contains(toNode.id)
+            val isHighlighted = if (highlightedPath.size > 1) {
+                val fromIndex = highlightedPath.indexOf(fromNode.id)
+                val toIndex = highlightedPath.indexOf(toNode.id)
+                fromIndex >= 0 && toIndex >= 0 && abs(fromIndex - toIndex) == 1
+            } else false
 
             val startPos = Offset(fromNode.x * scale + offset.x, fromNode.y * scale + offset.y)
             val endPos = Offset(toNode.x * scale + offset.x, toNode.y * scale + offset.y)
