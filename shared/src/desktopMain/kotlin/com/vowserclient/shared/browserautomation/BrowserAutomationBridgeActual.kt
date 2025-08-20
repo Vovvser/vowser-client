@@ -40,28 +40,43 @@ actual object BrowserAutomationBridge {
             browserActions.navigate(firstStep.url)
             delay(3000) // 페이지 로드 대기
             
-            // 첫 번째 navigate 스텝은 건너뛰고 나머지 스텝들 실행
+            var currentUrl = firstStep.url
+            var hasNavigatedToFirstWebsite = false
+            
             for ((index, step) in path.steps.drop(1).withIndex()) {
-                val actualIndex = index + 1 // 실제 인덱스 (첫 번째 스텝 건너뛰었으므로 +1)
+                val actualIndex = index + 1
                 Napier.i { "Executing step ${actualIndex + 1}/${path.steps.size}: ${step.action} on ${step.url} with selector ${step.selector}" }
                 
-                actionExecutors[step.action]?.execute(browserActions, step)
-                    ?: Napier.w { "Unknown navigation action or no executor found: ${step.action}" }
+                val actionResult = actionExecutors[step.action]?.execute(browserActions, step) ?: false
+                
+                // 클릭 실패 시 첫 번째 웹사이트 전환만 처리
+                if (!actionResult && step.action == "click" && !hasNavigatedToFirstWebsite) {
+                    // 다음 스텝이 다른 도메인인지 확인
+                    val nextStep = if (actualIndex < path.steps.size - 1) path.steps[actualIndex + 1] else null
+                    if (nextStep != null && isDifferentDomain(currentUrl, nextStep.url)) {
+                        Napier.i { "Click failed and domain change detected, navigating to first website: ${nextStep.url}" }
+                        browserActions.navigate(nextStep.url)
+                        currentUrl = nextStep.url
+                        hasNavigatedToFirstWebsite = true
+                        delay(3000)
+                    }
+                }
                 
                 when (step.action) {
                     "navigate" -> {
                         Napier.i { "Waiting for page load after navigation..." }
-                        delay(3000) // 페이지 로드 대기
+                        currentUrl = step.url
+                        delay(3000)
                     }
                     "click" -> {
                         Napier.i { "Waiting after click action..." }
-                        delay(2000) // 클릭 후 페이지 변화 대기
+                        delay(2000)
                     }
                     "type" -> {
-                        delay(1000) // 타이핑 후 대기
+                        delay(1000)
                     }
                     else -> {
-                        delay(500) // 기본 대기 시간
+                        delay(500)
                     }
                 }
             }
@@ -76,21 +91,46 @@ actual object BrowserAutomationBridge {
                 when (step.action) {
                     "navigate" -> {
                         Napier.i { "Waiting for page load after navigation..." }
-                        delay(3000) // 페이지 로드 대기
+                        delay(3000)
                     }
                     "click" -> {
                         Napier.i { "Waiting after click action..." }
-                        delay(2000) // 클릭 후 페이지 변화 대기
+                        delay(2000)
                     }
                     "type" -> {
-                        delay(1000) // 타이핑 후 대기
+                        delay(1000)
                     }
                     else -> {
-                        delay(500) // 기본 대기 시간
+                        delay(500)
                     }
                 }
             }
         }
         Napier.i { "Navigation path ${path.pathId} execution completed." }
+    }
+
+    /**
+     * 두 URL의 도메인이 다른지 확인
+     */
+    private fun isDifferentDomain(currentUrl: String, nextUrl: String): Boolean {
+        return try {
+            val currentDomain = extractDomain(currentUrl)
+            val nextDomain = extractDomain(nextUrl)
+            currentDomain != nextDomain
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * URL에서 도메인 추출
+     */
+    private fun extractDomain(url: String): String {
+        return try {
+            val domain = url.substringAfter("://").substringBefore("/")
+            domain.lowercase()
+        } catch (e: Exception) {
+            url
+        }
     }
 }

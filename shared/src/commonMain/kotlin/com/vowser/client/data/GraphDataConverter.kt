@@ -85,17 +85,43 @@ object GraphDataConverter {
             }
         }
 
-        // 날씨까지의 경로만 하이라이트
         val bestPath = allPaths.paths.maxByOrNull { it.score ?: 0.0 }
         val highlightedPath = if (bestPath != null) {
-            val weatherActionIndex = bestPath.steps.indexOfFirst { it.title == "날씨" }
-            if (weatherActionIndex >= 0) {
-                val naverHub = "hub_naver"
-                val weatherAction = "action_${bestPath.pathId}_$weatherActionIndex"
-                val weatherHub = "hub_weather"
-                listOf(naverHub, weatherAction, weatherHub)
+            // 1. 시작 허브 찾기
+            val startStep = bestPath.steps.firstOrNull { it.action == "navigate" }
+            if (startStep != null) {
+                val startHubId = "hub_${getPageKey(startStep.url)}"
+                
+                // 2. 첫 번째 웹사이트 전환을 일으키는 클릭 찾기
+                var targetActionNodeId: String? = null
+                var targetWebsiteHubId: String? = null
+                
+                bestPath.steps.forEachIndexed { stepIndex, step ->
+                    if (step.action == "click" && targetActionNodeId == null) {
+                        val nextStep = if (stepIndex < bestPath.steps.size - 1) bestPath.steps[stepIndex + 1] else null
+                        if (nextStep != null && isDifferentPage(startStep.url, nextStep.url)) {
+                            targetActionNodeId = "action_${bestPath.pathId}_$stepIndex"
+                            targetWebsiteHubId = "hub_${getPageKey(nextStep.url)}"
+                        }
+                    }
+                }
+                
+                // 3. 경로 구성: 시작허브 → 액션노드 → 새웹사이트허브
+                val actionId = targetActionNodeId
+                val websiteId = targetWebsiteHubId
+                if (actionId != null && websiteId != null) {
+                    listOf(startHubId, actionId, websiteId)
+                } else {
+                    emptyList()
+                }
             } else emptyList()
         } else emptyList()
+        
+        println("[GraphDataConverter] highlightedPath: $highlightedPath")
+        println("[GraphDataConverter] Total nodes: ${allNodes.size}, Total edges: ${allEdges.size}")
+        allNodes.values.forEach { node ->
+            println("[GraphDataConverter] Node: ${node.id} (${node.label})")
+        }
 
         return GraphVisualizationData(
             nodes = allNodes.values.toList(),
@@ -112,7 +138,6 @@ object GraphDataConverter {
         val currentDomain = extractDomain(currentUrl)
         val nextDomain = extractDomain(nextUrl)
         
-        // 도메인이 다르거나 서브도메인이 다르면 다른 페이지로 판단
         return currentDomain != nextDomain
     }
     
@@ -122,9 +147,8 @@ object GraphDataConverter {
     private fun extractDomain(url: String): String {
         return try {
             val domain = url.substringAfter("://").substringBefore("/")
-            // 서브도메인까지 포함하여 구분 (예: www.naver.com vs weather.naver.com)
             domain.lowercase()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             url
         }
     }
@@ -147,7 +171,6 @@ object GraphDataConverter {
                 if (domain.contains("weather")) "날씨" else "NAVER"
             }
             else -> {
-                // 도메인명을 깔끔하게 변환
                 domain.substringBefore(".")
                     .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
             }
