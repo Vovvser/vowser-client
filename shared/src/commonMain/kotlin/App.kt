@@ -39,6 +39,9 @@ fun App() {
     val currentGraphData by viewModel.currentGraphData.collectAsState()
     val graphLoading by viewModel.graphLoading.collectAsState()
     
+    // 상태 히스토리(로그) 구독
+    val statusHistory by viewModel.statusHistory.collectAsState()
+    
     // 테마 적용
     val colors = when {
         isDarkTheme && isContributionMode -> AppTheme.ContributionThemeDark
@@ -63,6 +66,7 @@ fun App() {
                     recordingStatus = recordingStatus,
                     currentGraphData = currentGraphData,
                     isDeveloperMode = isDeveloperMode,
+                    statusHistory = statusHistory,
                     onModeToggle = { isContributionMode = !isContributionMode },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
@@ -71,7 +75,8 @@ fun App() {
                     },
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
-                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) }
+                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) },
+                    onClearStatusHistory = { viewModel.clearStatusHistory() }
                 )
             }
             AppScreen.SETTINGS -> {

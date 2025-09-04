@@ -20,6 +20,7 @@ object AppTheme {
         val Info = Color(0xFF69A19D)
         val Text = Color(30, 30, 30)
         val LightBackground = Color(234, 234, 234)
+        val DarkText = Color(0xFFE6E6E6)
     }
 
     /**
@@ -28,7 +29,11 @@ object AppTheme {
     val NormalThemeDark = darkColors(
         primary = Colors.Primary,
         secondary = Colors.Success,
-        background = Colors.Background
+        background = Colors.Background,
+        onPrimary = Color.White,
+        onSecondary = Color.White,
+        onBackground = Colors.DarkText,
+        onSurface = Colors.DarkText
     )
 
     /**
@@ -37,7 +42,11 @@ object AppTheme {
     val ContributionThemeDark = darkColors(
         primary = Colors.Contribution,
         secondary = Colors.Contribution,
-        background = Colors.Background
+        background = Colors.Background,
+        onPrimary = Color.White,
+        onSecondary = Color.White,
+        onBackground = Colors.DarkText,
+        onSurface = Colors.DarkText
     )
 
     /**

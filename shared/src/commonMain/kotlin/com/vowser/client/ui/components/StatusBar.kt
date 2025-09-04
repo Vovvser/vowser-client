@@ -18,7 +18,6 @@ fun StatusBar(
     receivedMessage: String,
     currentVoiceTest: VoiceTestScenario? = null,
     isDeveloperMode: Boolean = false,
-    onReconnect: () -> Unit,
     onTestCommand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -59,16 +58,6 @@ fun StatusBar(
                 Spacer(modifier = Modifier.width(7.dp))
             }
             
-            // 재연결 버튼
-            Button(
-                onClick = onReconnect,
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(133,118,162),
-                    contentColor = Color.White
-                )
-            ) {
-                Text("재연결")
-            }
         }
     }
 }

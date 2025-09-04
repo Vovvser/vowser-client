@@ -23,6 +23,20 @@ import com.vowser.client.websocket.dto.AllPathsResponse
 import com.vowser.client.websocket.dto.PathDetail
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import kotlinx.coroutines.delay
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+
+
+data class StatusLogEntry(
+    val timestamp: String,
+    val message: String,
+    val type: StatusLogType = StatusLogType.INFO
+)
+
+enum class StatusLogType {
+    INFO, SUCCESS, WARNING, ERROR
+}
 
 class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)) {
 
@@ -50,27 +64,60 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     private val _graphLoading = MutableStateFlow(false)
     val graphLoading: StateFlow<Boolean> = _graphLoading.asStateFlow()
 
+    // 상태 히스토리 관리 (최대 100개)
+    private val _statusHistory = MutableStateFlow<List<StatusLogEntry>>(emptyList())
+    val statusHistory: StateFlow<List<StatusLogEntry>> = _statusHistory.asStateFlow()
+
     private val speechRepository = SpeechRepository(HttpClient(CIO))
     val sessionId = uuid4().toString()
 
     init {
         setupWebSocketCallbacks()
         connectWebSocket()
+        addStatusLog("시스템 시작", StatusLogType.INFO)
+    }
+
+    /**
+     * 상태 로그 추가 (최대 100개 유지)
+     */
+    private fun addStatusLog(message: String, type: StatusLogType = StatusLogType.INFO) {
+        val timestamp = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            .let { "${it.hour.toString().padStart(2, '0')}:${it.minute.toString().padStart(2, '0')}:${it.second.toString().padStart(2, '0')}" }
+        
+        val newEntry = StatusLogEntry(timestamp, message, type)
+        val currentList = _statusHistory.value.toMutableList()
+        
+        currentList.add(newEntry)
+        if (currentList.size > 100) {
+            currentList.removeAt(0)
+        }
+        
+        _statusHistory.value = currentList
+    }
+
+    /**
+     * 상태 히스토리 클리어
+     */
+    fun clearStatusHistory() {
+        _statusHistory.value = emptyList()
+        addStatusLog("로그 클리어됨", StatusLogType.INFO)
     }
 
     private fun connectWebSocket() {
         coroutineScope.launch {
             _connectionStatus.value = ConnectionStatus.Connecting
+            addStatusLog("서버 연결 중...", StatusLogType.INFO)
             try {
                 webSocketClient.connect()
                 _connectionStatus.value = ConnectionStatus.Connected
+                addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
             } catch (e: Exception) {
                 Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e)
                 _connectionStatus.value = ConnectionStatus.Error
+                addStatusLog("서버 연결 실패: ${e.message}", StatusLogType.ERROR)
             }
         }
     }
-
 
     fun sendToolCall(toolName: String, args: Map<String, String>) {
         coroutineScope.launch {
@@ -173,6 +220,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
 
     fun reconnect() {
         coroutineScope.launch {
+            addStatusLog("서버 재연결 시도...", StatusLogType.INFO)
             webSocketClient.reconnect()
             _connectionStatus.value = ConnectionStatus.Connecting
         }
@@ -190,46 +238,56 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
 
     private suspend fun startRecordingImpl() {
         _recordingStatus.value = "Starting recording..."
+        addStatusLog("음성 녹음 시작 중...", StatusLogType.INFO)
         val success = startPlatformRecording()
         if (success) {
             _isRecording.value = true
             _recordingStatus.value = "Recording..."
+            addStatusLog("음성 녹음 중", StatusLogType.INFO)
             Napier.i("Recording started successfully", tag = "AppViewModel")
         } else {
             _recordingStatus.value = "Failed to start recording"
+            addStatusLog("음성 녹음 시작 실패", StatusLogType.ERROR)
             Napier.e("Failed to start recording", tag = "AppViewModel")
         }
     }
 
     private suspend fun stopRecordingImpl() {
         _recordingStatus.value = "Stopping recording..."
+        addStatusLog("음성 녹음 중지 중...", StatusLogType.INFO)
         _isRecording.value = false
         
         val audioBytes = stopPlatformRecording()
         if (audioBytes != null) {
             _recordingStatus.value = "Uploading audio..."
+            addStatusLog("음성 데이터 업로드 중...", StatusLogType.INFO)
             try {
                 val result = speechRepository.transcribeAudio(audioBytes, sessionId)
                 result.fold(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"
+                        addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
                         Napier.i("Audio transcription result: $response", tag = "AppViewModel")
                     },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
+                        addStatusLog("음성 처리 실패: ${error.message}", StatusLogType.ERROR)
                         Napier.e("Audio transcription failed: ${error.message}", tag = "AppViewModel")
                     }
                 )
             } catch (e: Exception) {
                 _recordingStatus.value = "Error processing audio: ${e.message}"
+                addStatusLog("음성 처리 오류: ${e.message}", StatusLogType.ERROR)
                 Napier.e("Error processing audio: ${e.message}", e, tag = "AppViewModel")
             }
         } else {
             _recordingStatus.value = "No audio data recorded"
+            addStatusLog("녹음된 음성 데이터 없음", StatusLogType.WARNING)
         }
 
         delay(3000)
         _recordingStatus.value = "Ready to record"
+        addStatusLog("녹음 준비 완료", StatusLogType.INFO)
     }
 
     /**
@@ -240,10 +298,12 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         webSocketClient.onAllPathsReceived = { allPaths ->
             coroutineScope.launch {
                 Napier.i("Received all paths for query: ${allPaths.query}", tag = "AppViewModel")
+                addStatusLog("경로 분석 완료: ${allPaths.query}", StatusLogType.SUCCESS)
 
                 // 1. 그래프 UI 업데이트
                 // AllPathsResponse를 시각화 데이터로 변환 (GraphDataConverter에 새 함수 추가 필요)
                 val visualizationData = GraphDataConverter.convertFromAllPaths(allPaths)
+                addStatusLog("그래프 데이터 생성됨 (노드: ${visualizationData.nodes.size}개)", StatusLogType.INFO)
                 Napier.i("Graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = "AppViewModel")
                 _currentGraphData.value = visualizationData
                 _graphLoading.value = false
@@ -253,6 +313,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                 val firstPath = allPaths.paths.firstOrNull()
                 if (firstPath != null) {
                     Napier.i("Auto-executing the first path: ${firstPath.pathId}", tag = "AppViewModel")
+                    addStatusLog("브라우저 자동화 시작", StatusLogType.INFO)
                     try {
                         val navigationPath = NavigationPath(
                             pathId = firstPath.pathId,
@@ -260,8 +321,10 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                             description = "Auto-executed path from voice command"
                         )
                         BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                        addStatusLog("브라우저 제어 완료", StatusLogType.SUCCESS)
                         Napier.i("Successfully started automation for path: ${firstPath.pathId}", tag = "AppViewModel")
                     } catch (e: Exception) {
+                        addStatusLog("브라우저 제어 실패: ${e.message}", StatusLogType.ERROR)
                         Napier.e("Failed to execute navigation path: ${e.message}", e, tag = "AppViewModel")
                     }
                 }
@@ -275,9 +338,12 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
 
                 if (voiceResult.success) {
                     _recordingStatus.value = "Voice processed: ${voiceResult.transcript}"
+                    addStatusLog("음성 인식됨: ${voiceResult.transcript}", StatusLogType.SUCCESS)
                     _graphLoading.value = true
+                    addStatusLog("경로 분석 중...", StatusLogType.INFO)
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
+                    addStatusLog("음성 인식 실패: ${voiceResult.error?.message ?: "Unknown error"}", StatusLogType.ERROR)
                 }
             }
         }
