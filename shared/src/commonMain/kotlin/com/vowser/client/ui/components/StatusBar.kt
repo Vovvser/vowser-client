@@ -17,6 +17,7 @@ import com.vowser.client.ui.theme.AppTheme
 fun StatusBar(
     receivedMessage: String,
     currentVoiceTest: VoiceTestScenario? = null,
+    isDeveloperMode: Boolean = false,
     onReconnect: () -> Unit,
     onTestCommand: () -> Unit,
     modifier: Modifier = Modifier
@@ -42,19 +43,21 @@ fun StatusBar(
                 )
             }
             
-            // 음성 테스트 버튼
-            Button(
-                onClick = onTestCommand,
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (currentVoiceTest != null) 
-                        AppTheme.Colors.Contribution else AppTheme.Colors.Success,
-                    contentColor = Color.White
-                )
-            ) {
-                Text("모의 테스트")
+            // 모의 테스트 버튼
+            if (isDeveloperMode) {
+                Button(
+                    onClick = onTestCommand,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = if (currentVoiceTest != null) 
+                            AppTheme.Colors.Contribution else AppTheme.Colors.Success,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("모의 테스트")
+                }
+                
+                Spacer(modifier = Modifier.width(7.dp))
             }
-            
-            Spacer(modifier = Modifier.width(7.dp))
             
             // 재연결 버튼
             Button(

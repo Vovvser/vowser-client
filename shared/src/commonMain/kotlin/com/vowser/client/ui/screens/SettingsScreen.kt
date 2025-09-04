@@ -15,7 +15,9 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     isDarkTheme: Boolean,
+    isDeveloperMode: Boolean,
     onThemeToggle: (Boolean) -> Unit,
+    onDeveloperModeToggle: (Boolean) -> Unit,
     onBackPress: () -> Unit
 ) {
     Scaffold(
@@ -60,6 +62,11 @@ fun SettingsScreen(
                         label = "다크 모드",
                         isChecked = isDarkTheme,
                         onCheckedChange = onThemeToggle
+                    )
+                    SettingItemSwitch(
+                        label = "개발자 모드",
+                        isChecked = isDeveloperMode,
+                        onCheckedChange = onDeveloperModeToggle
                     )
                 }
             }

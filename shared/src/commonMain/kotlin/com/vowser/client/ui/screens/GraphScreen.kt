@@ -43,6 +43,7 @@ fun GraphScreen(
     isRecording: Boolean,
     recordingStatus: String,
     currentGraphData: GraphVisualizationData?,
+    isDeveloperMode: Boolean,
     onModeToggle: () -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
@@ -97,8 +98,8 @@ fun GraphScreen(
         }
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colors.background)) {
-            if (currentGraphData != null) {
-                // 메인 그래프 화면
+            if (isDeveloperMode && currentGraphData != null) {
+                //  그래프 화면
                 ModernNetworkGraph(
                     nodes = currentGraphData.nodes,
                     edges = currentGraphData.edges,
@@ -129,7 +130,7 @@ fun GraphScreen(
                 modifier = Modifier.fillMaxSize()
             )
             } else {
-                // 빈 상태 UI - 음성 명령 안내
+                // 음성 명령 안내
                 EmptyStateUI(
                     isRecording = isRecording,
                     recordingStatus = recordingStatus,
@@ -185,8 +186,8 @@ fun GraphScreen(
                     .align(Alignment.TopCenter)
             )
             
-            // 통계 패널 (선택적 표시)
-            if (showStats) {
+            // 통계 패널
+            if (isDeveloperMode && showStats) {
                 StatisticsPanel(
                     navigationProcessor = navigationProcessor,
                     onClose = { showStats = false },
@@ -214,11 +215,12 @@ fun GraphScreen(
                 modifier = Modifier.align(Alignment.Center)
             )
             
-            // 하단 상태 바 (특정 상태에서 숨김)
+            // 하단 상태 바
             if (!(isContributionMode && recordingStatus == "경로 기록 중...")) {
                 StatusBar(
                     receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
                     currentVoiceTest = currentVoiceTest,
+                    isDeveloperMode = isDeveloperMode,
                     onReconnect = onReconnect,
                     onTestCommand = {
                         // 새로운 날씨 검색 결과 모의 테스트 데이터
@@ -369,15 +371,6 @@ private fun EmptyStateUI(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(32.dp)
         ) {
-//            Icon(
-//                imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
-//                contentDescription = if (isRecording) "Recording" else "Not Recording",
-//                tint = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
-//                modifier = Modifier.size(64.dp)
-//            )
-//
-//            Spacer(modifier = Modifier.height(24.dp))
-
             Text(
                 text = if (isRecording) {
                     "음성 명령을 말해보세요."

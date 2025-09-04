@@ -15,6 +15,7 @@ fun App() {
     var isContributionMode by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
+    var isDeveloperMode by remember { mutableStateOf(false) }
     
     // 의존성 초기화
     val coroutineScope = rememberCoroutineScope()
@@ -61,6 +62,7 @@ fun App() {
                     isRecording = isRecording,
                     recordingStatus = recordingStatus,
                     currentGraphData = currentGraphData,
+                    isDeveloperMode = isDeveloperMode,
                     onModeToggle = { isContributionMode = !isContributionMode },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
@@ -75,7 +77,9 @@ fun App() {
             AppScreen.SETTINGS -> {
                 SettingsScreen(
                     isDarkTheme = isDarkTheme,
+                    isDeveloperMode = isDeveloperMode,
                     onThemeToggle = { isDarkTheme = it },
+                    onDeveloperModeToggle = { isDeveloperMode = it },
                     onBackPress = { currentScreen = AppScreen.GRAPH }
                 )
             }
