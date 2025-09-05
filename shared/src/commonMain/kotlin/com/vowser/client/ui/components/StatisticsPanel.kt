@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.navigation.NavigationProcessor
 
 /**
@@ -24,12 +25,12 @@ fun StatisticsPanel(
     Card(
         modifier = modifier
             .width(300.dp)
-            .padding(16.dp),
-        elevation = 12.dp
+            .padding(AppTheme.Dimensions.paddingMedium),
+        elevation = AppTheme.Dimensions.cardElevationXHigh
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
+            verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
         ) {
             // 헤더
             Row(

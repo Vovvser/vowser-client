@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
+import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 모던 그래프 시각화 컴포넌트
@@ -88,7 +89,7 @@ fun ModernNetworkGraph(
                         offset = Offset.Zero
                     },
                     onCenterView = { onGraphInteraction(GraphInteractionType.CenterView) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp) // Specific padding for UI layout
                 )
             }
 
@@ -104,7 +105,7 @@ fun ModernNetworkGraph(
                 isContributionMode = isContributionMode,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(16.dp)
+                    .padding(AppTheme.Dimensions.paddingMedium)
             )
         }
     }

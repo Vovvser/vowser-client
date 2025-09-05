@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 
 @Composable
 fun StatusCard(
@@ -34,7 +34,7 @@ fun StatusCard(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.widthIn(max = 350.dp)
+            modifier = Modifier.widthIn(max = 350.dp)  // 특수 최대 너비
         ) {
             // 메인 상태 메시지 행
             Row(
@@ -45,7 +45,7 @@ fun StatusCard(
             // 상태 메시지
             Text(
                 text = status.friendlyMessage,
-                fontSize = 14.sp,
+                fontSize = AppTheme.Typography.bodyMedium,
                 color = getStatusTextColor(status.statusType),
                 modifier = Modifier.weight(1f)
             )
@@ -54,13 +54,13 @@ fun StatusCard(
             if (shouldShowExpandButton) {
                 IconButton(
                     onClick = { isExpanded = !isExpanded },
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium)
                 ) {
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "상세 정보 숨기기" else "상세 정보 보기",
                         tint = getStatusTextColor(status.statusType),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                     )
                 }
             }
@@ -74,7 +74,7 @@ fun StatusCard(
         ) {
             ScrollableDetailView(
                 details = status.details,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = AppTheme.Dimensions.paddingSmall)
             )
         }
         }
@@ -87,24 +87,24 @@ private fun ScrollableDetailView(
     modifier: Modifier = Modifier
 ) {
     Card(
-        elevation = 1.dp,
-        backgroundColor = Color.Gray.copy(alpha = 0.1f),
+        elevation = AppTheme.Dimensions.cardElevationLow,
+        backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.3f),
         modifier = modifier
     ) {
         LazyColumn(
             modifier = Modifier
-                .heightIn(max = 120.dp)
+                .heightIn(max = 120.dp)  // 최대 높이
                 .fillMaxWidth()
-                .padding(8.dp)
+                .padding(AppTheme.Dimensions.paddingSmall)
         ) {
             item {
                 SelectionContainer {
                     Text(
                         text = details,
-                        fontSize = 11.sp,
+                        fontSize = AppTheme.Typography.overline,
                         fontFamily = FontFamily.Monospace,
-                        color = Color.Black.copy(alpha = 0.7f),
-                        lineHeight = 14.sp
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
+                        lineHeight = AppTheme.Typography.bodyMedium
                     )
                 }
             }
@@ -115,9 +115,9 @@ private fun ScrollableDetailView(
 @Composable
 private fun getStatusTextColor(statusType: StatusType): Color {
     return when (statusType) {
-        StatusType.SUCCESS -> Color.Green.copy(alpha = 0.8f)
-        StatusType.ERROR -> Color.Red.copy(alpha = 0.8f)
-        StatusType.PROCESSING -> MaterialTheme.colors.onSurface.copy(alpha = 0.5f) // 기본 색상
-        StatusType.INFO -> MaterialTheme.colors.onSurface.copy(alpha = 0.5f) // 기본 색상
+        StatusType.SUCCESS -> AppTheme.Colors.Success.copy(alpha = 0.8f)
+        StatusType.ERROR -> AppTheme.Colors.Error.copy(alpha = 0.8f)
+        StatusType.PROCESSING -> MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
+        StatusType.INFO -> MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
     }
 }

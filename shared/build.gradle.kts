@@ -30,6 +30,8 @@ kotlin {
                 implementation(compose.material)
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.components.resources)
+
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.0")
                 // Ktor
                 implementation("io.ktor:ktor-client-core:2.3.6")
                 implementation("io.ktor:ktor-client-cio:2.3.6")

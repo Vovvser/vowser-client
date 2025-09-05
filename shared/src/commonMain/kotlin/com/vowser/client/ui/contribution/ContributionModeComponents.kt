@@ -93,8 +93,8 @@ private fun ContributionHeader(
 ) {
     Card(
         modifier = modifier.padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = 12.dp
+        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
+        elevation = AppTheme.Dimensions.cardElevationXHigh
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -383,7 +383,7 @@ private fun RecordingControlPanel(
     ) {
         Card(
             modifier = Modifier.padding(16.dp),
-            elevation = 12.dp,
+            elevation = AppTheme.Dimensions.cardElevationXHigh,
             shape = RoundedCornerShape(16.dp)
         ) {
             Row(

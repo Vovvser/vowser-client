@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 글래스모피즘 효과가 적용된 그래프 헤더 컴포넌트
@@ -28,9 +28,9 @@ fun GlassmorphismHeader(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = 0.dp
+            .padding(AppTheme.Dimensions.paddingMedium),
+        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
+        elevation = 0.dp  // 의도적으로 0
     ) {
         Box(
             modifier = Modifier
@@ -43,16 +43,16 @@ fun GlassmorphismHeader(
                     )
                 )
                 .border(
-                    width = 1.dp,
+                    width = 1.dp,  // 보더 너비
                     brush = Brush.linearGradient(
                         colors = listOf(
                             Color.White.copy(alpha = 0.3f),
                             Color.White.copy(alpha = 0.1f)
                         )
                     ),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge)
                 )
-                .padding(16.dp)
+                .padding(AppTheme.Dimensions.paddingMedium)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -63,13 +63,13 @@ fun GlassmorphismHeader(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 20.sp,
+                        fontSize = AppTheme.Typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "$nodeCount 개 노드",
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp
+                        fontSize = AppTheme.Typography.bodyMedium
                     )
                 }
                 
@@ -85,11 +85,11 @@ fun GlassmorphismHeader(
                             uncheckedTrackColor = Color.White.copy(alpha = 0.3f)
                         )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
                     Text(
                         text = if (isContributionMode) "기여" else "탐색",
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = AppTheme.Typography.bodySmall,
                         fontWeight = FontWeight.Medium
                     )
                 }

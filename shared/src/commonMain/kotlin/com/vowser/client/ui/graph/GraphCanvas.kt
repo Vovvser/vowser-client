@@ -23,6 +23,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 import kotlin.math.*
 
 /**
@@ -145,8 +146,8 @@ private fun DrawScope.drawUltraModernEdges(
             val endPos = Offset(toNode.x * scale + offset.x, toNode.y * scale + offset.y)
 
             val edgeColor = when {
-                isHighlighted -> Color(0xFF5dbe50)
-                isContributionMode -> Color(0xFF9F4147)
+                isHighlighted -> AppTheme.Colors.Success
+                isContributionMode -> AppTheme.Colors.Error
                 else -> defaultColor
             }
 
@@ -160,7 +161,7 @@ private fun DrawScope.drawUltraModernEdges(
                 val midPoint = Offset((startPos.x + endPos.x) / 2f, (startPos.y + endPos.y) / 2f)
                 val textStyle = TextStyle(
                     color = edgeColor.copy(alpha = if (isHighlighted || isContributionMode) 1f else 0.8f),
-                    fontSize = (8 * scale).sp,
+                    fontSize = (AppTheme.Typography.overline.value * scale).sp,
                     fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
                 )
                 val textLayoutResult = textMeasurer.measure(edge.label, style = textStyle)
@@ -205,10 +206,10 @@ private fun DrawScope.drawUltraModernNodes(
         }
 
         val borderColor = when {
-            isActive -> Color(0xFFFF6B6B)
-            isSelected -> Color(0xFF4ECDC4)
-            isHighlighted -> Color(0xFF5dbe50)
-            isContributionMode -> Color(0xFF9F4147)
+            isActive -> AppTheme.Colors.Error
+            isSelected -> AppTheme.Colors.Info
+            isHighlighted -> AppTheme.Colors.Success
+            isContributionMode -> AppTheme.Colors.Error
             else -> defaultColor
         }
 
@@ -234,7 +235,7 @@ private fun DrawScope.drawUltraModernNodes(
         if (scale > 0.8f) {
             val textStyle = TextStyle(
                 color = borderColor.copy(alpha = if (isHighlighted || isActive) 1f else 0.9f),
-                fontSize = (10 * scale).sp,
+                fontSize = (AppTheme.Typography.bodySmall.value * scale).sp,
                 fontWeight = if (isHighlighted || isActive) FontWeight.Bold else FontWeight.Medium
             )
             val displayText = if (node.label.length > 15) node.label.take(12) + "..." else node.label
@@ -287,8 +288,8 @@ private fun DrawScope.drawUltraArrowHead(start: Offset, end: Offset, isHighlight
     val adjustedEnd = end - Offset(cos(lineAngle) * 20f, sin(lineAngle) * 20f)
 
     val arrowColor = when {
-        isHighlighted -> Color(0xFF5dbe50)
-        isRecording -> Color(0xFF9F4147)
+        isHighlighted -> AppTheme.Colors.Success
+        isRecording -> AppTheme.Colors.Error
         else -> defaultColor
     }
 

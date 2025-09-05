@@ -15,6 +15,7 @@ fun App() {
     var isContributionMode by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
+    var isDeveloperMode by remember { mutableStateOf(false) }
     
     // 의존성 초기화
     val coroutineScope = rememberCoroutineScope()
@@ -38,12 +39,14 @@ fun App() {
     val currentGraphData by viewModel.currentGraphData.collectAsState()
     val graphLoading by viewModel.graphLoading.collectAsState()
     
+    // 상태 히스토리(로그) 구독
+    val statusHistory by viewModel.statusHistory.collectAsState()
+    
     // 테마 적용
-    val colors = when {
-        isDarkTheme && isContributionMode -> AppTheme.ContributionThemeDark
-        isDarkTheme && !isContributionMode -> AppTheme.NormalThemeDark
-        !isDarkTheme && isContributionMode -> AppTheme.ContributionThemeLight
-        else -> AppTheme.NormalThemeLight
+    val colors = if (isDarkTheme) {
+        AppTheme.DarkTheme
+    } else {
+        AppTheme.LightTheme
     }
     
     MaterialTheme(
@@ -61,6 +64,8 @@ fun App() {
                     isRecording = isRecording,
                     recordingStatus = recordingStatus,
                     currentGraphData = currentGraphData,
+                    isDeveloperMode = isDeveloperMode,
+                    statusHistory = statusHistory,
                     onModeToggle = { isContributionMode = !isContributionMode },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
@@ -69,13 +74,16 @@ fun App() {
                     },
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
-                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) }
+                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) },
+                    onClearStatusHistory = { viewModel.clearStatusHistory() }
                 )
             }
             AppScreen.SETTINGS -> {
                 SettingsScreen(
                     isDarkTheme = isDarkTheme,
+                    isDeveloperMode = isDeveloperMode,
                     onThemeToggle = { isDarkTheme = it },
+                    onDeveloperModeToggle = { isDeveloperMode = it },
                     onBackPress = { currentScreen = AppScreen.GRAPH }
                 )
             }

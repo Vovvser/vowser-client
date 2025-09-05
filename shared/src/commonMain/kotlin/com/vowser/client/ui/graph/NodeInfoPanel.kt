@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 노드 정보 패널 컴포넌트
@@ -25,15 +26,15 @@ fun NodeInfoPanel(
 ) {
     Card(
         modifier = modifier
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = 12.dp,
+            .padding(AppTheme.Dimensions.paddingMedium),
+        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
+        elevation = AppTheme.Dimensions.cardElevationXHigh,
         backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.8f)
     ) {
         Box(
             modifier = Modifier
                 .background(MaterialTheme.colors.surface)
-                .padding(16.dp)
+                .padding(AppTheme.Dimensions.paddingMedium)
         ) {
             Column {
                 Row(
@@ -44,7 +45,7 @@ fun NodeInfoPanel(
                     Text(
                         text = "노드 정보",
                         color = MaterialTheme.colors.onSurface,
-                        fontSize = 16.sp,
+                        fontSize = AppTheme.Typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onClose) {
@@ -63,12 +64,12 @@ fun NodeInfoPanel(
                     modifier = Modifier
                         .background(
                             color = node.type.color.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius)
                         )
                         .border(
                             width = 1.dp,
                             color = node.type.color,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius)
                         )
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {

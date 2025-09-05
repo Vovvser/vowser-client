@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.vowser.client.data.VoiceTestScenario
 import com.vowser.client.ui.theme.AppTheme
 
@@ -17,18 +16,18 @@ import com.vowser.client.ui.theme.AppTheme
 fun StatusBar(
     receivedMessage: String,
     currentVoiceTest: VoiceTestScenario? = null,
-    onReconnect: () -> Unit,
+    isDeveloperMode: Boolean = false,
     onTestCommand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(14.dp),
-        elevation = 3.dp
+            .padding(AppTheme.Dimensions.paddingLarge),
+        elevation = AppTheme.Dimensions.cardElevation
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(AppTheme.Dimensions.paddingLarge),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -38,34 +37,26 @@ fun StatusBar(
             ) {
                 Text(
                     text = "최근: $receivedMessage",
-                    style = MaterialTheme.typography.caption
+                    fontSize = AppTheme.Typography.bodySmall
                 )
             }
             
-            // 음성 테스트 버튼
-            Button(
-                onClick = onTestCommand,
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (currentVoiceTest != null) 
-                        AppTheme.Colors.Contribution else AppTheme.Colors.Success,
-                    contentColor = Color.White
-                )
-            ) {
-                Text("모의 테스트")
+            // 모의 테스트 버튼
+            if (isDeveloperMode) {
+                Button(
+                    onClick = onTestCommand,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = if (currentVoiceTest != null) 
+                            AppTheme.Colors.Contribution else AppTheme.Colors.Success,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("모의 테스트")
+                }
+                
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
             }
             
-            Spacer(modifier = Modifier.width(7.dp))
-            
-            // 재연결 버튼
-            Button(
-                onClick = onReconnect,
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(133,118,162),
-                    contentColor = Color.White
-                )
-            ) {
-                Text("재연결")
-            }
         }
     }
 }

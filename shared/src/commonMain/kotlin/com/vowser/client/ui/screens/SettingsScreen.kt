@@ -7,7 +7,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 설정 화면 컴포넌트
@@ -15,7 +15,9 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     isDarkTheme: Boolean,
+    isDeveloperMode: Boolean,
     onThemeToggle: (Boolean) -> Unit,
+    onDeveloperModeToggle: (Boolean) -> Unit,
     onBackPress: () -> Unit
 ) {
     Scaffold(
@@ -31,7 +33,7 @@ fun SettingsScreen(
                     }
                 },
                 backgroundColor = MaterialTheme.colors.surface,
-                elevation = 4.dp
+                elevation = AppTheme.Dimensions.cardElevation
             )
         },
         backgroundColor = MaterialTheme.colors.background
@@ -40,17 +42,17 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(AppTheme.Dimensions.paddingMedium),
+            verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
         ) {
             // 테마 설정 카드
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = 2.dp
+                elevation = AppTheme.Dimensions.cardElevationLow
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
+                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium)
                 ) {
                     Text(
                         text = "디스플레이",
@@ -61,17 +63,22 @@ fun SettingsScreen(
                         isChecked = isDarkTheme,
                         onCheckedChange = onThemeToggle
                     )
+                    SettingItemSwitch(
+                        label = "개발자 모드",
+                        isChecked = isDeveloperMode,
+                        onCheckedChange = onDeveloperModeToggle
+                    )
                 }
             }
 
             // 접근성 설정 카드
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = 2.dp
+                elevation = AppTheme.Dimensions.cardElevationLow
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
+                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium)
                 ) {
                     Text(
                         text = "접근성 설정",

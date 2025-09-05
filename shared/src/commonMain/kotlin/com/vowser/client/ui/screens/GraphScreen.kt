@@ -2,33 +2,36 @@ package com.vowser.client.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.vowser.client.data.VoiceTestScenario
 import com.vowser.client.navigation.NavigationProcessor
 import com.vowser.client.ui.graph.ModernNetworkGraph
 import com.vowser.client.ui.graph.GraphInteractionType
-import com.vowser.client.ui.contribution.ContributionModeOverlay
-import com.vowser.client.ui.contribution.ContributionSuccessDialog
-import com.vowser.client.ui.error.*
-import com.vowser.client.ui.components.ModernAppBar
+import com.vowser.client.ui.error.ErrorBoundary
+import com.vowser.client.ui.error.LoadingState
+import com.vowser.client.ui.error.ErrorState
+import com.vowser.client.ui.error.ToastType
+import com.vowser.client.ui.error.SmartLoadingIndicator
+import com.vowser.client.ui.components.AppBar
 import com.vowser.client.ui.components.StatisticsPanel
-import com.vowser.client.ui.components.StatusBar
-import com.vowser.client.ui.components.StatusCard
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
-import org.jetbrains.compose.resources.ExperimentalResourceApi
-import org.jetbrains.compose.resources.painterResource
+import com.vowser.client.StatusLogEntry
+import com.vowser.client.StatusLogType
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -43,18 +46,24 @@ fun GraphScreen(
     isRecording: Boolean,
     recordingStatus: String,
     currentGraphData: GraphVisualizationData?,
+    isDeveloperMode: Boolean,
+    statusHistory: List<StatusLogEntry>,
     onModeToggle: () -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
     onSendToolCall: (String, Map<String, String>) -> Unit,
     onToggleRecording: () -> Unit,
     onRefreshGraph: () -> Unit,
-    onNavigateToNode: (String) -> Unit
+    onNavigateToNode: (String) -> Unit,
+    onClearStatusHistory: () -> Unit,
 ) {
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeNodeId by remember { mutableStateOf<String?>(null) }
     var showStats by remember { mutableStateOf(false) }
+    
+    // 뷰 모드 상태 (개발자 모드에서 그래프/홈 전환용)
+    var showGraphView by remember { mutableStateOf(false) }
     
     // 기여 모드 상태
     var isRecordingContribution by remember { mutableStateOf(false) }
@@ -97,8 +106,8 @@ fun GraphScreen(
         }
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colors.background)) {
-            if (currentGraphData != null) {
-                // 메인 그래프 화면
+            if (isDeveloperMode && showGraphView && currentGraphData != null) {
+                //  그래프 화면
                 ModernNetworkGraph(
                     nodes = currentGraphData.nodes,
                     edges = currentGraphData.edges,
@@ -129,98 +138,20 @@ fun GraphScreen(
                 modifier = Modifier.fillMaxSize()
             )
             } else {
-                // 빈 상태 UI - 음성 명령 안내
+                // 통합 상태 UI
                 EmptyStateUI(
                     isRecording = isRecording,
                     recordingStatus = recordingStatus,
-                    onToggleRecording = onToggleRecording,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            
-            // 기여 모드 오버레이
-            if (isContributionMode) {
-                ContributionModeOverlay(
-                    isRecording = isRecordingContribution,
-                    currentStep = currentStep,
-                    totalSteps = 5,
-                    lastClickedElement = lastClickedElement,
-                    onStartRecording = { 
-                        isRecordingContribution = true
-                        currentStep = 0
-                        toastMessage = "경로 기록을 시작합니다"
-                        toastType = ToastType.INFO
-                    },
-                    onStopRecording = { 
-                        isRecordingContribution = false
-                        showSuccessDialog = true
-                    },
-                    onPauseRecording = { 
-                        isRecordingContribution = false
-                        toastMessage = "기록이 일시정지 되었습니다"
-                        toastType = ToastType.WARNING
-                    },
-                    onDiscardRecording = { 
-                        isRecordingContribution = false
-                        currentStep = 0
-                        lastClickedElement = null
-                        toastMessage = "기록이 취소되었습니다"
-                        toastType = ToastType.ERROR
-                    }
-                )
-            }
-        
-            // 상단 앱바
-            ModernAppBar(
-                connectionStatus = connectionStatus,
-                isContributionMode = isContributionMode,
-                isRecording = isRecording,
-                recordingStatus = recordingStatus,
-                onSettingsClick = { onScreenChange(AppScreen.SETTINGS) },
-                onStatsToggle = { showStats = !showStats },
-                onModeToggle = onModeToggle,
-                onToggleRecording = onToggleRecording,
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .align(Alignment.TopCenter)
-            )
-            
-            // 통계 패널 (선택적 표시)
-            if (showStats) {
-                StatisticsPanel(
-                    navigationProcessor = navigationProcessor,
-                    onClose = { showStats = false },
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                )
-            }
-            
-            // 네트워크 연결 인디케이터
-            NetworkConnectionIndicator(
-                connectionStatus = connectionStatus,
-                onReconnect = onReconnect,
-                modifier = Modifier.align(Alignment.TopEnd)
-            )
-            
-            // 스마트 로딩 인디케이터
-            SmartLoadingIndicator(
-                loadingState = loadingState,
-                loadingMessage = "그래프를 업데이트하는 중...",
-                onRetry = { 
-                    loadingState = LoadingState.Loading
-                },
-                onDismiss = {
-                    loadingState = LoadingState.Idle
-                },
-                modifier = Modifier.align(Alignment.Center)
-            )
-            
-            // 하단 상태 바 (특정 상태에서 숨김)
-            if (!(isContributionMode && recordingStatus == "경로 기록 중...")) {
-                StatusBar(
+                    isContributionMode = isContributionMode,
+                    statusHistory = statusHistory,
+                    isDeveloperMode = isDeveloperMode,
                     receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
-                    currentVoiceTest = currentVoiceTest,
+                    onToggleRecording = onToggleRecording,
+                    onModeToggle = onModeToggle,
                     onReconnect = onReconnect,
+                    onClearStatusHistory = onClearStatusHistory,
                     onTestCommand = {
+                        showGraphView = true  // 테스트 실행 시 그래프 뷰로 전환
                         // 새로운 날씨 검색 결과 모의 테스트 데이터
                         val mockData = """
                         {
@@ -301,135 +232,287 @@ fun GraphScreen(
                         toastMessage = "날씨 탐색 경로를 분석하는 중..."
                         toastType = ToastType.INFO
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    onShowGraph = { if (currentGraphData != null) showGraphView = true },
+                    modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
                 )
             }
             
-            // 토스트 메시지
-            toastMessage?.let { message ->
-                Box(modifier = Modifier.align(Alignment.TopCenter)) {
-                    ToastMessage(
-                        message = message,
-                        type = toastType,
-                        isVisible = true,
-                        onDismiss = { toastMessage = null }
-                    )
-                }
+        
+            // 상단 앱바
+            AppBar(
+                connectionStatus = connectionStatus,
+                onSettingsClick = { onScreenChange(AppScreen.SETTINGS) },
+                onStatsToggle = { showStats = !showStats },
+                showHomeButton = isDeveloperMode && showGraphView && currentGraphData != null,
+                onHomeClick = { showGraphView = false },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+            )
+            
+            // 통계 패널
+            if (isDeveloperMode && showStats) {
+                StatisticsPanel(
+                    navigationProcessor = navigationProcessor,
+                    onClose = { showStats = false },
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                )
             }
             
             
-            // 기여 성공 다이얼로그
-            ContributionSuccessDialog(
-                isVisible = showSuccessDialog,
-                pathName = "새 경로 ${currentStep}단계",
-                stepCount = currentStep,
-                estimatedTime = currentStep * 2,
-                onSave = {
-                    showSuccessDialog = false
-                    toastMessage = "경로가 저장되었습니다!"
-                    toastType = ToastType.SUCCESS
-                },
-                onEdit = {
-                    showSuccessDialog = false
-                    toastMessage = "편집 모드로 전환합니다"
-                    toastType = ToastType.INFO
-                },
-                onDiscard = {
-                    showSuccessDialog = false
-                    currentStep = 0
-                    lastClickedElement = null
-                    toastMessage = "경로가 삭제되었습니다"
-                    toastType = ToastType.WARNING
+            // 스마트 로딩 인디케이터
+            SmartLoadingIndicator(
+                loadingState = loadingState,
+                loadingMessage = "그래프를 업데이트하는 중...",
+                onRetry = { 
+                    loadingState = LoadingState.Loading
                 },
                 onDismiss = {
-                    showSuccessDialog = false
-                }
+                    loadingState = LoadingState.Idle
+                },
+                modifier = Modifier.align(Alignment.Center)
             )
         }
     }
 }
 
 /**
- * 빈 상태 UI - 음성 명령 안내
+ * 통합 상태 UI - 로그, 버튼, 기여모드 모두 포함
  */
-@OptIn(ExperimentalResourceApi::class)
 @Composable
 private fun EmptyStateUI(
     isRecording: Boolean,
     recordingStatus: String,
+    isContributionMode: Boolean,
+    statusHistory: List<StatusLogEntry>,
+    isDeveloperMode: Boolean,
+    receivedMessage: String,
     onToggleRecording: () -> Unit,
+    onModeToggle: () -> Unit,
+    onReconnect: () -> Unit,
+    onClearStatusHistory: () -> Unit,
+    onTestCommand: () -> Unit,
+    onShowGraph: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
+    val listState = rememberLazyListState()
+    
+    // 새 로그가 추가될 때 자동 스크롤
+    LaunchedEffect(statusHistory.size) {
+        if (statusHistory.isNotEmpty()) {
+            listState.animateScrollToItem(statusHistory.size - 1)
+        }
+    }
+
+    Column(
+        modifier = modifier.padding(AppTheme.Dimensions.paddingMedium),
+        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+        // 상단 버튼 영역
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-//            Icon(
-//                imageVector = if (isRecording) Icons.Default.Add else Icons.Default.PlayArrow,
-//                contentDescription = if (isRecording) "Recording" else "Not Recording",
-//                tint = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
-//                modifier = Modifier.size(64.dp)
-//            )
-//
-//            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = if (isRecording) {
-                    "음성 명령을 말해보세요."
-                } else {
-                    "음성으로 명령해보세요!"
-                },
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colors.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 상태 메시지
-            StatusCard(
-                statusMessage = recordingStatus,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            FloatingActionButton(
+            // 음성 녹음 버튼
+            Button(
                 onClick = onToggleRecording,
-                backgroundColor = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.primary,
-                modifier = Modifier.size(56.dp)
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.primary,
+                    contentColor = Color.White
+                )
             ) {
-                if (isRecording) {
-                    Icon(
-                        painter = painterResource("drawable/stop.png"),
-                        contentDescription = "Stop Recording",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                Icon(
+                    imageVector = if (isRecording) Icons.Default.Clear else Icons.Default.PlayArrow,
+                    contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
+                )
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingXSmall))
+                Text(if (isRecording) "녹음 중지" else "음성 녹음")
+            }
+
+            // 기여 모드 토글
+            Button(
+                onClick = onModeToggle,
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = if (isContributionMode) AppTheme.Colors.Contribution else MaterialTheme.colors.secondary,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(if (isContributionMode) "기여모드 OFF" else "기여모드 ON")
+            }
+
+            // 재연결 버튼
+            Button(
+                onClick = onReconnect,
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = AppTheme.Colors.ButtonSecondary,
+                    contentColor = Color.White
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reconnect",
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
+                )
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingXSmall))
+                Text("재연결")
+            }
+
+            // 개발자 모드 전용 버튼들
+            if (isDeveloperMode) {
+                Button(
+                    onClick = onTestCommand,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = AppTheme.Colors.Success,
+                        contentColor = Color.White
                     )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Start Recording",
-                        tint = MaterialTheme.colors.onPrimary
-                    )
+                ) {
+                    Text("모의 테스트")
+                }
+                
+                // 그래프 보기 버튼 (데이터가 있을 때만)
+                if (receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
+                    Button(
+                        onClick = onShowGraph,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = AppTheme.Colors.Info,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("그래프 보기")
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
-            Text(
-                text = "버튼을 눌러 음성 명령을 시작하세요\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colors.onSurface.copy(alpha = 0.5f),
-                lineHeight = 20.sp
-            )
+            // 클리어 버튼
+            OutlinedButton(
+                onClick = onClearStatusHistory,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colors.onSurface
+                )
+            ) {
+                Text("Clear")
+            }
         }
+
+        // 기여 모드 UI (통합)
+        if (isContributionMode) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = AppTheme.Colors.Contribution.copy(alpha = 0.1f),
+                elevation = AppTheme.Dimensions.cardElevationLow
+            ) {
+                Column(
+                    modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium)
+                ) {
+                    Text(
+                        text = "🤝 기여 모드 활성화됨",
+                        style = MaterialTheme.typography.h6,
+                        color = AppTheme.Colors.Contribution
+                    )
+                    Text(
+                        text = "웹 브라우징 패턴이 학습되고 있습니다",
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+
+        // 상태 로그 영역
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            elevation = AppTheme.Dimensions.cardElevation
+        ) {
+            Column {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
+                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
+                ) {
+                    if (statusHistory.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    } else {
+                        items(statusHistory) { logEntry ->
+                            StatusLogItem(logEntry)
+                        }
+                    }
+                    
+                    // 개발자 모드에서만 receivedMessage 표시
+                    if (isDeveloperMode && receivedMessage != "No message") {
+                        item {
+                            StatusLogItem(
+                                StatusLogEntry(
+                                    timestamp = "서버",
+                                    message = receivedMessage,
+                                    type = StatusLogType.INFO
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusLogItem(entry: StatusLogEntry) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = AppTheme.Dimensions.paddingSmall, 
+                vertical = AppTheme.Dimensions.paddingXSmall
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 상태 타입 인디케이터
+        val (color, icon) = when (entry.type) {
+            StatusLogType.SUCCESS -> AppTheme.Colors.Success to "✅"
+            StatusLogType.ERROR -> AppTheme.Colors.Error to "❌"
+            StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠️"
+            StatusLogType.INFO -> MaterialTheme.colors.primary to "ℹ️"
+        }
+        
+        Text(
+            text = icon,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
+        )
+        
+        // 타임스탬프
+        Text(
+            text = entry.timestamp,
+            fontSize = 12.sp,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
+        )
+        
+        // 메시지
+        Text(
+            text = entry.message,
+            fontSize = 13.sp,
+            color = MaterialTheme.colors.onSurface,
+            modifier = Modifier.weight(1f)
+        )
     }
 }

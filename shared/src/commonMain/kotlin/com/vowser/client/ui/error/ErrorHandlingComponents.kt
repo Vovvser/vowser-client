@@ -66,14 +66,14 @@ fun SmartLoadingIndicator(
         modifier = modifier
     ) {
         Card(
-            modifier = Modifier.padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            elevation = 16.dp
+            modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
+            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
+            elevation = AppTheme.Dimensions.cardElevationMax
         ) {
             Box(
                 modifier = Modifier
                     .background(MaterialTheme.colors.surface.copy(alpha = 0.9f))
-                    .padding(24.dp),
+                    .padding(AppTheme.Dimensions.paddingLarge),
                 contentAlignment = Alignment.Center
             ) {
                 when (loadingState) {
@@ -129,10 +129,10 @@ private fun LoadingContent(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingLarge)
     ) {
         Box(
-            modifier = Modifier.size(80.dp),
+            modifier = Modifier.size(AppTheme.Dimensions.iconSizeXLarge),
             contentAlignment = Alignment.Center
         ) {
             if (showPercentage && progress > 0f) {
@@ -140,7 +140,7 @@ private fun LoadingContent(
                     progress = progress,
                     modifier = Modifier.fillMaxSize(),
                     color = primaryColor,
-                    strokeWidth = 6.dp
+                    strokeWidth = AppTheme.Dimensions.paddingSmall + 2.dp
                 )
                 Text(
                     text = "${(progress * 100).toInt()}%",
@@ -174,14 +174,14 @@ private fun LoadingContent(
         Text(
             text = message,
             color = MaterialTheme.colors.onSurface,
-            fontSize = 16.sp,
+            fontSize = AppTheme.Typography.bodyLarge,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
         )
         
         if (!showPercentage) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
             ) {
                 repeat(3) { index ->
                     val animationDelay = index * 200
@@ -196,7 +196,7 @@ private fun LoadingContent(
                     
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
+                            .size(AppTheme.Dimensions.paddingSmall)
                             .scale(dotScale)
                             .background(MaterialTheme.colors.onSurface.copy(alpha = 0.7f), CircleShape)
                     )
@@ -219,16 +219,16 @@ private fun ErrorContent(
     ) {
         // 에러 아이콘
         val (icon, iconColor) = when (errorState) {
-            is ErrorState.NetworkError -> Icons.Default.Warning to Color(0xFFFF9800)
-            is ErrorState.ValidationError -> Icons.Default.Warning to Color(0xFFFFC107)
-            is ErrorState.ServerError -> Icons.Default.Warning to Color(0xFFFF4444)
-            is ErrorState.UnknownError -> Icons.Default.Warning to Color(0xFF9C27B0)
-            else -> Icons.Default.Warning to Color(0xFFFF4444)
+            is ErrorState.NetworkError -> Icons.Default.Warning to AppTheme.Colors.Warning
+            is ErrorState.ValidationError -> Icons.Default.Warning to AppTheme.Colors.Warning
+            is ErrorState.ServerError -> Icons.Default.Warning to AppTheme.Colors.Error
+            is ErrorState.UnknownError -> Icons.Default.Warning to AppTheme.Colors.Warning
+            else -> Icons.Default.Warning to AppTheme.Colors.Error
         }
         
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(AppTheme.Dimensions.iconSizeXLarge)
                 .background(iconColor.copy(alpha = 0.2f), CircleShape),
             contentAlignment = Alignment.Center
         ) {

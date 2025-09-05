@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 로딩 그래프 애니메이션 컴포넌트
@@ -50,21 +50,21 @@ fun LoadingGraphAnimation(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingLarge)
         ) {
             // 로딩 스피너
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(AppTheme.Dimensions.iconSizeXLarge)
                     .scale(scale)
                     .graphicsLayer { rotationZ = rotation }
             ) {
                 Canvas(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    val strokeWidth = 6.dp.toPx()
+                    val strokeWidth = (AppTheme.Dimensions.paddingSmall + 2.dp).toPx()
                     drawArc(
-                        color = if (isContributionMode) Color(0xFF00D4AA) else Color(0xFF0969DA),
+                        color = if (isContributionMode) AppTheme.Colors.Contribution else Color(0xFF0969DA), // Keep unique blue for non-contribution mode
                         startAngle = 0f,
                         sweepAngle = 270f,
                         useCenter = false,
@@ -77,14 +77,14 @@ fun LoadingGraphAnimation(
             Text(
                 text = if (isContributionMode) "경로를 기록하고 있습니다..." else "그래프를 로드하고 있습니다...",
                 color = MaterialTheme.colors.onSurface,
-                fontSize = 16.sp,
+                fontSize = AppTheme.Typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
             
             Text(
                 text = "잠시만 기다려 주세요",
                 color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
-                fontSize = 14.sp
+                fontSize = AppTheme.Typography.bodyMedium
             )
         }
     }
