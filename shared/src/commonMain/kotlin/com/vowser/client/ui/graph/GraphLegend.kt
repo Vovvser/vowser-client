@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 그래프 범례 컴포넌트
@@ -24,24 +25,24 @@ fun ModernLegend(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        elevation = 4.dp
+        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusLarge),
+        elevation = AppTheme.Dimensions.cardElevation
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier.padding(AppTheme.Dimensions.spacingMedium),
+            verticalArrangement = Arrangement.spacedBy(6.dp)  // 특수 간격
         ) {
             Text(
                 text = "범례",
                 color = MaterialTheme.colors.onSurface,
-                fontSize = 14.sp,
+                fontSize = AppTheme.Typography.bodyMedium,
                 fontWeight = FontWeight.Bold
             )
             
             NodeType.values().forEach { nodeType ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)  // 특수 간격
                 ) {
                     Box(
                         modifier = Modifier

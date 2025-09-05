@@ -7,14 +7,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 앱 상단바 컴포넌트
  */
 @Composable
-fun ModernAppBar(
+fun AppBar(
     connectionStatus: String,
     onSettingsClick: () -> Unit,
     onStatsToggle: () -> Unit,
@@ -25,8 +24,13 @@ fun ModernAppBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(
+                start = AppTheme.Dimensions.paddingMedium,
+                end = AppTheme.Dimensions.paddingMedium,
+                top = AppTheme.Dimensions.spacingMedium,
+                bottom = AppTheme.Dimensions.paddingLarge
+            ),
+        horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 연결 상태 아이콘
@@ -47,7 +51,7 @@ fun ModernAppBar(
         
         Spacer(modifier = Modifier.weight(1f))
         
-        // 홈 버튼 (그래프에서 EmptyStateUI로 돌아가기)
+        // 홈 버튼
         if (showHomeButton) {
             IconButton(onClick = onHomeClick) {
                 Icon(

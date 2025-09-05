@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.vowser.client.data.VoiceTestScenario
@@ -27,7 +26,7 @@ import com.vowser.client.ui.error.LoadingState
 import com.vowser.client.ui.error.ErrorState
 import com.vowser.client.ui.error.ToastType
 import com.vowser.client.ui.error.SmartLoadingIndicator
-import com.vowser.client.ui.components.ModernAppBar
+import com.vowser.client.ui.components.AppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
@@ -234,13 +233,13 @@ fun GraphScreen(
                         toastType = ToastType.INFO
                     },
                     onShowGraph = { if (currentGraphData != null) showGraphView = true },
-                    modifier = Modifier.fillMaxSize().padding(top = 60.dp)
+                    modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
                 )
             }
             
         
             // 상단 앱바
-            ModernAppBar(
+            AppBar(
                 connectionStatus = connectionStatus,
                 onSettingsClick = { onScreenChange(AppScreen.SETTINGS) },
                 onStatsToggle = { showStats = !showStats },
@@ -306,13 +305,13 @@ private fun EmptyStateUI(
     }
 
     Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = modifier.padding(AppTheme.Dimensions.paddingMedium),
+        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
     ) {
         // 상단 버튼 영역
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 음성 녹음 버튼
@@ -326,9 +325,9 @@ private fun EmptyStateUI(
                 Icon(
                     imageVector = if (isRecording) Icons.Default.Clear else Icons.Default.PlayArrow,
                     contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingXSmall))
                 Text(if (isRecording) "녹음 중지" else "음성 녹음")
             }
 
@@ -347,16 +346,16 @@ private fun EmptyStateUI(
             Button(
                 onClick = onReconnect,
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color(133,118,162),
+                    backgroundColor = AppTheme.Colors.ButtonSecondary,
                     contentColor = Color.White
                 )
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Reconnect",
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingXSmall))
                 Text("재연결")
             }
 
@@ -404,10 +403,10 @@ private fun EmptyStateUI(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 backgroundColor = AppTheme.Colors.Contribution.copy(alpha = 0.1f),
-                elevation = 2.dp
+                elevation = AppTheme.Dimensions.cardElevationLow
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium)
                 ) {
                     Text(
                         text = "🤝 기여 모드 활성화됨",
@@ -428,14 +427,14 @@ private fun EmptyStateUI(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            elevation = 4.dp
+            elevation = AppTheme.Dimensions.cardElevation
         ) {
             Column {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
+                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
                 ) {
                     if (statusHistory.isEmpty()) {
                         item {
@@ -480,7 +479,10 @@ private fun StatusLogItem(entry: StatusLogEntry) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(
+                horizontal = AppTheme.Dimensions.paddingSmall, 
+                vertical = AppTheme.Dimensions.paddingXSmall
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 상태 타입 인디케이터
@@ -494,7 +496,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         Text(
             text = icon,
             fontSize = 12.sp,
-            modifier = Modifier.padding(end = 8.dp)
+            modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
         
         // 타임스탬프
@@ -502,7 +504,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             text = entry.timestamp,
             fontSize = 12.sp,
             color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.padding(end = 8.dp)
+            modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
         
         // 메시지

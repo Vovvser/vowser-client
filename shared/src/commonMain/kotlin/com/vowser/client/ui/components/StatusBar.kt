@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.vowser.client.data.VoiceTestScenario
 import com.vowser.client.ui.theme.AppTheme
 
@@ -24,11 +23,11 @@ fun StatusBar(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(14.dp),
-        elevation = 3.dp
+            .padding(AppTheme.Dimensions.paddingLarge),
+        elevation = AppTheme.Dimensions.cardElevation
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(AppTheme.Dimensions.paddingLarge),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -38,7 +37,7 @@ fun StatusBar(
             ) {
                 Text(
                     text = "최근: $receivedMessage",
-                    style = MaterialTheme.typography.caption
+                    fontSize = AppTheme.Typography.bodySmall
                 )
             }
             
@@ -55,7 +54,7 @@ fun StatusBar(
                     Text("모의 테스트")
                 }
                 
-                Spacer(modifier = Modifier.width(7.dp))
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
             }
             
         }

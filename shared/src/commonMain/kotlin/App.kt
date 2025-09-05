@@ -43,11 +43,10 @@ fun App() {
     val statusHistory by viewModel.statusHistory.collectAsState()
     
     // 테마 적용
-    val colors = when {
-        isDarkTheme && isContributionMode -> AppTheme.ContributionThemeDark
-        isDarkTheme && !isContributionMode -> AppTheme.NormalThemeDark
-        !isDarkTheme && isContributionMode -> AppTheme.ContributionThemeLight
-        else -> AppTheme.NormalThemeLight
+    val colors = if (isDarkTheme) {
+        AppTheme.DarkTheme
+    } else {
+        AppTheme.LightTheme
     }
     
     MaterialTheme(

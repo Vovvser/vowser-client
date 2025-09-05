@@ -64,7 +64,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     private val _graphLoading = MutableStateFlow(false)
     val graphLoading: StateFlow<Boolean> = _graphLoading.asStateFlow()
 
-    // 상태 히스토리 관리 (최대 100개)
+    // 상태 히스토리 관리
     private val _statusHistory = MutableStateFlow<List<StatusLogEntry>>(emptyList())
     val statusHistory: StateFlow<List<StatusLogEntry>> = _statusHistory.asStateFlow()
 
@@ -78,7 +78,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     }
 
     /**
-     * 상태 로그 추가 (최대 100개 유지)
+     * 상태 로그 추가
      */
     private fun addStatusLog(message: String, type: StatusLogType = StatusLogType.INFO) {
         val timestamp = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -100,7 +100,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
      */
     fun clearStatusHistory() {
         _statusHistory.value = emptyList()
-        addStatusLog("로그 클리어됨", StatusLogType.INFO)
     }
 
     private fun connectWebSocket() {
@@ -111,6 +110,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                 webSocketClient.connect()
                 _connectionStatus.value = ConnectionStatus.Connected
                 addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
+                addStatusLog("음성으로 명령해보세요! (예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\")", StatusLogType.INFO)
             } catch (e: Exception) {
                 Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e)
                 _connectionStatus.value = ConnectionStatus.Error

@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.vowser.client.ui.theme.AppTheme
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
@@ -30,60 +29,60 @@ fun FloatingControlPanel(
 ) {
     Card(
         modifier = modifier
-            .padding(16.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = 8.dp,
+            .padding(AppTheme.Dimensions.paddingMedium),
+        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusLarge),
+        elevation = AppTheme.Dimensions.cardElevationHigh,
         backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.7f)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(AppTheme.Dimensions.spacingMedium),
+            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
         ) {
             // 줌 인
             FloatingActionButton(
                 onClick = onZoomIn,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
                 backgroundColor = AppTheme.Colors.Success,
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Zoom In", modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Add, contentDescription = "Zoom In", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
             }
             
             // 줌 아웃
             FloatingActionButton(
                 onClick = onZoomOut,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
                 backgroundColor = AppTheme.Colors.Success,
                 contentColor = Color.White
             ) {
-                Icon(painter = painterResource("drawable/subtract.png"), contentDescription = "Zoom Out", modifier = Modifier.size(20.dp))
+                Icon(painter = painterResource("drawable/subtract.png"), contentDescription = "Zoom Out", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
             }
 
             // 리셋
             FloatingActionButton(
                 onClick = onReset,
-                modifier = Modifier.size(32.dp),
-                backgroundColor = Color(102,168,198),
+                modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
+                backgroundColor = AppTheme.Colors.GraphControl,
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Home, contentDescription = "Reset", modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Home, contentDescription = "Reset", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
             }
             
             // 중앙 정렬
             FloatingActionButton(
                 onClick = onCenterView,
-                modifier = Modifier.size(32.dp),
-                backgroundColor = Color(102,168,198),
+                modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
+                backgroundColor = AppTheme.Colors.GraphControl,
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.LocationOn, contentDescription = "Center", modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.LocationOn, contentDescription = "Center", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
             }
             
             // 확대/축소 레벨 표시
             Text(
                 text = "${(scale * 100).toInt()}%",
                 color = MaterialTheme.colors.onSurface,
-                fontSize = 10.sp,
+                fontSize = AppTheme.Typography.overline,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
