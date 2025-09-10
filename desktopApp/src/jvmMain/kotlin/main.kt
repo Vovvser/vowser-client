@@ -3,25 +3,10 @@ import androidx.compose.ui.window.application
 import com.vowserclient.shared.browserautomation.BrowserAutomationService
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 fun main() = application {
     Napier.base(DebugAntilog())
-
-    // BrowserAutomationService 초기화
-    // application 스코프 내에서 suspend 함수를 호출하기 위해 launch 블록 사용
-    CoroutineScope(Dispatchers.IO).launch { // Dispatchers.IO는 Playwright 초기화에 적합
-        try {
-            BrowserAutomationService.initialize()
-            Napier.i("BrowserAutomationService 초기화 완료.", tag = "AppInit")
-        } catch (e: Exception) {
-            Napier.e("BrowserAutomationService 초기화 실패: ${e.message}", e, tag = "AppInit")
-            exitApplication()
-        }
-    }
 
     Window(onCloseRequest = ::exitApplication) {
         App()
