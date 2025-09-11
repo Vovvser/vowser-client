@@ -23,7 +23,7 @@ object ContributionConstants {
     const val RETRY_DELAY_3 = 5000L
     const val MAX_RETRIES = 3
     
-    // 배치 전송 설정
+    // 전송 전 누적할 최대 단계 수
     const val BATCH_SIZE = 5
     
     // 메모리 관리 설정
@@ -32,7 +32,7 @@ object ContributionConstants {
     const val MEMORY_CLEANUP_INTERVAL_MS = 2 * 60 * 1000L // 2분
     const val POLLING_INTERVAL_MS = 500L // 0.5초
     
-    // 데이터 검증 제한
+    // 데이터 검증
     const val MAX_URL_LENGTH = 2048
     const val MAX_TITLE_LENGTH = 200
     const val MAX_SELECTOR_LENGTH = 500

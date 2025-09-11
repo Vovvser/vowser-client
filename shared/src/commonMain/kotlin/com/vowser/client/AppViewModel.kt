@@ -462,7 +462,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                 addStatusLog("기여 모드 시작 실패: ${e.message}", StatusLogType.ERROR)
                 Napier.e("Failed to start contribution mode: ${e.message}", e, tag = "AppViewModel")
                 
-                // 실패 시 정리
+                // 실패 시
                 try {
                     BrowserAutomationBridge.stopContributionRecording()
                     contributionModeService.resetSession()

@@ -68,7 +68,6 @@ fun App() {
                     connectionStatus = connectionStatus.toString(),
                     receivedMessage = receivedMessage,
                     isRecording = isRecording,
-                    recordingStatus = recordingStatus,
                     currentGraphData = currentGraphData,
                     isDeveloperMode = isDeveloperMode,
                     statusHistory = statusHistory,
@@ -91,7 +90,6 @@ fun App() {
                     },
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
-                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) },
                     onClearStatusHistory = { viewModel.clearStatusHistory() }
                 )
             }

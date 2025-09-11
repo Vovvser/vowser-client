@@ -43,7 +43,6 @@ enum class ContributionStatus {
     ERROR
 }
 
-// 데이터 검증 및 정화 유틸리티
 object ContributionDataValidator {
     
     // 허용되지 않는 문자 패턴 (XSS 방지)
@@ -85,7 +84,7 @@ object ContributionDataValidator {
             val sanitizedAction = sanitizeString(step.action, 50)
             val sanitizedSelector = step.selector?.let { sanitizeString(it, ContributionConstants.MAX_SELECTOR_LENGTH) }
             
-            // HTML 속성 정화
+            // HTML 속성 수정
             val sanitizedAttributes = step.htmlAttributes?.let { attrs ->
                 if (attrs.size > ContributionConstants.MAX_ATTRIBUTES_COUNT) {
                     attrs.toList().take(ContributionConstants.MAX_ATTRIBUTES_COUNT).toMap()

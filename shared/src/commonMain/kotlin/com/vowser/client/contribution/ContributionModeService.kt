@@ -22,7 +22,7 @@ class ContributionModeService(
     // 타이핑 디바운싱 관련 프로퍼티
     private var typingDebounceJob: Job? = null
     private var pendingTypingStep: ContributionStep? = null
-    private val typingDebounceTimeMs = 1500L // 1.5초
+    private val typingDebounceTimeMs = 1500L
     
     private val _status = MutableStateFlow(ContributionStatus.INACTIVE)
     val status: StateFlow<ContributionStatus> = _status.asStateFlow()
@@ -57,7 +57,7 @@ class ContributionModeService(
         
         startTimeoutTimer()
         
-        Napier.i("🚀 Contribution session started - sessionId: ${currentSession?.sessionId}, task: '$sanitizedTask', timeout: ${sessionTimeout}", tag = "ContributionModeService")
+        Napier.i("🚀 Contribution session started - sessionId: ${currentSession?.sessionId}, task: '$sanitizedTask', timeout: $sessionTimeout", tag = "ContributionModeService")
         Napier.d("Session details - bufferSize: ${stepBuffer.size}, lastSentIndex: $lastSentIndex", tag = "ContributionModeService")
     }
     
@@ -74,8 +74,7 @@ class ContributionModeService(
             Napier.w("Invalid contribution step discarded: ${step.action} on ${step.url}", tag = "ContributionModeService")
             return
         }
-        
-        // 타이핑 액션 처리: 디바운싱 적용
+
         if (sanitizedStep.action == "type") {
             recordTypingStepWithDebounce(sanitizedStep)
         } else {
@@ -105,8 +104,7 @@ class ContributionModeService(
         }
 
         pendingTypingStep = step
-        
-        // 디바운스 타이머 시작
+
         typingDebounceJob = coroutineScope.launch {
             delay(typingDebounceTimeMs)
             pendingTypingStep?.let { pendingStep ->
@@ -150,8 +148,7 @@ class ContributionModeService(
         
         Napier.i("Step ${session.steps.size}: [${step.action}] ${step.selector ?: "N/A"} - ${step.htmlAttributes?.get("text") ?: step.title}", tag = "ContributionModeService")
         Napier.d("Step details - url: ${step.url}, timestamp: ${step.timestamp}, bufferSize: ${stepBuffer.size}", tag = "ContributionModeService")
-        
-        // 배치 단위로 모아서 중간 전송 (메모리 관리)
+
         if (stepBuffer.size >= ContributionConstants.BATCH_SIZE) {
             coroutineScope.launch {
                 sendBufferedSteps(isPartial = true)
@@ -179,7 +176,6 @@ class ContributionModeService(
         
         coroutineScope.launch {
             try {
-                // 최종 일괄 전송
                 sendBufferedSteps(isPartial = false, isComplete = true)
                 _status.value = ContributionStatus.COMPLETED
                 Napier.i("✅ Contribution session completed successfully - sessionId: ${session.sessionId}, duration: ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - session.startTime}ms", tag = "ContributionModeService")
@@ -223,14 +219,14 @@ class ContributionModeService(
 
                 Napier.i("✅ Sent ${stepsToSend.size} steps (partial: $isPartial, complete: $isComplete), sessionId: ${message.sessionId}", tag = "ContributionModeService")
                 Napier.d("Transmission details - totalSteps: ${message.totalSteps}, attempt: ${retryCount + 1}", tag = "ContributionModeService")
-                return // 성공 시 함수 종료
+                return
 
             } catch (e: Exception) {
                 retryCount++
                 if (retryCount <= maxRetries) {
                     val delayMs = retryDelays.getOrElse(retryCount - 1) { 5000L }
                     Napier.w("Failed to send contribution steps (attempt $retryCount/$maxRetries): ${e.message}. Retrying in ${delayMs}ms...", tag = "ContributionModeService")
-                    kotlinx.coroutines.delay(delayMs)
+                    delay(delayMs)
                 } else {
                     Napier.e("Failed to send contribution steps after $maxRetries attempts: ${e.message}", e, tag = "ContributionModeService")
                     throw e
