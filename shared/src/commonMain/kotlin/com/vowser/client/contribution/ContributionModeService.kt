@@ -32,7 +32,8 @@ class ContributionModeService(
     
     private val _currentTask = MutableStateFlow("")
     val currentTask: StateFlow<String> = _currentTask.asStateFlow()
-    
+
+    private var timeoutJob : Job? = null
     private val sessionTimeout = ContributionConstants.SESSION_TIMEOUT_MINUTES.minutes
     
     fun startSession(task: String) {
@@ -236,7 +237,8 @@ class ContributionModeService(
     }
     
     private fun startTimeoutTimer() {
-        coroutineScope.launch {
+        timeoutJob?.cancel()
+        timeoutJob = coroutineScope.launch {
             delay(sessionTimeout)
             if (currentSession?.isActive == true) {
                 Napier.i("Session timeout reached, auto-ending session", tag = "ContributionModeService")
@@ -266,6 +268,8 @@ class ContributionModeService(
     fun getCurrentSessionId(): String? = currentSession?.sessionId
     
     fun resetSession() {
+        timeoutJob?.cancel()
+        timeoutJob = null
         val previousSessionId = currentSession?.sessionId
         val previousSteps = currentSession?.steps?.size ?: 0
         
