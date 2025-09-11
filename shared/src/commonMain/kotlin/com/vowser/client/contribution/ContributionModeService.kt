@@ -75,21 +75,81 @@ class ContributionModeService(
             return
         }
         
-        session.steps.add(sanitizedStep)
-        stepBuffer.add(sanitizedStep)
+        // 타이핑 액션 처리: 디바운싱 적용
+        if (sanitizedStep.action == "type") {
+            recordTypingStepWithDebounce(sanitizedStep)
+        } else {
+            // 다른 액션이 들어오면 대기 중인 타이핑 스텝 즉시 완료
+            flushPendingTypingStep()
+            recordStepImmediately(sanitizedStep)
+        }
+    }
+    
+    /**
+     * 타이핑 스텝을 디바운싱하여 기록
+     */
+    private fun recordTypingStepWithDebounce(step: ContributionStep) {
+        // 이전 타이핑 Job 취소
+        typingDebounceJob?.cancel()
+        
+        // Enter 키가 포함된 경우 즉시 기록
+        val isEnterKey = step.htmlAttributes?.get("key")?.lowercase() == "enter" ||
+                        step.htmlAttributes?.get("keyCode") == "13" ||
+                        step.htmlAttributes?.get("which") == "13"
+        
+        if (isEnterKey) {
+            pendingTypingStep?.let { recordStepImmediately(it) }
+            pendingTypingStep = null
+            recordStepImmediately(step)
+            return
+        }
+
+        pendingTypingStep = step
+        
+        // 디바운스 타이머 시작
+        typingDebounceJob = coroutineScope.launch {
+            delay(typingDebounceTimeMs)
+            pendingTypingStep?.let { pendingStep ->
+                recordStepImmediately(pendingStep)
+                pendingTypingStep = null
+            }
+        }
+        
+        Napier.d("Typing step debounced: ${step.htmlAttributes?.get("text") ?: step.title}", tag = "ContributionModeService")
+    }
+    
+    /**
+     * 대기 중인 타이핑 스텝을 즉시 처리
+     */
+    private fun flushPendingTypingStep() {
+        typingDebounceJob?.cancel()
+        pendingTypingStep?.let { pendingStep ->
+            recordStepImmediately(pendingStep)
+            pendingTypingStep = null
+            Napier.d("Flushed pending typing step due to other action", tag = "ContributionModeService")
+        }
+    }
+    
+    /**
+     * 스텝을 즉시 기록
+     */
+    private fun recordStepImmediately(step: ContributionStep) {
+        val session = currentSession ?: return
+        
+        session.steps.add(step)
+        stepBuffer.add(step)
         _currentStepCount.value = session.steps.size
         
         // UI 로그 업데이트
-        val elementName = sanitizedStep.htmlAttributes?.get("text") 
-            ?: sanitizedStep.htmlAttributes?.get("value")
-            ?: sanitizedStep.htmlAttributes?.get("placeholder")
-            ?: sanitizedStep.selector?.split(".")?.lastOrNull()?.replace(Regex("[^\\w가-힣]"), "")
-            ?: null
+        val elementName = step.htmlAttributes?.get("text") 
+            ?: step.htmlAttributes?.get("value")
+            ?: step.htmlAttributes?.get("placeholder")
+            ?: step.selector?.split(".")?.lastOrNull()?.replace(Regex("[^\\w가-힣]"), "")
         
-        onUILog?.invoke(session.steps.size, sanitizedStep.action, elementName, sanitizedStep.url)
+        onUILog?.invoke(session.steps.size, step.action, elementName, step.url)
         
-        Napier.i("📝 Step ${session.steps.size}: [${sanitizedStep.action}] ${sanitizedStep.selector ?: "N/A"} - ${sanitizedStep.htmlAttributes?.get("text") ?: sanitizedStep.title}", tag = "ContributionModeService")
-        Napier.d("Step details - url: ${sanitizedStep.url}, timestamp: ${sanitizedStep.timestamp}, bufferSize: ${stepBuffer.size}", tag = "ContributionModeService")
+        Napier.i("Step ${session.steps.size}: [${step.action}] ${step.selector ?: "N/A"} - ${step.htmlAttributes?.get("text") ?: step.title}", tag = "ContributionModeService")
+        Napier.d("Step details - url: ${step.url}, timestamp: ${step.timestamp}, bufferSize: ${stepBuffer.size}", tag = "ContributionModeService")
         
         // 배치 단위로 모아서 중간 전송 (메모리 관리)
         if (stepBuffer.size >= ContributionConstants.BATCH_SIZE) {
@@ -109,6 +169,8 @@ class ContributionModeService(
             Napier.w("Session already ended - sessionId: ${session.sessionId}", tag = "ContributionModeService")
             return
         }
+
+        flushPendingTypingStep()
         
         Napier.i("🏁 Ending contribution session - sessionId: ${session.sessionId}, totalSteps: ${session.steps.size}, bufferSize: ${stepBuffer.size}", tag = "ContributionModeService")
         
@@ -210,6 +272,10 @@ class ContributionModeService(
     fun resetSession() {
         val previousSessionId = currentSession?.sessionId
         val previousSteps = currentSession?.steps?.size ?: 0
+        
+        // 리셋 시에도 대기 중인 타이핑 스텝 정리
+        typingDebounceJob?.cancel()
+        pendingTypingStep = null
         
         currentSession = null
         stepBuffer.clear()

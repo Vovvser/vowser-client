@@ -6,7 +6,6 @@ import com.microsoft.playwright.Locator
 import com.microsoft.playwright.Page
 import com.microsoft.playwright.Playwright
 import com.microsoft.playwright.PlaywrightException
-import com.microsoft.playwright.options.MouseButton
 import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
@@ -473,7 +472,7 @@ object BrowserAutomationService {
 
         const indicator = document.createElement('div');
         indicator.id = 'wtg-click-indicator';
-        indicator.textContent = '📌 클릭 대상';
+        indicator.textContent = '클릭 대상';
         document.body.appendChild(indicator);
         indicator.offsetWidth;
 
@@ -647,7 +646,7 @@ object BrowserAutomationService {
                 if (window.__vowserContributionListenersSetup) return;
                 window.__vowserContributionListenersSetup = true;
                 
-                console.log('🎯 Vowser contribution listeners injected');
+                console.log('Vowser contribution listeners injected');
                 
                 // 클릭 이벤트 감지
                 document.addEventListener('click', function(event) {
@@ -692,6 +691,34 @@ object BrowserAutomationService {
                         };
                         
                         console.log('Input detected:', selector, attributes);
+                    }
+                }, true);
+                
+                // Enter 키 감지 (keydown 이벤트)
+                document.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter' || event.keyCode === 13) {
+                        const element = event.target;
+                        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+                            const selector = generateSelector(element);
+                            const attributes = {
+                                'text': element.value || '',
+                                'tag': element.tagName?.toLowerCase() || '',
+                                'id': element.id || '',
+                                'class': element.className || '',
+                                'type': element.type || '',
+                                'placeholder': element.placeholder || '',
+                                'key': 'enter',
+                                'keyCode': '13'
+                            };
+                            
+                            window.__vowserLastEnterKey = {
+                                selector: selector,
+                                attributes: attributes,
+                                timestamp: Date.now()
+                            };
+                            
+                            console.log('Enter key detected:', selector, attributes);
+                        }
                     }
                 }, true);
                 
@@ -844,6 +871,39 @@ object BrowserAutomationService {
                     
                     // 처리된 입력 데이터 클리어
                     targetPage.evaluate("window.__vowserLastInput = null;")
+                }
+            }
+            
+            // Enter 키 이벤트 체크 (타이핑 완료 시그널)
+            val enterKeyData = targetPage.evaluate("window.__vowserLastEnterKey")
+            if (enterKeyData != null) {
+                val enterMap = enterKeyData as? Map<*, *>
+                val timestamp = (enterMap?.get("timestamp") as? Number)?.toLong() ?: 0L
+                val pageInputTimestamp = pageTimestamps[targetPage]?.second ?: 0L
+                
+                if (timestamp > pageInputTimestamp) {
+                    val selector = enterMap?.get("selector") as? String ?: ""
+                    val attributesMap = enterMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
+                    val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
+                    
+                    val inputText = attributes["text"]?.take(50) ?: "No text"
+                    Napier.i("Enter key pressed: [$inputText] on $selector (${targetPage.url()})", tag = "BrowserAutomationService")
+                    
+                    recordContributionStep(
+                        targetPage.url(),
+                        targetPage.title(),
+                        "type",
+                        selector,
+                        attributes
+                    )
+                    
+                    // Enter 키는 별도 타임스탬프로 처리하지 않고 입력 타임스탬프 업데이트
+                    val currentClickTimestamp = pageTimestamps[targetPage]?.first ?: 0L
+                    pageTimestamps[targetPage] = Pair(currentClickTimestamp, timestamp)
+                    updatePageActivity(targetPage)
+                    
+                    // 처리된 Enter 키 데이터 클리어
+                    targetPage.evaluate("window.__vowserLastEnterKey = null;")
                 }
             }
         } catch (e: Exception) {
