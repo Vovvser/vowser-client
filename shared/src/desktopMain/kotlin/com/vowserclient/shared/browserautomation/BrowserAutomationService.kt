@@ -316,7 +316,7 @@ object BrowserAutomationService {
             page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
             Napier.i { "Applied highlight to element with selector: $selector" }
             
-            kotlinx.coroutines.delay(3000)
+            delay(3000)
 
             try {
                 page.evaluate("""
@@ -823,7 +823,7 @@ object BrowserAutomationService {
                     val attributesMap = clickMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
                     
-                    val buttonText = attributes["text"]?.take(50) ?: "No text"
+                    val buttonText = attributes["text"]?.take(ContributionConstants.MAX_ELEMENT_TEXT_LENGTH) ?: "No text"
                     Napier.i("Button clicked: [$buttonText] on $selector (${targetPage.url()})", tag = "BrowserAutomationService")
                     
                     recordContributionStep(
@@ -886,7 +886,7 @@ object BrowserAutomationService {
                     val attributesMap = enterMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
                     
-                    val inputText = attributes["text"]?.take(50) ?: "No text"
+                    val inputText = attributes["text"]?.take(ContributionConstants.MAX_ELEMENT_TEXT_LENGTH) ?: "No text"
                     Napier.i("Enter key pressed: [$inputText] on $selector (${targetPage.url()})", tag = "BrowserAutomationService")
                     
                     recordContributionStep(

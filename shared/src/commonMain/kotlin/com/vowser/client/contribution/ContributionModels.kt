@@ -81,7 +81,7 @@ object ContributionDataValidator {
         try {
             val sanitizedUrl = validateUrl(step.url) ?: return null
             val sanitizedTitle = sanitizeString(step.title, ContributionConstants.MAX_TITLE_LENGTH)
-            val sanitizedAction = sanitizeString(step.action, 50)
+            val sanitizedAction = sanitizeString(step.action, ContributionConstants.MAX_ACTION_NAME_LENGTH)
             val sanitizedSelector = step.selector?.let { sanitizeString(it, ContributionConstants.MAX_SELECTOR_LENGTH) }
             
             // HTML 속성 수정

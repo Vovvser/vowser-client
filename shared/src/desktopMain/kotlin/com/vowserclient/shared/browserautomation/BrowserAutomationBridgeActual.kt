@@ -26,7 +26,7 @@ actual object BrowserAutomationBridge {
         if (firstStep?.action == "navigate") {
             Napier.i { "루트 페이지로 초기화: ${firstStep.url}" }
             browserActions.navigate(firstStep.url)
-            delay(3000) // 페이지 로드 대기
+            delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
             
             var currentUrl = firstStep.url
             var hasNavigatedToFirstWebsite = false
@@ -46,7 +46,7 @@ actual object BrowserAutomationBridge {
                         browserActions.navigate(nextStep.url)
                         currentUrl = nextStep.url
                         hasNavigatedToFirstWebsite = true
-                        delay(3000)
+                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
                     }
                 }
                 
@@ -54,14 +54,14 @@ actual object BrowserAutomationBridge {
                     "navigate" -> {
                         Napier.i { "Waiting for page load after navigation..." }
                         currentUrl = step.url
-                        delay(3000)
+                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
                     }
                     "click" -> {
                         Napier.i { "Waiting after click action..." }
-                        delay(2000)
+                        delay(ContributionConstants.CLICK_WAIT_MS)
                     }
                     "type" -> {
-                        delay(1000)
+                        delay(ContributionConstants.TYPE_WAIT_MS)
                     }
                     else -> {
                         delay(ContributionConstants.POLLING_INTERVAL_MS)
@@ -79,14 +79,14 @@ actual object BrowserAutomationBridge {
                 when (step.action) {
                     "navigate" -> {
                         Napier.i { "Waiting for page load after navigation..." }
-                        delay(3000)
+                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
                     }
                     "click" -> {
                         Napier.i { "Waiting after click action..." }
-                        delay(2000)
+                        delay(ContributionConstants.CLICK_WAIT_MS)
                     }
                     "type" -> {
-                        delay(1000)
+                        delay(ContributionConstants.TYPE_WAIT_MS)
                     }
                     else -> {
                         delay(ContributionConstants.POLLING_INTERVAL_MS)

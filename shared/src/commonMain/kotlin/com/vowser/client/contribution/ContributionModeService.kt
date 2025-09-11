@@ -22,7 +22,7 @@ class ContributionModeService(
     // 타이핑 디바운싱 관련 프로퍼티
     private var typingDebounceJob: Job? = null
     private var pendingTypingStep: ContributionStep? = null
-    private val typingDebounceTimeMs = 1500L
+    private val typingDebounceTimeMs = ContributionConstants.TYPING_DEBOUNCE_TIME_MS
     
     private val _status = MutableStateFlow(ContributionStatus.INACTIVE)
     val status: StateFlow<ContributionStatus> = _status.asStateFlow()

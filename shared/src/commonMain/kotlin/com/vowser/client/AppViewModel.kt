@@ -7,6 +7,7 @@ import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.data.SpeechRepository
 import com.vowser.client.contribution.ContributionModeService
 import com.vowser.client.contribution.ContributionMessage
+import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -334,7 +335,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             addStatusLog("녹음된 음성 데이터 없음", StatusLogType.WARNING)
         }
 
-        delay(3000)
+        delay(ContributionConstants.RECORDING_STATUS_RESET_DELAY_MS)
         _recordingStatus.value = "Ready to record"
         addStatusLog("녹음 준비 완료", StatusLogType.INFO)
     }
@@ -417,23 +418,6 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
         }
     }
 
-    /**
-     * 특정 노드로 탐색 요청
-     */
-    fun navigateToNode(nodeId: String) {
-        coroutineScope.launch {
-            try {
-                webSocketClient.sendToolCall(CallToolRequest("navigate_to_node", mapOf(
-                    "sessionId" to sessionId,
-                    "nodeId" to nodeId
-                )))
-                Napier.i("Navigation to node $nodeId requested", tag = "AppViewModel")
-            } catch (e: Exception) {
-                Napier.e("Failed to navigate to node: ${e.message}", e, tag = "AppViewModel")
-            }
-        }
-    }
-
     // 기여 모드 관련 함수들
     private fun setupContributionMode() {
         BrowserAutomationBridge.setContributionRecordingCallback { step ->
@@ -453,7 +437,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                 contributionModeService.startSession(task)
                 
                 // 브라우저 창이 뜨는지 확인 후 네비게이션
-                kotlinx.coroutines.delay(1000) // 브라우저 초기화 대기
+                delay(ContributionConstants.BROWSER_INIT_WAIT_MS) // 브라우저 초기화 대기
                 BrowserAutomationBridge.navigate("about:blank")
                 
                 addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
