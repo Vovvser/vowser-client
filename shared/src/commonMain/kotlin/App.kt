@@ -7,6 +7,7 @@ import com.vowser.client.ui.screens.AppScreen
 import com.vowser.client.ui.screens.GraphScreen
 import com.vowser.client.ui.screens.SettingsScreen
 import com.vowser.client.ui.theme.AppTheme
+import com.vowser.client.contribution.ContributionConstants
 
 @Composable
 fun App() {
@@ -42,6 +43,11 @@ fun App() {
     // 상태 히스토리(로그) 구독
     val statusHistory by viewModel.statusHistory.collectAsState()
     
+    // 기여 모드 상태 구독
+    val contributionStatus by viewModel.contributionStatus.collectAsState()
+    val contributionStepCount by viewModel.contributionStepCount.collectAsState()
+    val contributionTask by viewModel.contributionTask.collectAsState()
+    
     // 테마 적용
     val colors = if (isDarkTheme) {
         AppTheme.DarkTheme
@@ -62,11 +68,21 @@ fun App() {
                     connectionStatus = connectionStatus.toString(),
                     receivedMessage = receivedMessage,
                     isRecording = isRecording,
-                    recordingStatus = recordingStatus,
                     currentGraphData = currentGraphData,
                     isDeveloperMode = isDeveloperMode,
                     statusHistory = statusHistory,
-                    onModeToggle = { isContributionMode = !isContributionMode },
+                    contributionStatus = contributionStatus,
+                    contributionStepCount = contributionStepCount,
+                    contributionTask = contributionTask,
+                    onModeToggle = { 
+                        isContributionMode = !isContributionMode
+                        if (isContributionMode) {
+                            viewModel.startContribution(ContributionConstants.DEFAULT_TASK_NAME)
+                            viewModel.toggleRecording()
+                        } else {
+                            viewModel.stopContribution()
+                        }
+                    },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
                     onSendToolCall = { toolName, args -> 
@@ -74,7 +90,6 @@ fun App() {
                     },
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
-                    onNavigateToNode = { nodeId -> viewModel.navigateToNode(nodeId) },
                     onClearStatusHistory = { viewModel.clearStatusHistory() }
                 )
             }

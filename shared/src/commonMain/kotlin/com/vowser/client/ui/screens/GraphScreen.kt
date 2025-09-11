@@ -24,7 +24,6 @@ import com.vowser.client.ui.graph.GraphInteractionType
 import com.vowser.client.ui.error.ErrorBoundary
 import com.vowser.client.ui.error.LoadingState
 import com.vowser.client.ui.error.ErrorState
-import com.vowser.client.ui.error.ToastType
 import com.vowser.client.ui.error.SmartLoadingIndicator
 import com.vowser.client.ui.components.AppBar
 import com.vowser.client.ui.components.StatisticsPanel
@@ -32,6 +31,7 @@ import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
+import com.vowser.client.contribution.ContributionStatus
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -44,17 +44,18 @@ fun GraphScreen(
     connectionStatus: String,
     receivedMessage: String,
     isRecording: Boolean,
-    recordingStatus: String,
     currentGraphData: GraphVisualizationData?,
     isDeveloperMode: Boolean,
     statusHistory: List<StatusLogEntry>,
+    contributionStatus: ContributionStatus,
+    contributionStepCount: Int,
+    contributionTask: String,
     onModeToggle: () -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
     onSendToolCall: (String, Map<String, String>) -> Unit,
     onToggleRecording: () -> Unit,
     onRefreshGraph: () -> Unit,
-    onNavigateToNode: (String) -> Unit,
     onClearStatusHistory: () -> Unit,
 ) {
     // 그래프 상태
@@ -62,21 +63,13 @@ fun GraphScreen(
     var activeNodeId by remember { mutableStateOf<String?>(null) }
     var showStats by remember { mutableStateOf(false) }
     
-    // 뷰 모드 상태 (개발자 모드에서 그래프/홈 전환용)
+    // 뷰 모드 상태
     var showGraphView by remember { mutableStateOf(false) }
-    
-    // 기여 모드 상태
-    var isRecordingContribution by remember { mutableStateOf(false) }
-    var currentStep by remember { mutableStateOf(0) }
-    var lastClickedElement by remember { mutableStateOf<String?>(null) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
-    
+
     // 에러 처리 상태
     var loadingState by remember { mutableStateOf<LoadingState>(LoadingState.Idle) }
     var errorState by remember { mutableStateOf<ErrorState>(ErrorState.None) }
-    var toastMessage by remember { mutableStateOf<String?>(null) }
-    var toastType by remember { mutableStateOf(ToastType.INFO) }
-    
+
     // 음성 테스트 상태
     var currentVoiceTest by remember { mutableStateOf<VoiceTestScenario?>(null) }
 
@@ -125,14 +118,9 @@ fun GraphScreen(
                         GraphInteractionType.Reset -> {
                             selectedPath = emptyList()
                             activeNodeId = null
-                            if (isContributionMode) {
-                                isRecordingContribution = false
-                                currentStep = 0
-                            }
                             // 그래프 새로고침 요청
                             onRefreshGraph()
                         }
-                        else -> {}
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -141,8 +129,10 @@ fun GraphScreen(
                 // 통합 상태 UI
                 EmptyStateUI(
                     isRecording = isRecording,
-                    recordingStatus = recordingStatus,
                     isContributionMode = isContributionMode,
+                    contributionStatus = contributionStatus,
+                    contributionStepCount = contributionStepCount,
+                    contributionTask = contributionTask,
                     statusHistory = statusHistory,
                     isDeveloperMode = isDeveloperMode,
                     receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
@@ -227,10 +217,6 @@ fun GraphScreen(
                         
                         // 그래프 표시 위해 로딩 상태로 전환
                         loadingState = LoadingState.Loading
-                        
-                        // 토스트 메시지 표시
-                        toastMessage = "날씨 탐색 경로를 분석하는 중..."
-                        toastType = ToastType.INFO
                     },
                     onShowGraph = { if (currentGraphData != null) showGraphView = true },
                     modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
@@ -277,13 +263,15 @@ fun GraphScreen(
 }
 
 /**
- * 통합 상태 UI - 로그, 버튼, 기여모드 모두 포함
+ * 통합 상태 UI
  */
 @Composable
 private fun EmptyStateUI(
     isRecording: Boolean,
-    recordingStatus: String,
     isContributionMode: Boolean,
+    contributionStatus: ContributionStatus,
+    contributionStepCount: Int,
+    contributionTask: String,
     statusHistory: List<StatusLogEntry>,
     isDeveloperMode: Boolean,
     receivedMessage: String,
@@ -339,7 +327,7 @@ private fun EmptyStateUI(
                     contentColor = Color.White
                 )
             ) {
-                Text(if (isContributionMode) "기여모드 OFF" else "기여모드 ON")
+                Text(if (isContributionMode) "기여모드 완료" else "기여모드 시작")
             }
 
             // 재연결 버튼
@@ -371,7 +359,7 @@ private fun EmptyStateUI(
                     Text("모의 테스트")
                 }
                 
-                // 그래프 보기 버튼 (데이터가 있을 때만)
+                // 그래프 보기 버튼
                 if (receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
                     Button(
                         onClick = onShowGraph,
@@ -398,7 +386,7 @@ private fun EmptyStateUI(
             }
         }
 
-        // 기여 모드 UI (통합)
+        // 기여 모드 UI
         if (isContributionMode) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -414,7 +402,7 @@ private fun EmptyStateUI(
                         color = AppTheme.Colors.Contribution
                     )
                     Text(
-                        text = "웹 브라우징 패턴이 학습되고 있습니다",
+                        text = "$contributionTask 패턴을 기록하고 있는 중입니다.",
                         style = MaterialTheme.typography.body2,
                         color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                     )
@@ -485,7 +473,6 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 상태 타입 인디케이터
         val (color, icon) = when (entry.type) {
             StatusLogType.SUCCESS -> AppTheme.Colors.Success to "✅"
             StatusLogType.ERROR -> AppTheme.Colors.Error to "❌"

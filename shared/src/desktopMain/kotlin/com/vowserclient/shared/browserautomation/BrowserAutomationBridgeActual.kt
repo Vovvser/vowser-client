@@ -1,6 +1,8 @@
 package com.vowserclient.shared.browserautomation
 
 import com.vowser.client.websocket.dto.NavigationPath
+import com.vowser.client.contribution.ContributionStep
+import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.delay
 
@@ -15,30 +17,16 @@ actual object BrowserAutomationBridge {
         "submit" to SubmitActionExecutor()
     )
 
-    actual suspend fun goBackInBrowser() {
-        Napier.i { "Desktop: BrowserAutomationBridge.goBackInBrowser() 호출됨" }
-        browserActions.goBack()
-    }
-
-    actual suspend fun goForwardInBrowser() {
-        Napier.i { "Desktop: BrowserAutomationBridge.goForwardInBrowser() 호출됨" }
-        browserActions.goForward()
-    }
-
-    actual suspend fun navigateInBrowser(url: String) {
-        Napier.i { "Desktop: BrowserAutomationBridge.navigateInBrowser($url) 호출됨" }
-        browserActions.navigate(url)
-    }
-
     actual suspend fun executeNavigationPath(path: NavigationPath) {
         Napier.i { "Desktop: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) 호출됨" }
-        
+
+        BrowserAutomationService.initialize()
         // 첫 번째 스텝이 navigate인 경우, 항상 해당 URL로 이동 (루트 페이지로 초기화)
         val firstStep = path.steps.firstOrNull()
         if (firstStep?.action == "navigate") {
             Napier.i { "루트 페이지로 초기화: ${firstStep.url}" }
             browserActions.navigate(firstStep.url)
-            delay(3000) // 페이지 로드 대기
+            delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
             
             var currentUrl = firstStep.url
             var hasNavigatedToFirstWebsite = false
@@ -58,7 +46,7 @@ actual object BrowserAutomationBridge {
                         browserActions.navigate(nextStep.url)
                         currentUrl = nextStep.url
                         hasNavigatedToFirstWebsite = true
-                        delay(3000)
+                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
                     }
                 }
                 
@@ -66,17 +54,17 @@ actual object BrowserAutomationBridge {
                     "navigate" -> {
                         Napier.i { "Waiting for page load after navigation..." }
                         currentUrl = step.url
-                        delay(3000)
+                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
                     }
                     "click" -> {
                         Napier.i { "Waiting after click action..." }
-                        delay(2000)
+                        delay(ContributionConstants.CLICK_WAIT_MS)
                     }
                     "type" -> {
-                        delay(1000)
+                        delay(ContributionConstants.TYPE_WAIT_MS)
                     }
                     else -> {
-                        delay(500)
+                        delay(ContributionConstants.POLLING_INTERVAL_MS)
                     }
                 }
             }
@@ -91,17 +79,17 @@ actual object BrowserAutomationBridge {
                 when (step.action) {
                     "navigate" -> {
                         Napier.i { "Waiting for page load after navigation..." }
-                        delay(3000)
+                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
                     }
                     "click" -> {
                         Napier.i { "Waiting after click action..." }
-                        delay(2000)
+                        delay(ContributionConstants.CLICK_WAIT_MS)
                     }
                     "type" -> {
-                        delay(1000)
+                        delay(ContributionConstants.TYPE_WAIT_MS)
                     }
                     else -> {
-                        delay(500)
+                        delay(ContributionConstants.POLLING_INTERVAL_MS)
                     }
                 }
             }
@@ -132,5 +120,26 @@ actual object BrowserAutomationBridge {
         } catch (e: Exception) {
             url
         }
+    }
+    
+    // 기여 모드 관련 메서드들
+    actual suspend fun startContributionRecording() {
+        Napier.i { "Desktop: BrowserAutomationBridge.startContributionRecording() 호출됨" }
+        BrowserAutomationService.startContributionRecording()
+    }
+    
+    actual fun stopContributionRecording() {
+        Napier.i { "Desktop: BrowserAutomationBridge.stopContributionRecording() 호출됨" }
+        BrowserAutomationService.stopContributionRecording()
+    }
+    
+    actual suspend fun navigate(url: String) {
+        Napier.i { "Desktop: BrowserAutomationBridge.navigate($url) 호출됨" }
+        BrowserAutomationService.navigate(url)
+    }
+    
+    actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
+        Napier.i { "Desktop: BrowserAutomationBridge.setContributionRecordingCallback() 호출됨" }
+        BrowserAutomationService.setContributionRecordingCallback(callback)
     }
 }
