@@ -91,13 +91,11 @@ class ContributionModeService(
     private fun recordTypingStepWithDebounce(step: ContributionStep) {
         // 이전 타이핑 Job 취소
         typingDebounceJob?.cancel()
-        
-        // Enter 키가 포함된 경우 즉시 기록
-        val isEnterKey = step.htmlAttributes?.get("key")?.lowercase() == "enter" ||
-                        step.htmlAttributes?.get("keyCode") == "13" ||
-                        step.htmlAttributes?.get("which") == "13"
-        
-        if (isEnterKey) {
+
+        if (step.htmlAttributes?.get("key")?.lowercase() == "enter" ||
+            step.htmlAttributes?.get("keyCode") == "13" ||
+            step.htmlAttributes?.get("which") == "13" ||
+            step.htmlAttributes?.get("code")?.lowercase() == "enter") {
             pendingTypingStep?.let { recordStepImmediately(it) }
             pendingTypingStep = null
             recordStepImmediately(step)
