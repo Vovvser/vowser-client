@@ -5,6 +5,8 @@ import com.vowser.client.websocket.ConnectionStatus
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.data.SpeechRepository
+import com.vowser.client.contribution.ContributionModeService
+import com.vowser.client.contribution.ContributionMessage
 import io.github.aakira.napier.Napier
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -68,12 +70,25 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     private val _statusHistory = MutableStateFlow<List<StatusLogEntry>>(emptyList())
     val statusHistory: StateFlow<List<StatusLogEntry>> = _statusHistory.asStateFlow()
 
+    // 기여 모드 관리
+    private val contributionModeService = ContributionModeService(
+        coroutineScope = coroutineScope,
+        onSendMessage = { message -> sendContributionMessage(message) },
+        onUILog = { stepNumber, action, elementName, url -> 
+            addContributionLog(stepNumber, action, elementName, url) 
+        }
+    )
+    val contributionStatus = contributionModeService.status
+    val contributionStepCount = contributionModeService.currentStepCount
+    val contributionTask = contributionModeService.currentTask
+
     private val speechRepository = SpeechRepository(HttpClient(CIO))
     val sessionId = uuid4().toString()
 
     init {
         setupWebSocketCallbacks()
         connectWebSocket()
+        setupContributionMode()
         addStatusLog("시스템 시작", StatusLogType.INFO)
     }
 
@@ -100,6 +115,40 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
      */
     fun clearStatusHistory() {
         _statusHistory.value = emptyList()
+    }
+    
+    /**
+     * 기여모드 전용 로그
+     */
+    fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
+        val message = when (action) {
+            "click" -> {
+                val element = elementName?.let { "\"$it\"" } ?: "요소"
+                "[$stepNumber]스텝 $element 를 클릭했습니다."
+            }
+            "navigate" -> {
+                val destination = url?.let { 
+                    when {
+                        it.startsWith("about:blank") -> "빈 페이지"
+                        it.startsWith("http") -> it.substringAfter("://").substringBefore("/").take(25)
+                        else -> it.take(25)
+                    }
+                } ?: "페이지"
+                "[$stepNumber]스텝 $destination 로 이동했습니다."
+            }
+            "type" -> {
+                val input = elementName?.let { "\"$it\"" } ?: "텍스트"
+                "[$stepNumber]스텝 $input 를 입력했습니다."
+            }
+            "new_tab" -> {
+                "[$stepNumber]스텝 새 탭이 열렸습니다."
+            }
+            else -> {
+                "[$stepNumber]스텝 $action 작업을 수행했습니다."
+            }
+        }
+        
+        addStatusLog(message, StatusLogType.INFO)
     }
 
     private fun connectWebSocket() {
@@ -382,6 +431,62 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             } catch (e: Exception) {
                 Napier.e("Failed to navigate to node: ${e.message}", e, tag = "AppViewModel")
             }
+        }
+    }
+
+    // 기여 모드 관련 함수들
+    private fun setupContributionMode() {
+        BrowserAutomationBridge.setContributionRecordingCallback { step ->
+            contributionModeService.recordStep(step)
+        }
+    }
+
+    fun startContribution(task: String) {
+        coroutineScope.launch {
+            try {
+                addStatusLog("기여 모드 초기화 중...", StatusLogType.INFO)
+                
+                // 기여모드 시작
+                BrowserAutomationBridge.startContributionRecording()
+                
+                // 세션 시작
+                contributionModeService.startSession(task)
+                
+                // 브라우저 창이 뜨는지 확인 후 네비게이션
+                kotlinx.coroutines.delay(1000) // 브라우저 초기화 대기
+                BrowserAutomationBridge.navigate("about:blank")
+                
+                addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
+                
+            } catch (e: Exception) {
+                addStatusLog("기여 모드 시작 실패: ${e.message}", StatusLogType.ERROR)
+                Napier.e("Failed to start contribution mode: ${e.message}", e, tag = "AppViewModel")
+                
+                // 실패 시 정리
+                try {
+                    BrowserAutomationBridge.stopContributionRecording()
+                    contributionModeService.resetSession()
+                } catch (cleanupError: Exception) {
+                    Napier.w("Cleanup error: ${cleanupError.message}", tag = "AppViewModel")
+                }
+            }
+        }
+    }
+
+    fun stopContribution() {
+        val stepCount = contributionModeService.currentStepCount.value
+        BrowserAutomationBridge.stopContributionRecording()
+        contributionModeService.endSession()
+        addStatusLog("🏁 기여 모드 완료 - 총 ${stepCount}개 스텝 기록됨", StatusLogType.SUCCESS)
+    }
+
+    private suspend fun sendContributionMessage(message: ContributionMessage) {
+        try {
+            webSocketClient.sendContributionMessage(message)
+            addStatusLog("기여 데이터 전송 완료 (${message.steps.size}개 단계)", StatusLogType.SUCCESS)
+        } catch (e: Exception) {
+            addStatusLog("기여 데이터 전송 실패: ${e.message}", StatusLogType.ERROR)
+            throw e
         }
     }
 }

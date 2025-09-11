@@ -8,6 +8,7 @@ import com.vowser.client.websocket.dto.GraphUpdateData
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.NavigationStep
 import com.vowser.client.websocket.dto.PathDetail
+import com.vowser.client.contribution.ContributionMessage
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -227,6 +228,24 @@ class BrowserControlWebSocketClient {
             Napier.i("Sent browser command: $command", tag = "VowserSocketClient")
         } catch (e: Exception) {
             Napier.e("Failed to send browser command: ${e.message}", e, tag = "VowserSocketClient")
+        }
+    }
+
+    /**
+     * 기여 메시지 전송
+     */
+    suspend fun sendContributionMessage(message: ContributionMessage) {
+        if (session?.isActive != true) {
+            Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
+            return
+        }
+        try {
+            val jsonString = json.encodeToString(message)
+            session?.send(Frame.Text(jsonString))
+            Napier.i("Sent contribution message: sessionId=${message.sessionId}, steps=${message.steps.size}", tag = "VowserSocketClient")
+        } catch (e: Exception) {
+            Napier.e("Failed to send contribution message: ${e.message}", e, tag = "VowserSocketClient")
+            throw e
         }
     }
 

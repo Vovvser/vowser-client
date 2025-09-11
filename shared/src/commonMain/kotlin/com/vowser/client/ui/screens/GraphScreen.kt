@@ -32,6 +32,7 @@ import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
+import com.vowser.client.contribution.ContributionStatus
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -48,6 +49,9 @@ fun GraphScreen(
     currentGraphData: GraphVisualizationData?,
     isDeveloperMode: Boolean,
     statusHistory: List<StatusLogEntry>,
+    contributionStatus: ContributionStatus,
+    contributionStepCount: Int,
+    contributionTask: String,
     onModeToggle: () -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
@@ -66,8 +70,6 @@ fun GraphScreen(
     var showGraphView by remember { mutableStateOf(false) }
     
     // 기여 모드 상태
-    var isRecordingContribution by remember { mutableStateOf(false) }
-    var currentStep by remember { mutableStateOf(0) }
     var lastClickedElement by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
     
@@ -125,10 +127,6 @@ fun GraphScreen(
                         GraphInteractionType.Reset -> {
                             selectedPath = emptyList()
                             activeNodeId = null
-                            if (isContributionMode) {
-                                isRecordingContribution = false
-                                currentStep = 0
-                            }
                             // 그래프 새로고침 요청
                             onRefreshGraph()
                         }
@@ -143,6 +141,9 @@ fun GraphScreen(
                     isRecording = isRecording,
                     recordingStatus = recordingStatus,
                     isContributionMode = isContributionMode,
+                    contributionStatus = contributionStatus,
+                    contributionStepCount = contributionStepCount,
+                    contributionTask = contributionTask,
                     statusHistory = statusHistory,
                     isDeveloperMode = isDeveloperMode,
                     receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
@@ -277,13 +278,16 @@ fun GraphScreen(
 }
 
 /**
- * 통합 상태 UI - 로그, 버튼, 기여모드 모두 포함
+ * 통합 상태 UI
  */
 @Composable
 private fun EmptyStateUI(
     isRecording: Boolean,
     recordingStatus: String,
     isContributionMode: Boolean,
+    contributionStatus: ContributionStatus,
+    contributionStepCount: Int,
+    contributionTask: String,
     statusHistory: List<StatusLogEntry>,
     isDeveloperMode: Boolean,
     receivedMessage: String,
@@ -398,7 +402,7 @@ private fun EmptyStateUI(
             }
         }
 
-        // 기여 모드 UI (통합)
+        // 기여 모드 UI
         if (isContributionMode) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
