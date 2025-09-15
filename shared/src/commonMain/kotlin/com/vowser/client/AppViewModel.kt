@@ -86,6 +86,38 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     private val speechRepository = SpeechRepository(HttpClient(CIO))
     val sessionId = uuid4().toString()
 
+    private val _selectedSttModes = MutableStateFlow(setOf("general"))
+    val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
+
+    /**
+     * STT 모드 토글
+     */
+    fun toggleSttMode(modeId: String) {
+        val currentModes = _selectedSttModes.value.toMutableSet()
+
+        if (currentModes.contains(modeId)) {
+            if (currentModes.size > 1) {
+                currentModes.remove(modeId)
+                addStatusLog("STT 모드 비활성화: ${getSttModeDisplayName(modeId)}", StatusLogType.INFO)
+            }
+        } else {
+            currentModes.add(modeId)
+            addStatusLog("STT 모드 활성화: ${getSttModeDisplayName(modeId)}", StatusLogType.INFO)
+        }
+
+        _selectedSttModes.value = currentModes
+    }
+
+    private fun getSttModeDisplayName(modeId: String): String {
+        return when (modeId) {
+            "general" -> "일반"
+            "number" -> "숫자"
+            "alphabet" -> "알파벳"
+            "snippet" -> "스니펫"
+            else -> modeId
+        }
+    }
+
     init {
         setupWebSocketCallbacks()
         connectWebSocket()
@@ -312,7 +344,7 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             _recordingStatus.value = "Uploading audio..."
             addStatusLog("음성 데이터 업로드 중...", StatusLogType.INFO)
             try {
-                val result = speechRepository.transcribeAudio(audioBytes, sessionId)
+                val result = speechRepository.transcribeAudio(audioBytes, sessionId, _selectedSttModes.value)
                 result.fold(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"

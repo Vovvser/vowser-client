@@ -27,6 +27,7 @@ import com.vowser.client.ui.error.ErrorState
 import com.vowser.client.ui.error.SmartLoadingIndicator
 import com.vowser.client.ui.components.AppBar
 import com.vowser.client.ui.components.StatisticsPanel
+import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.StatusLogEntry
@@ -50,6 +51,7 @@ fun GraphScreen(
     contributionStatus: ContributionStatus,
     contributionStepCount: Int,
     contributionTask: String,
+    selectedSttModes: Set<String>,
     onModeToggle: () -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
@@ -57,6 +59,7 @@ fun GraphScreen(
     onToggleRecording: () -> Unit,
     onRefreshGraph: () -> Unit,
     onClearStatusHistory: () -> Unit,
+    onToggleSttMode: (String) -> Unit,
 ) {
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -136,10 +139,12 @@ fun GraphScreen(
                     statusHistory = statusHistory,
                     isDeveloperMode = isDeveloperMode,
                     receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
+                    selectedSttModes = selectedSttModes,
                     onToggleRecording = onToggleRecording,
                     onModeToggle = onModeToggle,
                     onReconnect = onReconnect,
                     onClearStatusHistory = onClearStatusHistory,
+                    onToggleSttMode = onToggleSttMode,
                     onTestCommand = {
                         showGraphView = true  // 테스트 실행 시 그래프 뷰로 전환
                         // 새로운 날씨 검색 결과 모의 테스트 데이터
@@ -275,12 +280,14 @@ private fun EmptyStateUI(
     statusHistory: List<StatusLogEntry>,
     isDeveloperMode: Boolean,
     receivedMessage: String,
+    selectedSttModes: Set<String>,
     onToggleRecording: () -> Unit,
     onModeToggle: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
     onTestCommand: () -> Unit,
     onShowGraph: () -> Unit,
+    onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -385,6 +392,14 @@ private fun EmptyStateUI(
                 Text("Clear")
             }
         }
+
+        // STT 모드 선택기
+        SttModeSelector(
+            selectedModes = selectedSttModes,
+            onModeToggle = onToggleSttMode,
+            isVisible = !isRecording,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         // 기여 모드 UI
         if (isContributionMode) {
