@@ -190,7 +190,11 @@ class BrowserControlWebSocketClient {
                         }
                     }
                 } catch (e: Exception) {
-                    Napier.e("Failed to parse or execute command from message: $messageString. Error: ${e.message}", e, tag = "VowserSocketClient")
+                    if (messageString.contains("연결되었습니다") || messageString.contains("error\":false")) {
+                        Napier.i("Received welcome or status message (ignored): $messageString", tag = "VowserSocketClient")
+                    } else {
+                        Napier.e("Failed to parse or execute command from message: $messageString. Error: ${e.message}", e, tag = "VowserSocketClient")
+                    }
                 }
             }
         }
