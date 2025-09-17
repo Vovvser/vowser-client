@@ -35,6 +35,9 @@ fun App() {
     // 음성 녹음 상태 구독
     val isRecording by viewModel.isRecording.collectAsState()
     val recordingStatus by viewModel.recordingStatus.collectAsState()
+
+    // STT 모드 상태 구독
+    val selectedSttModes by viewModel.selectedSttModes.collectAsState()
     
     // 그래프 데이터 구독
     val currentGraphData by viewModel.currentGraphData.collectAsState()
@@ -74,7 +77,8 @@ fun App() {
                     contributionStatus = contributionStatus,
                     contributionStepCount = contributionStepCount,
                     contributionTask = contributionTask,
-                    onModeToggle = { 
+                    selectedSttModes = selectedSttModes,
+                    onModeToggle = {
                         isContributionMode = !isContributionMode
                         if (isContributionMode) {
                             viewModel.startContribution(ContributionConstants.DEFAULT_TASK_NAME)
@@ -85,12 +89,13 @@ fun App() {
                     },
                     onScreenChange = { currentScreen = it },
                     onReconnect = { viewModel.reconnect() },
-                    onSendToolCall = { toolName, args -> 
+                    onSendToolCall = { toolName, args ->
                         viewModel.sendToolCall(toolName, args)
                     },
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
-                    onClearStatusHistory = { viewModel.clearStatusHistory() }
+                    onClearStatusHistory = { viewModel.clearStatusHistory() },
+                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) }
                 )
             }
             AppScreen.SETTINGS -> {

@@ -22,11 +22,15 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
         }
     }
 
-    suspend fun transcribeAudio(audioFileBytes: ByteArray, sessionId: String): Result<String> {
+    suspend fun transcribeAudio(
+        audioFileBytes: ByteArray,
+        sessionId: String,
+        selectedModes: Set<String> = setOf("general")
+    ): Result<String> {
         return try {
             val backendUrl = "http://localhost:8080/api/v1/speech/transcribe"
-            
-            Napier.i("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", tag = "SpeechRepository")
+
+            Napier.i("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId, Modes: $selectedModes", tag = "SpeechRepository")
 
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
@@ -36,6 +40,10 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
                             append(HttpHeaders.ContentDisposition, "filename=\"recording.wav\"")
                         })
                         append("sessionId", sessionId)
+                        append("enableGeneralMode", selectedModes.contains("general").toString())
+                        append("enableNumberMode", selectedModes.contains("number").toString())
+                        append("enableAlphabetMode", selectedModes.contains("alphabet").toString())
+                        append("enableSnippetMode", selectedModes.contains("snippet").toString())
                     }
                 ))
             }
