@@ -9,6 +9,9 @@ import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.NavigationStep
 import com.vowser.client.websocket.dto.PathDetail
 import com.vowser.client.contribution.ContributionMessage
+import com.vowser.client.exception.ExceptionHandler
+import com.vowser.client.exception.NetworkException
+import com.vowser.client.exception.ContributionException
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -32,7 +35,9 @@ import kotlinx.serialization.modules.subclass
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 
-class BrowserControlWebSocketClient {
+class BrowserControlWebSocketClient(
+    private val exceptionHandler: ExceptionHandler
+) {
 
     var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
     var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
@@ -104,7 +109,19 @@ class BrowserControlWebSocketClient {
                 return
             } catch (e: Exception) {
                 attempts++
+                val networkException = NetworkException.ConnectionFailed(e)
                 Napier.e("Failed to connect (attempt $attempts/$maxRetries): ${e.message}", e, tag = "VowserSocketClient")
+
+                if (attempts >= maxRetries) {
+                    exceptionHandler.handleException(
+                        networkException,
+                        context = "WebSocket connection"
+                    ) {
+                        connect(maxRetries, retryDelayMillis)
+                    }
+                    return
+                }
+
                 if (attempts < maxRetries) {
                     delay(retryDelayMillis)
                 }
@@ -214,7 +231,12 @@ class BrowserControlWebSocketClient {
             session?.send(Frame.Text(jsonString))
             Napier.i("Sent tool call: ${request.toolName}", tag = "VowserSocketClient")
         } catch (e: Exception) {
-            Napier.e("Failed to send message: ${e.message}", e, tag = "VowserSocketClient")
+            exceptionHandler.handleException(
+                NetworkException.ConnectionFailed(e),
+                context = "Tool call transmission"
+            ) {
+                sendToolCall(request)
+            }
         }
     }
 
@@ -231,7 +253,12 @@ class BrowserControlWebSocketClient {
             session?.send(Frame.Text(jsonString))
             Napier.i("Sent browser command: $command", tag = "VowserSocketClient")
         } catch (e: Exception) {
-            Napier.e("Failed to send browser command: ${e.message}", e, tag = "VowserSocketClient")
+            exceptionHandler.handleException(
+                NetworkException.ConnectionFailed(e),
+                context = "Browser command transmission"
+            ) {
+                sendBrowserCommand(command)
+            }
         }
     }
 
@@ -248,8 +275,12 @@ class BrowserControlWebSocketClient {
             session?.send(Frame.Text(jsonString))
             Napier.i("Sent contribution message: sessionId=${message.sessionId}, steps=${message.steps.size}", tag = "VowserSocketClient")
         } catch (e: Exception) {
-            Napier.e("Failed to send contribution message: ${e.message}", e, tag = "VowserSocketClient")
-            throw e
+            exceptionHandler.handleException(
+                ContributionException.DataTransmissionFailed(e),
+                context = "Contribution data transmission"
+            ) {
+                sendContributionMessage(message)
+            }
         }
     }
 

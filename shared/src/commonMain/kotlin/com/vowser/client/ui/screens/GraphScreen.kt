@@ -28,17 +28,21 @@ import com.vowser.client.ui.error.SmartLoadingIndicator
 import com.vowser.client.ui.components.AppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.SttModeSelector
+import com.vowser.client.ui.components.StandardDialogs
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
 import com.vowser.client.contribution.ContributionStatus
+import com.vowser.client.exception.DialogState
+import com.vowser.client.AppViewModel
 
 /**
  * 그래프 메인 화면 컴포넌트
  */
 @Composable
 fun GraphScreen(
+    appViewModel: AppViewModel,
     navigationProcessor: NavigationProcessor,
     isContributionMode: Boolean,
     isLoading: Boolean,
@@ -61,6 +65,7 @@ fun GraphScreen(
     onClearStatusHistory: () -> Unit,
     onToggleSttMode: (String) -> Unit,
 ) {
+    val dialogState by appViewModel.dialogState.collectAsState()
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeNodeId by remember { mutableStateOf<String?>(null) }
@@ -263,6 +268,52 @@ fun GraphScreen(
                 },
                 modifier = Modifier.align(Alignment.Center)
             )
+
+            // 에러 다이얼로그
+            when (val currentDialogState = dialogState) {
+                is DialogState.NetworkError -> {
+                    StandardDialogs.NetworkError(
+                        visible = true,
+                        onRetryClick = currentDialogState.onRetry,
+                        onDismiss = { appViewModel.exceptionHandler.hideDialog() }
+                    )
+                }
+                is DialogState.BrowserError -> {
+                    StandardDialogs.BrowserRetryDialog(
+                        visible = true,
+                        onRetryClick = currentDialogState.onRetry,
+                        onAlternativeClick = currentDialogState.onAlternative,
+                        onCancelClick = currentDialogState.onCancel
+                    )
+                }
+                is DialogState.ContributionError -> {
+                    StandardDialogs.ContributionFailureDialog(
+                        visible = true,
+                        onRetryClick = currentDialogState.onRetry,
+                        onLaterClick = currentDialogState.onLater,
+                        onGiveupClick = currentDialogState.onGiveUp
+                    )
+                }
+                is DialogState.PlaywrightRestart -> {
+                    StandardDialogs.PlaywrightRestartDialog(
+                        visible = true,
+                        onRestartClick = currentDialogState.onRestart,
+                        onDismiss = { appViewModel.exceptionHandler.hideDialog() }
+                    )
+                }
+                is DialogState.GenericError -> {
+                    com.vowser.client.ui.components.ErrorDialog(
+                        visible = true,
+                        title = currentDialogState.title,
+                        message = currentDialogState.message,
+                        onPositiveClick = currentDialogState.onConfirm,
+                        onDismiss = { appViewModel.exceptionHandler.hideDialog() }
+                    )
+                }
+                is DialogState.Hidden -> {
+                    // 다이얼로그 없음
+                }
+            }
         }
     }
 }

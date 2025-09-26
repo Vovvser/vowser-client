@@ -25,6 +25,7 @@ import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.websocket.dto.AllPathsResponse
 import com.vowser.client.websocket.dto.PathDetail
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
+import com.vowser.client.exception.ExceptionHandler
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -41,7 +42,10 @@ enum class StatusLogType {
     INFO, SUCCESS, WARNING, ERROR
 }
 
-class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)) {
+class AppViewModel(
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    val exceptionHandler: ExceptionHandler = ExceptionHandler(coroutineScope)
+) {
 
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.Disconnected)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
@@ -49,7 +53,9 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
     private val _receivedMessage = MutableStateFlow("No message")
     val receivedMessage: StateFlow<String> = _receivedMessage.asStateFlow()
 
-    private val webSocketClient = BrowserControlWebSocketClient()
+    private val webSocketClient = BrowserControlWebSocketClient(exceptionHandler)
+
+    val dialogState = exceptionHandler.dialogState
 
     // 음성 녹음 관련
     private val _isRecording = MutableStateFlow(false)
@@ -196,7 +202,9 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             } catch (e: Exception) {
                 Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e)
                 _connectionStatus.value = ConnectionStatus.Error
-                addStatusLog("서버 연결 실패: ${e.message}", StatusLogType.ERROR)
+                exceptionHandler.handleException(e, "WebSocket initial connection") {
+                    connectWebSocket()
+                }
             }
         }
     }
@@ -353,14 +361,27 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                     },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
-                        addStatusLog("음성 처리 실패: ${error.message}", StatusLogType.ERROR)
-                        Napier.e("Audio transcription failed: ${error.message}", tag = "AppViewModel")
+                        exceptionHandler.handleException(
+                            error,
+                            context = "Audio transcription"
+                        ) {
+                            val audioBytes = stopPlatformRecording()
+                            audioBytes?.let {
+                                val result = speechRepository.transcribeAudio(it, sessionId, _selectedSttModes.value)
+                                result.getOrThrow()
+                            }
+                        }
                     }
                 )
             } catch (e: Exception) {
                 _recordingStatus.value = "Error processing audio: ${e.message}"
-                addStatusLog("음성 처리 오류: ${e.message}", StatusLogType.ERROR)
-                Napier.e("Error processing audio: ${e.message}", e, tag = "AppViewModel")
+                exceptionHandler.handleException(e, "Audio processing") {
+                    val audioBytes = stopPlatformRecording()
+                    audioBytes?.let {
+                        val result = speechRepository.transcribeAudio(it, sessionId, _selectedSttModes.value)
+                        result.getOrThrow()
+                    }
+                }
             }
         } else {
             _recordingStatus.value = "No audio data recorded"
@@ -406,8 +427,14 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                         addStatusLog("브라우저 제어 완료", StatusLogType.SUCCESS)
                         Napier.i("Successfully started automation for path: ${firstPath.pathId}", tag = "AppViewModel")
                     } catch (e: Exception) {
-                        addStatusLog("브라우저 제어 실패: ${e.message}", StatusLogType.ERROR)
-                        Napier.e("Failed to execute navigation path: ${e.message}", e, tag = "AppViewModel")
+                        exceptionHandler.handleException(e, "Browser automation execution") {
+                            val navigationPath = NavigationPath(
+                                pathId = firstPath.pathId,
+                                steps = firstPath.steps,
+                                description = "Auto-executed path from voice command"
+                            )
+                            BrowserAutomationBridge.executeNavigationPath(navigationPath)
+                        }
                     }
                 }
             }
@@ -475,9 +502,10 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
                 addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
                 
             } catch (e: Exception) {
-                addStatusLog("기여 모드 시작 실패: ${e.message}", StatusLogType.ERROR)
-                Napier.e("Failed to start contribution mode: ${e.message}", e, tag = "AppViewModel")
-                
+                exceptionHandler.handleException(e, "Contribution mode initialization") {
+                    startContribution(task)
+                }
+
                 // 실패 시
                 try {
                     BrowserAutomationBridge.stopContributionRecording()
@@ -501,8 +529,9 @@ class AppViewModel(private val coroutineScope: CoroutineScope = CoroutineScope(D
             webSocketClient.sendContributionMessage(message)
             addStatusLog("기여 데이터 전송 완료 (${message.steps.size}개 단계)", StatusLogType.SUCCESS)
         } catch (e: Exception) {
-            addStatusLog("기여 데이터 전송 실패: ${e.message}", StatusLogType.ERROR)
-            throw e
+            exceptionHandler.handleException(e, "Contribution data transmission") {
+                sendContributionMessage(message)
+            }
         }
     }
 }
