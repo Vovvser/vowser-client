@@ -65,6 +65,7 @@ fun App() {
         when (currentScreen) {
             AppScreen.GRAPH -> {
                 GraphScreen(
+                    appViewModel = viewModel,
                     navigationProcessor = navigationProcessor,
                     isContributionMode = isContributionMode,
                     isLoading = isLoading || graphLoading,
