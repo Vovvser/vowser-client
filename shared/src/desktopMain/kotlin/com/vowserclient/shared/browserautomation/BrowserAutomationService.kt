@@ -151,6 +151,7 @@ object BrowserAutomationService {
             Napier.i { "BrowserAutomationService: Navigating to $url" }
             try {
                 page.navigate(url)
+                AdaptiveWaitManager.waitForPageLoad(page, "navigation to $url")
                 recordContributionStep(url, page.title(), "navigate", null, null)
                 Napier.i { "BrowserAutomationService: Navigation to $url completed." }
             } catch (e: PlaywrightException) {
@@ -173,7 +174,7 @@ object BrowserAutomationService {
                 if (response == null) {
                     Napier.w { "BrowserAutomationService: No previous page to go back to." }
                 } else {
-                    page.waitForLoadState()
+                    AdaptiveWaitManager.waitForPageLoad(page, "go back")
                     Napier.i { "BrowserAutomationService: Go back completed." }
                 }
             } catch (e: PlaywrightException) {
@@ -196,7 +197,7 @@ object BrowserAutomationService {
                 if (response == null) {
                     Napier.w { "BrowserAutomationService: No next page to go forward to." }
                 } else {
-                    page.waitForLoadState()
+                    AdaptiveWaitManager.waitForPageLoad(page, "go forward")
                     Napier.i { "BrowserAutomationService: Go forward completed." }
                 }
             } catch (e: PlaywrightException) {
@@ -223,14 +224,12 @@ object BrowserAutomationService {
                     return@withContext tryAlternativeSelectors(selector)
                 }
                 
-                locator.first().waitFor(Locator.WaitForOptions().setTimeout(3000.0))
-                
-                if (locator.count() > 0 && locator.first().isVisible) {
-                    return@withContext executeHoverHighlightClick(locator, selector)
-                } else {
-                    Napier.w { "Element with selector $selector not found or not visible after waiting." }
+                if (!AdaptiveWaitManager.waitForElement(locator, page, "element with selector: $selector")) {
+                    Napier.w { "Element with selector $selector not found or not visible after adaptive waiting." }
                     return@withContext tryAlternativeSelectors(selector)
                 }
+                
+                return@withContext executeHoverHighlightClick(locator, selector)
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
                 return@withContext tryAlternativeSelectors(selector)
@@ -290,9 +289,7 @@ object BrowserAutomationService {
                     continue
                 }
                 
-                locator.first().waitFor(Locator.WaitForOptions().setTimeout(2000.0))
-                
-                if (locator.count() > 0 && locator.first().isVisible) {
+                if (AdaptiveWaitManager.waitForElement(locator, page, "alternative selector: $altSelector")) {
                     val success = executeHoverHighlightClick(locator, altSelector)
                     if (success) {
                         Napier.i { "Successfully clicked using alternative selector: $altSelector" }
