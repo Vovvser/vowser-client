@@ -35,7 +35,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
                     formData {
-                        append("audio", audioFileBytes, Headers.build {
+                        append("audioFile", audioFileBytes, Headers.build {
                             append(HttpHeaders.ContentType, "audio/wav")
                             append(HttpHeaders.ContentDisposition, "filename=\"recording.wav\"")
                         })
@@ -76,7 +76,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
                     formData {
-                        append("audio", audioFileBytes, Headers.build {
+                        append("audioFile", audioFileBytes, Headers.build {
                             append(HttpHeaders.ContentType, "audio/wav")
                             append(HttpHeaders.ContentDisposition, "filename=\"recording.wav\"")
                         })
