@@ -3,7 +3,7 @@ package com.vowser.client.logging
 import io.github.aakira.napier.Napier
 
 /**
- * 로깅
+ * Vowser logging utilities
  */
 object VowserLogger {
 
@@ -42,40 +42,40 @@ object VowserLogger {
 }
 
 /**
- * 계층적 태그 사용
+ * Hierarchical logging tags
  */
 object Tags {
     const val VOWSER = "Vowser"
 
-    // Network 관련
+    // Network related
     const val NETWORK = "Vowser.Network"
     const val NETWORK_WEBSOCKET = "Vowser.Network.WebSocket"
 
-    // Browser 관련
+    // Browser related
     const val BROWSER = "Vowser.Browser"
     const val BROWSER_AUTOMATION = "Vowser.Browser.Automation"
     const val BROWSER_PLAYWRIGHT = "Vowser.Browser.Playwright"
     const val BROWSER_ACTIONS = "Vowser.Browser.Actions"
     const val BROWSER_NAVIGATION = "Vowser.Browser.Navigation"
 
-    // UI 관련
+    // UI related
     const val UI_GRAPH = "Vowser.UI.Graph"
 
-    // Exception 관련
+    // Exception related
     const val EXCEPTION_HANDLER = "Vowser.Exception.Handler"
     const val EXCEPTION_RECOVERY = "Vowser.Exception.Recovery"
 
-    // Media 관련
+    // Media related
     const val MEDIA_RECORDING = "Vowser.Media.Recording"
     const val MEDIA_SPEECH = "Vowser.Media.Speech"
 
-    // Contribution 관련
+    // Contribution related
     const val CONTRIBUTION = "Vowser.Contribution"
     const val CONTRIBUTION_MODE = "Vowser.Contribution.Mode"
 
-    // System 관련
+    // System related
     const val SYSTEM_SHUTDOWN = "Vowser.System.Shutdown"
 
-    // App 관련
+    // App related
     const val APP_VIEWMODEL = "Vowser.App.ViewModel"
 }

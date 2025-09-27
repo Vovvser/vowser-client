@@ -19,13 +19,13 @@ actual object BrowserAutomationBridge {
     )
 
     actual suspend fun executeNavigationPath(path: NavigationPath) {
-        VowserLogger.info("Desktop: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) 호출됨", Tags.BROWSER_AUTOMATION)
+        VowserLogger.info("Executing navigation path: ${path.pathId}", Tags.BROWSER_AUTOMATION)
 
         BrowserAutomationService.initialize()
         // 첫 번째 스텝이 navigate인 경우, 항상 해당 URL로 이동 (루트 페이지로 초기화)
         val firstStep = path.steps.firstOrNull()
         if (firstStep?.action == "navigate") {
-            VowserLogger.info("루트 페이지로 초기화: ${firstStep.url}", Tags.BROWSER_AUTOMATION)
+            VowserLogger.info("Initializing root page: ${firstStep.url}", Tags.BROWSER_AUTOMATION)
             browserActions.navigate(firstStep.url)
             delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
             
@@ -125,22 +125,22 @@ actual object BrowserAutomationBridge {
     
     // 기여 모드 관련 메서드들
     actual suspend fun startContributionRecording() {
-        VowserLogger.info("Desktop: BrowserAutomationBridge.startContributionRecording() 호출됨", Tags.BROWSER_AUTOMATION)
+        VowserLogger.info("Starting contribution recording", Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.startContributionRecording()
     }
     
     actual fun stopContributionRecording() {
-        VowserLogger.info("Desktop: BrowserAutomationBridge.stopContributionRecording() 호출됨", Tags.BROWSER_AUTOMATION)
+        VowserLogger.info("Stopping contribution recording", Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.stopContributionRecording()
     }
     
     actual suspend fun navigate(url: String) {
-        VowserLogger.info("Desktop: BrowserAutomationBridge.navigate($url) 호출됨", Tags.BROWSER_AUTOMATION)
+        VowserLogger.info("Navigating to: $url", Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.navigate(url)
     }
     
     actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
-        VowserLogger.info("Desktop: BrowserAutomationBridge.setContributionRecordingCallback() 호출됨", Tags.BROWSER_AUTOMATION)
+        VowserLogger.info("Setting contribution recording callback", Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.setContributionRecordingCallback(callback)
     }
 }

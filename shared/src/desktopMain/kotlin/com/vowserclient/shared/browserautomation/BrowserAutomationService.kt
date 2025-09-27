@@ -26,7 +26,7 @@ object BrowserAutomationService {
     private lateinit var page: Page
     private val mutex = Mutex()
     
-    // 메모리 관리는 ContributionConstants 사용
+    // Memory management uses ContributionConstants
     
     private var contributionRecordingCallback: ((ContributionStep) -> Unit)? = null
     private var isRecordingContributions = false
@@ -39,18 +39,15 @@ object BrowserAutomationService {
 
     suspend fun initialize() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            VowserLogger.info("BrowserAutomationService: Starting initialization...", Tags.BROWSER_AUTOMATION)
             
             try {
-                // Playwright 초기화 확인
+                // Check Playwright initialization
                 if (!::playwright.isInitialized) {
-                    VowserLogger.info("BrowserAutomationService: Initializing Playwright...", Tags.BROWSER_AUTOMATION)
                     playwright = Playwright.create()
                 }
                 
-                // Browser 초기화 체크
+                // Check browser initialization
                 if (!::browser.isInitialized || browser.isConnected.not()) {
-                    VowserLogger.info("BrowserAutomationService: Launching browser...", Tags.BROWSER_AUTOMATION)
                     if (::browser.isInitialized) {
                         try { browser.close() } catch (e: Exception) { /* 이미 닫힌 경우 무시 */ }
                     }
@@ -61,22 +58,19 @@ object BrowserAutomationService {
                     )
                 }
                 
-                // Page 초기화 체크
+                // Check page initialization
                 var needNewPage = false
                 if (!::page.isInitialized) {
                     needNewPage = true
-                    VowserLogger.info("BrowserAutomationService: Page not initialized", Tags.BROWSER_AUTOMATION)
                 } else {
                     try {
                         // 페이지 상태 체크
                         val isClosed = page.isClosed
                         if (isClosed) {
                             needNewPage = true
-                            VowserLogger.info("BrowserAutomationService: Page is closed", Tags.BROWSER_AUTOMATION)
                         } else {
                             // 페이지가 살아있는지 추가 확인
                             page.title() // 접근 가능성 테스트
-                            VowserLogger.info("BrowserAutomationService: Existing page is active", Tags.BROWSER_AUTOMATION)
                         }
                     } catch (e: Exception) {
                         needNewPage = true
@@ -85,18 +79,16 @@ object BrowserAutomationService {
                 }
                 
                 if (needNewPage) {
-                    VowserLogger.info("BrowserAutomationService: Creating new page...", Tags.BROWSER_AUTOMATION)
                     page = browser.newPage()
                     setupContributionRecording()
                     page.waitForLoadState()
-                    VowserLogger.info("BrowserAutomationService: New page created and ready", Tags.BROWSER_AUTOMATION)
                 }
                 
-                VowserLogger.info("BrowserAutomationService: Initialization completed successfully", Tags.BROWSER_AUTOMATION)
+                VowserLogger.info("Browser automation initialized successfully", Tags.BROWSER_AUTOMATION)
                 
             } catch (e: Exception) {
                 VowserLogger.error("BrowserAutomationService: Critical initialization failure: ${e.message}", Tags.BROWSER_AUTOMATION)
-                // 전체 정리 및 재시작
+                // Complete cleanup and restart
                 try {
                     if (::browser.isInitialized) browser.close()
                     if (::playwright.isInitialized) playwright.close()
@@ -110,9 +102,8 @@ object BrowserAutomationService {
 
     suspend fun cleanup() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            VowserLogger.info("BrowserAutomationService: Starting cleanup...", Tags.BROWSER_AUTOMATION)
             
-            // 기여모드 중지
+            // Stop contribution mode
             stopContributionRecording()
             
             try {
@@ -139,26 +130,24 @@ object BrowserAutomationService {
                 VowserLogger.warn("Failed to close playwright: ${e.message}", Tags.BROWSER_AUTOMATION)
             }
             
-            VowserLogger.info("BrowserAutomationService: Cleanup completed", Tags.BROWSER_AUTOMATION)
+            VowserLogger.info("Browser automation cleanup completed", Tags.BROWSER_AUTOMATION)
         }
     }
 
     suspend fun navigate(url: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                VowserLogger.error("BrowserAutomationService: Page is not initialized. Cannot navigate to $url", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Cannot navigate: page not initialized", Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
-            VowserLogger.info("BrowserAutomationService: Navigating to $url", Tags.BROWSER_AUTOMATION)
             try {
                 page.navigate(url)
                 AdaptiveWaitManager.waitForPageLoad(page, "navigation to $url")
                 recordContributionStep(url, page.title(), "navigate", null, null)
-                VowserLogger.info("BrowserAutomationService: Navigation to $url completed.", Tags.BROWSER_AUTOMATION)
             } catch (e: PlaywrightException) {
-                VowserLogger.error("BrowserAutomationService: Navigation failed to $url: ${e.message}", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Navigation failed to $url: ${e.message}", Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                VowserLogger.error("BrowserAutomationService: Unexpected error during navigation to $url: ${e.message}", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Navigation error: ${e.message}", Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -166,22 +155,19 @@ object BrowserAutomationService {
     suspend fun goBack() = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                VowserLogger.error("BrowserAutomationService: Page is not initialized. Cannot go back.", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Cannot go back: page not initialized", Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
-            VowserLogger.info("BrowserAutomationService: Going back", Tags.BROWSER_AUTOMATION)
             try {
                 val response = page.goBack()
                 if (response == null) {
-                    VowserLogger.warn("BrowserAutomationService: No previous page to go back to.", Tags.BROWSER_AUTOMATION)
                 } else {
                     AdaptiveWaitManager.waitForPageLoad(page, "go back")
-                    VowserLogger.info("BrowserAutomationService: Go back completed.", Tags.BROWSER_AUTOMATION)
                 }
             } catch (e: PlaywrightException) {
-                VowserLogger.error("BrowserAutomationService: Go back failed: ${e.message}", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Go back failed: ${e.message}", Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                VowserLogger.error("BrowserAutomationService: Unexpected error during go back: ${e.message}", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Go back error: ${e.message}", Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -189,22 +175,19 @@ object BrowserAutomationService {
     suspend fun goForward() = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                VowserLogger.error("BrowserAutomationService: Page is not initialized. Cannot go forward.", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Cannot go forward: page not initialized", Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
-            VowserLogger.info("BrowserAutomationService: Going forward", Tags.BROWSER_AUTOMATION)
             try {
                 val response = page.goForward()
                 if (response == null) {
-                    VowserLogger.warn("BrowserAutomationService: No next page to go forward to.", Tags.BROWSER_AUTOMATION)
                 } else {
                     AdaptiveWaitManager.waitForPageLoad(page, "go forward")
-                    VowserLogger.info("BrowserAutomationService: Go forward completed.", Tags.BROWSER_AUTOMATION)
                 }
             } catch (e: PlaywrightException) {
-                VowserLogger.error("BrowserAutomationService: Go forward failed: ${e.message}", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Go forward failed: ${e.message}", Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                VowserLogger.error("BrowserAutomationService: Unexpected error during go forward: ${e.message}", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Go forward error: ${e.message}", Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -213,7 +196,7 @@ object BrowserAutomationService {
     suspend fun hoverAndClickElement(selector: String): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                VowserLogger.error("BrowserAutomationService: Page is not initialized. Cannot hover hoverAndClickElement element: $selector", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Cannot click element: page not initialized", Tags.BROWSER_AUTOMATION)
                 return@withContext false
             }
             try {
@@ -384,7 +367,7 @@ object BrowserAutomationService {
     suspend fun typeText(selector: String, text: String, delayMs: Double? = null) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                VowserLogger.error("BrowserAutomationService: Page is not initialized. Cannot type text into element: $selector", Tags.BROWSER_AUTOMATION)
+                VowserLogger.error("Cannot type text: page not initialized", Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
             try {
@@ -470,7 +453,7 @@ object BrowserAutomationService {
 
         const indicator = document.createElement('div');
         indicator.id = 'wtg-click-indicator';
-        indicator.textContent = '클릭 대상';
+        indicator.textContent = 'Click Target';
         document.body.appendChild(indicator);
         indicator.offsetWidth;
 
@@ -504,7 +487,7 @@ object BrowserAutomationService {
         try {
             initialize()
             
-            // 초기화 후 추가 확인
+            // Additional check after initialization
             if (!::page.isInitialized || page.isClosed) {
                 throw Exception("Page initialization failed")
             }
@@ -543,7 +526,7 @@ object BrowserAutomationService {
         
         VowserLogger.info("Setting up contribution recording listeners", Tags.BROWSER_AUTOMATION)
         
-        // 새 탭 열림 감지 및 추적 시작
+        // Detect new tab opening and start tracking
         page.onPopup { newPage ->
             VowserLogger.info("New tab detected: ${newPage.url()}", Tags.BROWSER_AUTOMATION)
             recordContributionStep(
@@ -558,7 +541,7 @@ object BrowserAutomationService {
             setupNewPageTracking(newPage)
         }
         
-        // 페이지 네비게이션 감지 (URL 변경)
+        // Detect page navigation (URL change)
         page.onFrameNavigated { frame ->
             if (frame == page.mainFrame()) {
                 VowserLogger.info("Frame navigated to: ${frame.url()}", Tags.BROWSER_AUTOMATION)
@@ -572,7 +555,7 @@ object BrowserAutomationService {
             }
         }
         
-        // 페이지 로드 완료 시 사용자 상호작용 리스너 주입
+        // Inject user interaction listeners when page load completes
         page.onLoad { 
             try {
                 VowserLogger.info("Page loaded, injecting listeners for: ${page.url()}", Tags.BROWSER_AUTOMATION)
@@ -646,7 +629,7 @@ object BrowserAutomationService {
                 
                 console.log('Vowser contribution listeners injected');
                 
-                // 클릭 이벤트 감지
+                // Click event detection
                 document.addEventListener('click', function(event) {
                     const element = event.target;
                     const selector = generateSelector(element);
@@ -795,7 +778,6 @@ object BrowserAutomationService {
         trackedPages.remove(targetPage)
         pageTimestamps.remove(targetPage)
         pageLastActivity.remove(targetPage)
-        VowserLogger.debug("Cleaned up page: ${try { targetPage.url() } catch (e: Exception) { "unknown" }}", Tags.BROWSER_AUTOMATION)
     }
     
     private suspend fun checkPageInteractions(targetPage: Page) {
@@ -808,7 +790,7 @@ object BrowserAutomationService {
                 return
             }
             
-            // 클릭 이벤트 체크
+            // Check click events
             val clickData = targetPage.evaluate("window.__vowserLastClick")
             
             if (clickData != null) {
@@ -837,7 +819,7 @@ object BrowserAutomationService {
                     pageTimestamps[targetPage] = Pair(timestamp, currentInputTimestamp)
                     updatePageActivity(targetPage)
                     
-                    // 처리된 클릭 데이터 클리어
+                    // Clear processed click data
                     targetPage.evaluate("window.__vowserLastClick = null;")
                 }
             }
@@ -989,7 +971,7 @@ object BrowserAutomationService {
                             inactivePages.add(page)
                         }
                     } catch (e: Exception) {
-                        // 페이지 접근 실패 시 정리 대상에 추가
+                        // Add to cleanup list if page access fails
                         inactivePages.add(page)
                     }
                 }

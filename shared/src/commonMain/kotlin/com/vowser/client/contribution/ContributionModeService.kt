@@ -60,7 +60,6 @@ class ContributionModeService(
         startTimeoutTimer()
         
         VowserLogger.info("🚀 Contribution session started - sessionId: ${currentSession?.sessionId}, task: '$sanitizedTask', timeout: $sessionTimeout", Tags.BROWSER_AUTOMATION)
-        VowserLogger.debug("Session details - bufferSize: ${stepBuffer.size}, lastSentIndex: $lastSentIndex", Tags.BROWSER_AUTOMATION)
     }
     
     fun recordStep(step: ContributionStep) {
@@ -147,7 +146,6 @@ class ContributionModeService(
         onUILog?.invoke(session.steps.size, step.action, elementName, step.url)
         
         VowserLogger.info("Step ${session.steps.size}: [${step.action}] ${step.selector ?: "N/A"} - ${step.htmlAttributes?.get("text") ?: step.title}", Tags.BROWSER_AUTOMATION)
-        VowserLogger.debug("Step details - url: ${step.url}, timestamp: ${step.timestamp}, bufferSize: ${stepBuffer.size}", Tags.BROWSER_AUTOMATION)
 
         if (stepBuffer.size >= ContributionConstants.BATCH_SIZE) {
             coroutineScope.launch {
@@ -182,7 +180,6 @@ class ContributionModeService(
             } catch (e: Exception) {
                 _status.value = ContributionStatus.ERROR
                 VowserLogger.error("❌ Failed to complete contribution session - sessionId: ${session.sessionId}, error: ${e.message}", Tags.BROWSER_AUTOMATION)
-                VowserLogger.debug("Session state - totalSteps: ${session.steps.size}, bufferSize: ${stepBuffer.size}, lastSentIndex: $lastSentIndex", Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -218,7 +215,6 @@ class ContributionModeService(
                 }
 
                 VowserLogger.info("✅ Sent ${stepsToSend.size} steps (partial: $isPartial, complete: $isComplete), sessionId: ${message.sessionId}", Tags.BROWSER_AUTOMATION)
-                VowserLogger.debug("Transmission details - totalSteps: ${message.totalSteps}, attempt: ${retryCount + 1}", Tags.BROWSER_AUTOMATION)
                 return
 
             } catch (e: Exception) {
