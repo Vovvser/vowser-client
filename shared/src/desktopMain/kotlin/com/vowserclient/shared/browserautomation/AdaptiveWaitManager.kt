@@ -3,7 +3,8 @@ package com.vowserclient.shared.browserautomation
 import com.microsoft.playwright.Locator
 import com.microsoft.playwright.Page
 import com.microsoft.playwright.PlaywrightException
-import io.github.aakira.napier.Napier
+import com.vowser.client.logging.VowserLogger
+import com.vowser.client.logging.Tags
 import kotlinx.coroutines.delay
 
 /**
@@ -29,7 +30,7 @@ object AdaptiveWaitManager {
                 NetworkState.SLOW -> MAX_TIMEOUT_MS
             }
         } catch (e: Exception) {
-            Napier.w("Failed to check network state, using base timeout: ${e.message}", tag = TAG)
+            VowserLogger.warn("Failed to check network state, using base timeout: ${e.message}", Tags.BROWSER_AUTOMATION)
             BASE_TIMEOUT_MS
         }
     }
@@ -66,7 +67,7 @@ object AdaptiveWaitManager {
                 if (hasLoadingIndicators) NetworkState.SLOW else NetworkState.NORMAL
             }
         } catch (e: Exception) {
-            Napier.d("Network state check failed, assuming normal: ${e.message}", tag = TAG)
+            VowserLogger.debug("Network state check failed, assuming normal: ${e.message}", Tags.BROWSER_AUTOMATION)
             NetworkState.NORMAL
         }
     }
@@ -81,7 +82,7 @@ object AdaptiveWaitManager {
     ): Boolean {
         val adaptiveTimeout = calculateTimeout(page)
 
-        Napier.d("Waiting for $description with adaptive timeout: ${adaptiveTimeout}ms", tag = TAG)
+        VowserLogger.debug("Waiting for $description with adaptive timeout: ${adaptiveTimeout}ms", Tags.BROWSER_AUTOMATION)
 
         return try {
             locator.first().waitFor(
@@ -92,14 +93,14 @@ object AdaptiveWaitManager {
             // 추가 가시성 확인
             val isVisible = locator.first().isVisible
             if (isVisible) {
-                Napier.d("$description found and visible within ${adaptiveTimeout}ms", tag = TAG)
+                VowserLogger.debug("$description found and visible within ${adaptiveTimeout}ms", Tags.BROWSER_AUTOMATION)
             } else {
-                Napier.w("$description found but not visible after ${adaptiveTimeout}ms", tag = TAG)
+                VowserLogger.warn("$description found but not visible after ${adaptiveTimeout}ms", Tags.BROWSER_AUTOMATION)
             }
 
             isVisible
         } catch (e: PlaywrightException) {
-            Napier.w("$description not found within ${adaptiveTimeout}ms: ${e.message}", tag = TAG)
+            VowserLogger.warn("$description not found within ${adaptiveTimeout}ms: ${e.message}", Tags.BROWSER_AUTOMATION)
             false
         }
     }
@@ -108,7 +109,7 @@ object AdaptiveWaitManager {
      * 페이지 로딩이 완료될 때까지 대기
      */
     suspend fun waitForPageLoad(page: Page, description: String = "page") {
-        Napier.d("Waiting for $description load with adaptive approach", tag = TAG)
+        VowserLogger.debug("Waiting for $description load with adaptive approach", Tags.BROWSER_AUTOMATION)
 
         try {
             // 기본 로드 상태 대기
@@ -117,17 +118,17 @@ object AdaptiveWaitManager {
             // 네트워크 유휴 상태까지 추가 대기
             val networkState = checkNetworkState(page)
             if (networkState == NetworkState.SLOW) {
-                Napier.d("Slow network detected, waiting for network idle", tag = TAG)
+                VowserLogger.debug("Slow network detected, waiting for network idle", Tags.BROWSER_AUTOMATION)
                 page.waitForLoadState()
             }
 
             // DOM 안정화 대기
             waitForDomStable(page)
 
-            Napier.i("$description loading completed", tag = TAG)
+            VowserLogger.info("$description loading completed", Tags.BROWSER_AUTOMATION)
 
         } catch (e: Exception) {
-            Napier.w("Page load wait completed with warnings: ${e.message}", tag = TAG)
+            VowserLogger.warn("Page load wait completed with warnings: ${e.message}", Tags.BROWSER_AUTOMATION)
         }
     }
 
@@ -145,7 +146,7 @@ object AdaptiveWaitManager {
                 if (currentNodeCount == previousNodeCount) {
                     stableCount++
                     if (stableCount >= 2) {
-                        Napier.d("DOM stable after ${attempt + 1} checks", tag = TAG)
+                        VowserLogger.debug("DOM stable after ${attempt + 1} checks", Tags.BROWSER_AUTOMATION)
                         return
                     }
                 } else {
@@ -156,7 +157,7 @@ object AdaptiveWaitManager {
                 delay(500)
 
             } catch (e: Exception) {
-                Napier.d("DOM stability check failed: ${e.message}", tag = TAG)
+                VowserLogger.debug("DOM stability check failed: ${e.message}", Tags.BROWSER_AUTOMATION)
                 return
             }
         }
@@ -171,13 +172,13 @@ object AdaptiveWaitManager {
         description: String = "dynamic content",
         maxAttempts: Int = 10
     ): Boolean {
-        Napier.d("Waiting for $description with dynamic checks", tag = TAG)
+        VowserLogger.debug("Waiting for $description with dynamic checks", Tags.BROWSER_AUTOMATION)
 
         repeat(maxAttempts) { attempt ->
             try {
                 val isReady = page.evaluate(checkScript) as Boolean
                 if (isReady) {
-                    Napier.i("$description ready after ${attempt + 1} attempts", tag = TAG)
+                    VowserLogger.info("$description ready after ${attempt + 1} attempts", Tags.BROWSER_AUTOMATION)
                     return true
                 }
 
@@ -186,11 +187,11 @@ object AdaptiveWaitManager {
                 delay(delayMs.toLong())
 
             } catch (e: Exception) {
-                Napier.w("Dynamic content check failed (attempt ${attempt + 1}): ${e.message}", tag = TAG)
+                VowserLogger.warn("Dynamic content check failed (attempt ${attempt + 1}): ${e.message}", Tags.BROWSER_AUTOMATION)
             }
         }
 
-        Napier.w("$description not ready after $maxAttempts attempts", tag = TAG)
+        VowserLogger.warn("$description not ready after $maxAttempts attempts", Tags.BROWSER_AUTOMATION)
         return false
     }
 }

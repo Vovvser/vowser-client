@@ -1,6 +1,7 @@
 package com.vowserclient.shared.browserautomation
 
-import io.github.aakira.napier.Napier
+import com.vowser.client.logging.VowserLogger
+import com.vowser.client.logging.Tags
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -12,7 +13,7 @@ class BrowserActions(private val browserAutomationService: BrowserAutomationServ
 
     suspend fun delayRandomly() {
         val delayTime = Random.nextLong(MIN_DELAY, MAX_DELAY + 1)
-        Napier.i { "Applying random delay: ${delayTime}ms" }
+        VowserLogger.info("Applying random delay: ${delayTime}ms", Tags.BROWSER_AUTOMATION)
         delay(delayTime)
     }
 

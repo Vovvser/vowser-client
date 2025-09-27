@@ -1,7 +1,5 @@
 package com.vowserclient.shared.browserautomation
 
-import io.github.aakira.napier.DebugAntilog
-import io.github.aakira.napier.Napier
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import org.junit.jupiter.api.AfterAll
@@ -30,7 +28,6 @@ class HighlightE2ETest {
     fun setupAll() = runBlocking {
         service = BrowserAutomationService
         service.initialize()
-        Napier.base(DebugAntilog())
         actions = BrowserActions(service)
     }
 

@@ -1,7 +1,8 @@
 package com.vowserclient.shared.browserautomation
 
 import com.vowser.client.websocket.dto.NavigationStep
-import io.github.aakira.napier.Napier
+import com.vowser.client.logging.VowserLogger
+import com.vowser.client.logging.Tags
 
 interface NavigationActionExecutor {
     suspend fun execute(browserActions: BrowserActions, step: NavigationStep): Boolean
@@ -13,7 +14,7 @@ class NavigateActionExecutor : NavigationActionExecutor {
             browserActions.navigate(step.url)
             true
         } catch (e: Exception) {
-            Napier.e("Navigate action failed: ${e.message}")
+            VowserLogger.error("Navigate action failed: ${e.message}", Tags.BROWSER_AUTOMATION)
             false
         }
     }
@@ -25,11 +26,11 @@ class ClickActionExecutor : NavigationActionExecutor {
             try {
                 browserActions.click(selector)
             } catch (e: Exception) {
-                Napier.e("Click action failed: ${e.message}")
+                VowserLogger.error("Click action failed: ${e.message}", Tags.BROWSER_AUTOMATION)
                 false
             }
         } ?: run {
-            Napier.e("Selector is null for click action.")
+            VowserLogger.error("Selector is null for click action.", Tags.BROWSER_AUTOMATION)
             false
         }
     }
@@ -43,11 +44,11 @@ class TypeActionExecutor : NavigationActionExecutor {
                 browserActions.type(selector, textToType)
                 true
             } catch (e: Exception) {
-                Napier.e("Type action failed: ${e.message}")
+                VowserLogger.error("Type action failed: ${e.message}", Tags.BROWSER_AUTOMATION)
                 false
             }
         } ?: run {
-            Napier.e("Selector is null for type action.")
+            VowserLogger.error("Selector is null for type action.", Tags.BROWSER_AUTOMATION)
             false
         }
     }
@@ -58,7 +59,7 @@ class SubmitActionExecutor : NavigationActionExecutor {
         return step.selector?.let { selector ->
             ClickActionExecutor().execute(browserActions, step)
         } ?: run {
-            Napier.e("Selector is null for submit action.")
+            VowserLogger.error("Selector is null for submit action.", Tags.BROWSER_AUTOMATION)
             false
         }
     }

@@ -2,11 +2,12 @@ package com.vowserclient.shared.browserautomation
 
 import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.websocket.dto.NavigationPath
-import io.github.aakira.napier.Napier
+import com.vowser.client.logging.VowserLogger
+import com.vowser.client.logging.Tags
 
 actual object BrowserAutomationBridge {
     actual suspend fun executeNavigationPath(path: NavigationPath) {
-        Napier.i { "iOS: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) - Not implemented yet" }
+        VowserLogger.info("iOS: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) - Not implemented yet", Tags.BROWSER_AUTOMATION)
         // TODO: iOS 브라우저 자동화 구현
     }
 

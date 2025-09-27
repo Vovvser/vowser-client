@@ -1,13 +1,14 @@
 package com.vowser.client
 
-import io.github.aakira.napier.Napier
+import com.vowser.client.logging.VowserLogger
+import com.vowser.client.logging.Tags
 
 actual suspend fun startPlatformRecording(): Boolean {
-    Napier.w("Audio recording not implemented for Android platform", tag = "AndroidRecording")
+    VowserLogger.warn("Audio recording not implemented for Android platform", Tags.MEDIA_RECORDING)
     return false
 }
 
 actual suspend fun stopPlatformRecording(): ByteArray? {
-    Napier.w("Audio recording not implemented for Android platform", tag = "AndroidRecording")
+    VowserLogger.warn("Audio recording not implemented for Android platform", Tags.MEDIA_RECORDING)
     return null
 }
