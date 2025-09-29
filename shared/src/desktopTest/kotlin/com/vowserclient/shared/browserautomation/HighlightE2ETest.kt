@@ -1,4 +1,4 @@
-package com.vowserclient.shared.browserautomation
+package com.vowser.client.browserautomation
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay

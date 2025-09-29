@@ -1,4 +1,4 @@
-package com.vowserclient.shared.browserautomation
+package com.vowser.client.browserautomation
 
 import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.websocket.dto.NavigationPath

@@ -1,6 +1,6 @@
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import com.vowserclient.shared.browserautomation.BrowserAutomationService
+import com.vowser.client.browserautomation.BrowserAutomationService
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import kotlinx.coroutines.runBlocking

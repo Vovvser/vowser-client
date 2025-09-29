@@ -1,4 +1,4 @@
-package com.vowserclient.shared.browserautomation
+package com.vowser.client.browserautomation
 
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags

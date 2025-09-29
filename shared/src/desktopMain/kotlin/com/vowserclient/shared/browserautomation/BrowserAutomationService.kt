@@ -1,4 +1,4 @@
-package com.vowserclient.shared.browserautomation
+package com.vowser.client.browserautomation
 
 import com.microsoft.playwright.Browser
 import com.microsoft.playwright.BrowserType

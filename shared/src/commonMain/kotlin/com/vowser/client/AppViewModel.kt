@@ -23,7 +23,7 @@ import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.websocket.dto.AllPathsResponse
 import com.vowser.client.websocket.dto.PathDetail
-import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
+import com.vowser.client.browserautomation.BrowserAutomationBridge
 import com.vowser.client.exception.ExceptionHandler
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
