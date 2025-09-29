@@ -1,4 +1,4 @@
-package com.vowserclient.shared.browserautomation
+package com.vowser.client.browserautomation
 
 import com.microsoft.playwright.Browser
 import com.microsoft.playwright.BrowserType
@@ -9,6 +9,7 @@ import com.microsoft.playwright.PlaywrightException
 import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
+import com.vowser.client.logging.Tags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -25,7 +26,7 @@ object BrowserAutomationService {
     private lateinit var page: Page
     private val mutex = Mutex()
     
-    // 메모리 관리는 ContributionConstants 사용
+    // Memory management uses ContributionConstants
     
     private var contributionRecordingCallback: ((ContributionStep) -> Unit)? = null
     private var isRecordingContributions = false
@@ -38,18 +39,15 @@ object BrowserAutomationService {
 
     suspend fun initialize() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            Napier.i("BrowserAutomationService: Starting initialization...", tag = "BrowserAutomationService")
             
             try {
-                // Playwright 초기화 확인
+                // Check Playwright initialization
                 if (!::playwright.isInitialized) {
-                    Napier.i("BrowserAutomationService: Initializing Playwright...", tag = "BrowserAutomationService")
                     playwright = Playwright.create()
                 }
                 
-                // Browser 초기화 체크
+                // Check browser initialization
                 if (!::browser.isInitialized || browser.isConnected.not()) {
-                    Napier.i("BrowserAutomationService: Launching browser...", tag = "BrowserAutomationService")
                     if (::browser.isInitialized) {
                         try { browser.close() } catch (e: Exception) { /* 이미 닫힌 경우 무시 */ }
                     }
@@ -60,47 +58,42 @@ object BrowserAutomationService {
                     )
                 }
                 
-                // Page 초기화 체크
+                // Check page initialization
                 var needNewPage = false
                 if (!::page.isInitialized) {
                     needNewPage = true
-                    Napier.i("BrowserAutomationService: Page not initialized", tag = "BrowserAutomationService")
                 } else {
                     try {
                         // 페이지 상태 체크
                         val isClosed = page.isClosed
                         if (isClosed) {
                             needNewPage = true
-                            Napier.i("BrowserAutomationService: Page is closed", tag = "BrowserAutomationService")
                         } else {
                             // 페이지가 살아있는지 추가 확인
                             page.title() // 접근 가능성 테스트
-                            Napier.i("BrowserAutomationService: Existing page is active", tag = "BrowserAutomationService")
                         }
                     } catch (e: Exception) {
                         needNewPage = true
-                        Napier.w("BrowserAutomationService: Page status check failed, creating new page: ${e.message}", tag = "BrowserAutomationService")
+                        Napier.w("BrowserAutomationService: Page status check failed, creating new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                     }
                 }
                 
                 if (needNewPage) {
-                    Napier.i("BrowserAutomationService: Creating new page...", tag = "BrowserAutomationService")
                     page = browser.newPage()
                     setupContributionRecording()
                     page.waitForLoadState()
-                    Napier.i("BrowserAutomationService: New page created and ready", tag = "BrowserAutomationService")
                 }
                 
-                Napier.i("BrowserAutomationService: Initialization completed successfully", tag = "BrowserAutomationService")
+                Napier.i("Browser automation initialized successfully", tag = Tags.BROWSER_AUTOMATION)
                 
             } catch (e: Exception) {
-                Napier.e("BrowserAutomationService: Critical initialization failure: ${e.message}", e, tag = "BrowserAutomationService")
-                // 전체 정리 및 재시작
+                Napier.e("BrowserAutomationService: Critical initialization failure: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                // Complete cleanup and restart
                 try {
                     if (::browser.isInitialized) browser.close()
                     if (::playwright.isInitialized) playwright.close()
                 } catch (cleanupError: Exception) {
-                    Napier.w("Cleanup error: ${cleanupError.message}", tag = "BrowserAutomationService")
+                    Napier.w("Cleanup error: ${cleanupError.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
                 throw e
             }
@@ -109,9 +102,8 @@ object BrowserAutomationService {
 
     suspend fun cleanup() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            Napier.i("BrowserAutomationService: Starting cleanup...", tag = "BrowserAutomationService")
             
-            // 기여모드 중지
+            // Stop contribution mode
             stopContributionRecording()
             
             try {
@@ -119,7 +111,7 @@ object BrowserAutomationService {
                     page.close()
                 }
             } catch (e: Exception) {
-                Napier.w("Failed to close page: ${e.message}", tag = "BrowserAutomationService")
+                Napier.w("Failed to close page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
             
             try {
@@ -127,7 +119,7 @@ object BrowserAutomationService {
                     browser.close()
                 }
             } catch (e: Exception) {
-                Napier.w("Failed to close browser: ${e.message}", tag = "BrowserAutomationService")
+                Napier.w("Failed to close browser: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
             
             try {
@@ -135,29 +127,27 @@ object BrowserAutomationService {
                     playwright.close()
                 }
             } catch (e: Exception) {
-                Napier.w("Failed to close playwright: ${e.message}", tag = "BrowserAutomationService")
+                Napier.w("Failed to close playwright: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
             
-            Napier.i("BrowserAutomationService: Cleanup completed", tag = "BrowserAutomationService")
+            Napier.i("Browser automation cleanup completed", tag = Tags.BROWSER_AUTOMATION)
         }
     }
 
     suspend fun navigate(url: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot navigate to $url", tag = "BrowserAutomationService")
+                Napier.e("Cannot navigate: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
-            Napier.i { "BrowserAutomationService: Navigating to $url" }
             try {
                 page.navigate(url)
                 AdaptiveWaitManager.waitForPageLoad(page, "navigation to $url")
                 recordContributionStep(url, page.title(), "navigate", null, null)
-                Napier.i { "BrowserAutomationService: Navigation to $url completed." }
             } catch (e: PlaywrightException) {
-                Napier.e("BrowserAutomationService: Navigation failed to $url: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Navigation failed to $url: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("BrowserAutomationService: Unexpected error during navigation to $url: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Navigation error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -165,22 +155,19 @@ object BrowserAutomationService {
     suspend fun goBack() = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot go back.", tag = "BrowserAutomationService")
+                Napier.e("Cannot go back: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
-            Napier.i { "BrowserAutomationService: Going back" }
             try {
                 val response = page.goBack()
                 if (response == null) {
-                    Napier.w { "BrowserAutomationService: No previous page to go back to." }
                 } else {
                     AdaptiveWaitManager.waitForPageLoad(page, "go back")
-                    Napier.i { "BrowserAutomationService: Go back completed." }
                 }
             } catch (e: PlaywrightException) {
-                Napier.e("BrowserAutomationService: Go back failed: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Go back failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("BrowserAutomationService: Unexpected error during go back: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Go back error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -188,22 +175,19 @@ object BrowserAutomationService {
     suspend fun goForward() = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot go forward.", tag = "BrowserAutomationService")
+                Napier.e("Cannot go forward: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
-            Napier.i { "BrowserAutomationService: Going forward" }
             try {
                 val response = page.goForward()
                 if (response == null) {
-                    Napier.w { "BrowserAutomationService: No next page to go forward to." }
                 } else {
                     AdaptiveWaitManager.waitForPageLoad(page, "go forward")
-                    Napier.i { "BrowserAutomationService: Go forward completed." }
                 }
             } catch (e: PlaywrightException) {
-                Napier.e("BrowserAutomationService: Go forward failed: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Go forward failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("BrowserAutomationService: Unexpected error during go forward: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Go forward error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -212,7 +196,7 @@ object BrowserAutomationService {
     suspend fun hoverAndClickElement(selector: String): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot hover hoverAndClickElement element: $selector", tag = "BrowserAutomationService")
+                Napier.e("Cannot click element: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
             }
             try {
@@ -220,21 +204,21 @@ object BrowserAutomationService {
                 
                 // 먼저 요소 존재 여부를 빠르게 확인
                 if (locator.count() == 0) {
-                    Napier.w { "Element with selector $selector not found on page, trying alternatives." }
+                    Napier.w("Element with selector $selector not found on page, trying alternatives.", tag = Tags.BROWSER_AUTOMATION)
                     return@withContext tryAlternativeSelectors(selector)
                 }
                 
                 if (!AdaptiveWaitManager.waitForElement(locator, page, "element with selector: $selector")) {
-                    Napier.w { "Element with selector $selector not found or not visible after adaptive waiting." }
+                    Napier.w("Element with selector $selector not found or not visible after adaptive waiting.", tag = Tags.BROWSER_AUTOMATION)
                     return@withContext tryAlternativeSelectors(selector)
                 }
                 
                 return@withContext executeHoverHighlightClick(locator, selector)
             } catch (e: PlaywrightException) {
-                Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 return@withContext tryAlternativeSelectors(selector)
             } catch (e: Exception) {
-                Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
             }
         }
@@ -274,33 +258,33 @@ object BrowserAutomationService {
         }
         
         if (alternativeSelectors.isEmpty()) {
-            Napier.w { "No alternative selectors available for: $originalSelector. Skipping this step." }
+            Napier.w("No alternative selectors available for: $originalSelector. Skipping this step.", tag = Tags.BROWSER_AUTOMATION)
             return@withContext false
         }
         
         for (altSelector in alternativeSelectors) {
             try {
-                Napier.i { "Trying alternative selector: $altSelector" }
+                Napier.i("Trying alternative selector: $altSelector", tag = Tags.BROWSER_AUTOMATION)
                 val locator = page.locator(altSelector)
                 
                 // 빠른 존재 확인
                 if (locator.count() == 0) {
-                    Napier.w { "Alternative selector $altSelector not found" }
+                    Napier.w("Alternative selector $altSelector not found", tag = Tags.BROWSER_AUTOMATION)
                     continue
                 }
                 
                 if (AdaptiveWaitManager.waitForElement(locator, page, "alternative selector: $altSelector")) {
                     val success = executeHoverHighlightClick(locator, altSelector)
                     if (success) {
-                        Napier.i { "Successfully clicked using alternative selector: $altSelector" }
+                        Napier.i("Successfully clicked using alternative selector: $altSelector", tag = Tags.BROWSER_AUTOMATION)
                         return@withContext true
                     }
                 }
             } catch (e: Exception) {
-                Napier.w { "Alternative selector $altSelector also failed: ${e.message}" }
+                Napier.w("Alternative selector $altSelector also failed: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
-        Napier.w { "All alternative selectors failed for original selector: $originalSelector. Continuing anyway." }
+        Napier.w("All alternative selectors failed for original selector: $originalSelector. Continuing anyway.", tag = Tags.BROWSER_AUTOMATION)
         return@withContext false
     }
 
@@ -311,7 +295,7 @@ object BrowserAutomationService {
             element.scrollIntoViewIfNeeded()
             element.hover()
             page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
-            Napier.i { "Applied highlight to element with selector: $selector" }
+            Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
             
             delay(3000)
 
@@ -327,9 +311,9 @@ object BrowserAutomationService {
                         return false;
                     })
                 """.trimIndent(), selector)
-                Napier.i { "Removed target attribute for selector: $selector" }
+                Napier.i("Removed target attribute for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
             } catch (jsError: Exception) {
-                Napier.w { "Failed to remove target attribute: ${jsError.message}" }
+                Napier.w("Failed to remove target attribute: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
             }
             
             element.click()
@@ -340,11 +324,11 @@ object BrowserAutomationService {
                 selector, 
                 extractElementAttributes(element)
             )
-            Napier.i { "Clicked element with selector: $selector" }
+            Napier.i("Clicked element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
             return@withContext true
 
         } catch (e: Exception) {
-            Napier.e("Failed to execute hover-highlight-click for $selector: ${e.message}", e, tag = "BrowserAutomationService")
+            Napier.e("Failed to execute hover-highlight-click for $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             try {
                 try {
                     page.evaluate("""
@@ -359,7 +343,7 @@ object BrowserAutomationService {
                         })
                     """.trimIndent(), selector)
                 } catch (jsError: Exception) {
-                    Napier.w { "Failed to remove target attribute in fallback: ${jsError.message}" }
+                    Napier.w("Failed to remove target attribute in fallback: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
                 
                 locator.first().click()
@@ -370,10 +354,10 @@ object BrowserAutomationService {
                     selector, 
                     extractElementAttributes(locator.first())
                 )
-                Napier.i { "Fallback click succeeded for selector: $selector" }
+                Napier.i("Fallback click succeeded for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext true
             } catch (fallbackError: Exception) {
-                Napier.e("Fallback click also failed for $selector: ${fallbackError.message}", fallbackError, tag = "BrowserAutomationService")
+                Napier.e("Fallback click also failed for $selector: ${fallbackError.message}", fallbackError, tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
             }
         }
@@ -383,7 +367,7 @@ object BrowserAutomationService {
     suspend fun typeText(selector: String, text: String, delayMs: Double? = null) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("BrowserAutomationService: Page is not initialized. Cannot type text into element: $selector", tag = "BrowserAutomationService")
+                Napier.e("Cannot type text: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
             try {
@@ -401,14 +385,14 @@ object BrowserAutomationService {
                         selector, 
                         mapOf("text" to text)
                     )
-                    Napier.i { "Typed text '$text' into element with selector: $selector" }
+                    Napier.i("Typed text '$text' into element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
                 } else {
-                    Napier.w { "Element with selector $selector not found or not visible for typing." }
+                    Napier.w("Element with selector $selector not found or not visible for typing.", tag = Tags.BROWSER_AUTOMATION)
                 }
             } catch (e: PlaywrightException) {
-                Napier.e("Failed to type text into element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Failed to type text into element $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("Unexpected error typing text into element $selector: ${e.message}", e, tag = "BrowserAutomationService")
+                Napier.e("Unexpected error typing text into element $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -469,7 +453,7 @@ object BrowserAutomationService {
 
         const indicator = document.createElement('div');
         indicator.id = 'wtg-click-indicator';
-        indicator.textContent = '클릭 대상';
+        indicator.textContent = 'Click Target';
         document.body.appendChild(indicator);
         indicator.offsetWidth;
 
@@ -498,12 +482,12 @@ object BrowserAutomationService {
     }
     
     suspend fun startContributionRecording() {
-        Napier.i("Starting contribution recording...", tag = "BrowserAutomationService")
+        Napier.i("Starting contribution recording...", tag = Tags.BROWSER_AUTOMATION)
 
         try {
             initialize()
             
-            // 초기화 후 추가 확인
+            // Additional check after initialization
             if (!::page.isInitialized || page.isClosed) {
                 throw Exception("Page initialization failed")
             }
@@ -515,10 +499,10 @@ object BrowserAutomationService {
             // 리스너 주입 확인
             injectUserInteractionListeners()
             
-            Napier.i("Contribution recording started successfully", tag = "BrowserAutomationService")
+            Napier.i("Contribution recording started successfully", tag = Tags.BROWSER_AUTOMATION)
             
         } catch (e: Exception) {
-            Napier.e("Failed to start contribution recording: ${e.message}", e, tag = "BrowserAutomationService")
+            Napier.e("Failed to start contribution recording: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             isRecordingContributions = false
             throw e
         }
@@ -534,17 +518,17 @@ object BrowserAutomationService {
         trackedPages.clear()
         pageTimestamps.clear()
         pageLastActivity.clear()
-        Napier.i("Stopped contribution recording", tag = "BrowserAutomationService")
+        Napier.i("Stopped contribution recording", tag = Tags.BROWSER_AUTOMATION)
     }
     
     private fun setupContributionRecording() {
         if (!::page.isInitialized) return
         
-        Napier.i("Setting up contribution recording listeners", tag = "BrowserAutomationService")
+        Napier.i("Setting up contribution recording listeners", tag = Tags.BROWSER_AUTOMATION)
         
-        // 새 탭 열림 감지 및 추적 시작
+        // Detect new tab opening and start tracking
         page.onPopup { newPage ->
-            Napier.i("New tab detected: ${newPage.url()}", tag = "BrowserAutomationService")
+            Napier.i("New tab detected: ${newPage.url()}", tag = Tags.BROWSER_AUTOMATION)
             recordContributionStep(
                 newPage.url(),
                 newPage.title(),
@@ -557,10 +541,10 @@ object BrowserAutomationService {
             setupNewPageTracking(newPage)
         }
         
-        // 페이지 네비게이션 감지 (URL 변경)
+        // Detect page navigation (URL change)
         page.onFrameNavigated { frame ->
             if (frame == page.mainFrame()) {
-                Napier.i("Frame navigated to: ${frame.url()}", tag = "BrowserAutomationService")
+                Napier.i("Frame navigated to: ${frame.url()}", tag = Tags.BROWSER_AUTOMATION)
                 recordContributionStep(
                     frame.url(),
                     frame.page().title(),
@@ -571,20 +555,20 @@ object BrowserAutomationService {
             }
         }
         
-        // 페이지 로드 완료 시 사용자 상호작용 리스너 주입
+        // Inject user interaction listeners when page load completes
         page.onLoad { 
             try {
-                Napier.i("Page loaded, injecting listeners for: ${page.url()}", tag = "BrowserAutomationService")
+                Napier.i("Page loaded, injecting listeners for: ${page.url()}", tag = Tags.BROWSER_AUTOMATION)
                 injectUserInteractionListeners()
             } catch (e: Exception) {
-                Napier.w("Failed to inject user interaction listeners: ${e.message}", tag = "BrowserAutomationService")
+                Napier.w("Failed to inject user interaction listeners: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
         
         // 콘솔 로그 리스너 (디버깅용)
         page.onConsoleMessage { message ->
             if (message.text().contains("Vowser") || message.text().contains("🖱️") || message.text().contains("⌨️")) {
-                Napier.i("Browser Console: ${message.text()}", tag = "BrowserConsole")
+                Napier.i("Browser Console: ${message.text()}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
         
@@ -595,7 +579,7 @@ object BrowserAutomationService {
             pageTimestamps[page] = Pair(0L, 0L)
             updatePageActivity(page)
         } catch (e: Exception) {
-            Napier.w("Failed to inject initial user interaction listeners: ${e.message}", tag = "BrowserAutomationService")
+            Napier.w("Failed to inject initial user interaction listeners: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
         }
     }
     
@@ -608,17 +592,17 @@ object BrowserAutomationService {
             // 새 페이지 로드 시 리스너 주입
             newPage.onLoad {
                 try {
-                    Napier.i("New page loaded, injecting listeners for: ${newPage.url()}", tag = "BrowserAutomationService")
+                    Napier.i("New page loaded, injecting listeners for: ${newPage.url()}", tag = Tags.BROWSER_AUTOMATION)
                     injectUserInteractionListeners(newPage)
                 } catch (e: Exception) {
-                    Napier.w("Failed to inject listeners for new page: ${e.message}", tag = "BrowserAutomationService")
+                    Napier.w("Failed to inject listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
             
             // 새 페이지의 콘솔 로그 리스너
             newPage.onConsoleMessage { message ->
                 if (message.text().contains("Vowser") || message.text().contains("🖱️") || message.text().contains("⌨️")) {
-                    Napier.i("New Tab Console: ${message.text()}", tag = "BrowserConsole")
+                    Napier.i("New Tab Console: ${message.text()}", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
             
@@ -626,11 +610,11 @@ object BrowserAutomationService {
             try {
                 injectUserInteractionListeners(newPage)
             } catch (e: Exception) {
-                Napier.w("Failed to inject initial listeners for new page: ${e.message}", tag = "BrowserAutomationService")
+                Napier.w("Failed to inject initial listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
             
         } catch (e: Exception) {
-            Napier.e("Failed to setup new page tracking: ${e.message}", e, tag = "BrowserAutomationService")
+            Napier.e("Failed to setup new page tracking: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
         }
     }
     
@@ -645,7 +629,7 @@ object BrowserAutomationService {
                 
                 console.log('Vowser contribution listeners injected');
                 
-                // 클릭 이벤트 감지
+                // Click event detection
                 document.addEventListener('click', function(event) {
                     const element = event.target;
                     const selector = generateSelector(element);
@@ -745,23 +729,23 @@ object BrowserAutomationService {
             })();
         """)
         
-        Napier.i("User interaction listeners injected", tag = "BrowserAutomationService")
+        Napier.i("User interaction listeners injected", tag = Tags.BROWSER_AUTOMATION)
     }
     
     private fun startUserInteractionPolling() {
         pollingJob?.cancel()
         pollingJob = CoroutineScope(Dispatchers.IO).launch {
-            Napier.i("Starting user interaction polling", tag = "BrowserAutomationService")
+            Napier.i("Starting user interaction polling", tag = Tags.BROWSER_AUTOMATION)
             while (isRecordingContributions && ::page.isInitialized) {
                 try {
                     checkForUserInteractions()
                     delay(ContributionConstants.POLLING_INTERVAL_MS)
                 } catch (e: Exception) {
-                    Napier.w("Error polling user interactions: ${e.message}", tag = "BrowserAutomationService")
+                    Napier.w("Error polling user interactions: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                     delay(2000) // 에러 시 2초 대기
                 }
             }
-            Napier.i("User interaction polling stopped", tag = "BrowserAutomationService")
+            Napier.i("User interaction polling stopped", tag = Tags.BROWSER_AUTOMATION)
         }
     }
     
@@ -782,7 +766,7 @@ object BrowserAutomationService {
                     checkPageInteractions(targetPage)
                     
                 } catch (e: Exception) {
-                    Napier.w("Error checking interactions for page: ${e.message}", tag = "BrowserAutomationService")
+                    Napier.w("Error checking interactions for page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                     // 페이지 접근 실패 시 추적에서 제거
                     cleanupPage(targetPage)
                 }
@@ -794,7 +778,6 @@ object BrowserAutomationService {
         trackedPages.remove(targetPage)
         pageTimestamps.remove(targetPage)
         pageLastActivity.remove(targetPage)
-        Napier.d("Cleaned up page: ${try { targetPage.url() } catch (e: Exception) { "unknown" }}", tag = "BrowserAutomationService")
     }
     
     private suspend fun checkPageInteractions(targetPage: Page) {
@@ -802,12 +785,12 @@ object BrowserAutomationService {
             // 리스너 상태 체크
             val listenersSetup = targetPage.evaluate("window.__vowserContributionListenersSetup")
             if (listenersSetup != true) {
-                Napier.w("Listeners not setup for ${targetPage.url()}, re-injecting...", tag = "BrowserAutomationService")
+                Napier.w("Listeners not setup for ${targetPage.url()}, re-injecting...", tag = Tags.BROWSER_AUTOMATION)
                 injectUserInteractionListeners(targetPage)
                 return
             }
             
-            // 클릭 이벤트 체크
+            // Check click events
             val clickData = targetPage.evaluate("window.__vowserLastClick")
             
             if (clickData != null) {
@@ -821,7 +804,7 @@ object BrowserAutomationService {
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
                     
                     val buttonText = attributes["text"]?.take(ContributionConstants.MAX_ELEMENT_TEXT_LENGTH) ?: "No text"
-                    Napier.i("Button clicked: [$buttonText] on $selector (${targetPage.url()})", tag = "BrowserAutomationService")
+                    Napier.i("Button clicked: [$buttonText] on $selector (${targetPage.url()})", tag = Tags.BROWSER_AUTOMATION)
                     
                     recordContributionStep(
                         targetPage.url(),
@@ -836,7 +819,7 @@ object BrowserAutomationService {
                     pageTimestamps[targetPage] = Pair(timestamp, currentInputTimestamp)
                     updatePageActivity(targetPage)
                     
-                    // 처리된 클릭 데이터 클리어
+                    // Clear processed click data
                     targetPage.evaluate("window.__vowserLastClick = null;")
                 }
             }
@@ -884,7 +867,7 @@ object BrowserAutomationService {
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
                     
                     val inputText = attributes["text"]?.take(ContributionConstants.MAX_ELEMENT_TEXT_LENGTH) ?: "No text"
-                    Napier.i("Enter key pressed: [$inputText] on $selector (${targetPage.url()})", tag = "BrowserAutomationService")
+                    Napier.i("Enter key pressed: [$inputText] on $selector (${targetPage.url()})", tag = Tags.BROWSER_AUTOMATION)
                     
                     recordContributionStep(
                         targetPage.url(),
@@ -904,7 +887,7 @@ object BrowserAutomationService {
                 }
             }
         } catch (e: Exception) {
-            Napier.w("Error checking interactions for page: ${e.message}", tag = "BrowserAutomationService")
+            Napier.w("Error checking interactions for page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
         }
     }
     
@@ -926,7 +909,7 @@ object BrowserAutomationService {
         )
         
         contributionRecordingCallback?.invoke(step)
-        Napier.i("Contribution Step Recorded: [${step.action}] ${step.title} (${step.url})", tag = "ContributionRecording")
+        Napier.i("Contribution Step Recorded: [${step.action}] ${step.title} (${step.url})", tag = Tags.BROWSER_AUTOMATION)
     }
     
     private fun extractElementAttributes(locator: Locator): Map<String, String> {
@@ -952,7 +935,7 @@ object BrowserAutomationService {
             
             attributes
         } catch (e: Exception) {
-            Napier.w("Failed to extract element attributes: ${e.message}", tag = "BrowserAutomationService")
+            Napier.w("Failed to extract element attributes: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             emptyMap()
         }
     }
@@ -964,11 +947,11 @@ object BrowserAutomationService {
                     delay(ContributionConstants.MEMORY_CLEANUP_INTERVAL_MS)
                     performMemoryCleanup()
                 } catch (e: Exception) {
-                    Napier.w("Memory cleanup error: ${e.message}", tag = "BrowserAutomationService")
+                    Napier.w("Memory cleanup error: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
         }
-        Napier.i("Started memory cleanup job", tag = "BrowserAutomationService")
+        Napier.i("Started memory cleanup job", tag = Tags.BROWSER_AUTOMATION)
     }
     
     private suspend fun performMemoryCleanup() {
@@ -988,7 +971,7 @@ object BrowserAutomationService {
                             inactivePages.add(page)
                         }
                     } catch (e: Exception) {
-                        // 페이지 접근 실패 시 정리 대상에 추가
+                        // Add to cleanup list if page access fails
                         inactivePages.add(page)
                     }
                 }
@@ -1009,7 +992,7 @@ object BrowserAutomationService {
             }
             
             if (inactivePages.isNotEmpty()) {
-                Napier.i("Cleaned up ${inactivePages.size} inactive pages. Remaining: ${trackedPages.size}", tag = "BrowserAutomationService")
+                Napier.i("Cleaned up ${inactivePages.size} inactive pages. Remaining: ${trackedPages.size}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }

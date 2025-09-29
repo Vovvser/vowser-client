@@ -12,12 +12,14 @@ import com.vowser.client.contribution.ContributionMessage
 import com.vowser.client.exception.ExceptionHandler
 import com.vowser.client.exception.NetworkException
 import com.vowser.client.exception.ContributionException
+import io.github.aakira.napier.Napier
+import com.vowser.client.logging.Tags
+import com.vowser.client.logging.LogUtils
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.websocket.*
-import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -85,11 +87,11 @@ class BrowserControlWebSocketClient(
      */
     suspend fun connect(maxRetries: Int = 5, retryDelayMillis: Long = 2000L) {
         if (session != null && session?.isActive == true) {
-            Napier.i("Already connected.", tag = "VowserSocketClient")
+            Napier.i("Already connected.", tag = Tags.NETWORK_WEBSOCKET)
             return
         }
         if (isConnecting) {
-            Napier.i("Connection in progress.", tag = "VowserSocketClient")
+            Napier.i("Connection in progress.", tag = Tags.NETWORK_WEBSOCKET)
             return
         }
 
@@ -102,15 +104,15 @@ class BrowserControlWebSocketClient(
                     port = 8080,
                     path = "/control"
                 )
-                Napier.i("Successfully connected to ws://localhost:8080/control", tag = "VowserSocketClient")
+                Napier.i("Successfully connected to ws://localhost:8080/control", tag = Tags.NETWORK_WEBSOCKET)
                 isConnecting = false
-                Napier.i("Callback status - onAllPathsReceived: ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = "VowserSocketClient")
+                Napier.d("Callback status - onAllPathsReceived: ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = Tags.NETWORK_WEBSOCKET)
                 startReceivingMessages()
                 return
             } catch (e: Exception) {
                 attempts++
                 val networkException = NetworkException.ConnectionFailed(e)
-                Napier.e("Failed to connect (attempt $attempts/$maxRetries): ${e.message}", e, tag = "VowserSocketClient")
+                Napier.e("Failed to connect (attempt $attempts/$maxRetries): ${e.message}", e, tag = Tags.NETWORK_WEBSOCKET)
 
                 if (attempts >= maxRetries) {
                     exceptionHandler.handleException(
@@ -128,12 +130,12 @@ class BrowserControlWebSocketClient(
             }
         }
         isConnecting = false
-        Napier.e("Failed to connect after $maxRetries attempts.", tag = "VowserSocketClient")
+        Napier.e("Failed to connect after $maxRetries attempts.", tag = Tags.NETWORK_WEBSOCKET)
         session = null
     }
 
     suspend fun reconnect() {
-        Napier.i("Attempting to reconnect...", tag = "VowserSocketClient")
+        Napier.i("Attempting to reconnect...", tag = Tags.NETWORK_WEBSOCKET)
         close()
         connect()
     }
@@ -144,7 +146,7 @@ class BrowserControlWebSocketClient(
      */
     fun receiveMessages(): Flow<String> {
         if (session?.isActive != true) {
-            Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
+            Napier.w("Not connected. Call connect() first.", tag = Tags.NETWORK_WEBSOCKET)
             return emptyFlow()
         }
         return session!!.incoming.receiveAsFlow().mapNotNull {
@@ -156,25 +158,25 @@ class BrowserControlWebSocketClient(
      * 메시지를 수신하고 tool에 따라 다른 동작 수행
      */
     private fun startReceivingMessages() {
-        Napier.i("=== DEBUG: startReceivingMessages() 호출됨 ===", tag = "VowserSocketClient")
+        Napier.d("=== DEBUG: startReceivingMessages() 호출됨 ===", tag = Tags.NETWORK_WEBSOCKET)
         CoroutineScope(Dispatchers.IO).launch {
             receiveMessages().collect { messageString ->
-                Napier.i("Received raw message: $messageString", tag = "VowserSocketClient")
+                Napier.d("Received raw message: ${messageString.take(100)}...", tag = Tags.NETWORK_WEBSOCKET)
                 try {
                     val message = json.decodeFromString<WebSocketMessage>(messageString)
 
                     when (message) {
                         is WebSocketMessage.AllPathsWrapper -> {
                             val allPathsData = message.data
-                            Napier.i("Decoded all paths data for query: ${allPathsData.query}", tag = "VowserSocketClient")
-                            Napier.i("onAllPathsReceived callback is ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = "VowserSocketClient")
+                            Napier.i("Decoded all paths data for query: ${allPathsData.query}", tag = Tags.NETWORK_WEBSOCKET)
+                            Napier.d("onAllPathsReceived callback is ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = Tags.NETWORK_WEBSOCKET)
                             onAllPathsReceived?.invoke(allPathsData)
-                            Napier.i("onAllPathsReceived callback invoked", tag = "VowserSocketClient")
+                            Napier.d("onAllPathsReceived callback invoked", tag = Tags.NETWORK_WEBSOCKET)
                         }
 
                         is WebSocketMessage.SearchPathResultWrapper -> {
                             val searchResult = message.data
-                            Napier.i("Search path result received. Query: ${searchResult.query}", tag = "VowserSocketClient")
+                            Napier.i("Search path result received. Query: ${searchResult.query}", tag = Tags.NETWORK_WEBSOCKET)
 
                             val pathDetails = searchResult.matched_paths.map { matchedPath ->
                                 PathDetail(
@@ -203,14 +205,14 @@ class BrowserControlWebSocketClient(
                         }
 
                         else -> {
-                            Napier.w("Unhandled WebSocketMessage type received.", tag = "VowserSocketClient")
+                            Napier.w("Unhandled WebSocketMessage type received.", tag = Tags.NETWORK_WEBSOCKET)
                         }
                     }
                 } catch (e: Exception) {
                     if (messageString.contains("연결되었습니다") || messageString.contains("error\":false")) {
-                        Napier.i("Received welcome or status message (ignored): $messageString", tag = "VowserSocketClient")
+                        Napier.d("Received welcome or status message (ignored): ${messageString.take(50)}...", tag = Tags.NETWORK_WEBSOCKET)
                     } else {
-                        Napier.e("Failed to parse or execute command from message: $messageString. Error: ${e.message}", e, tag = "VowserSocketClient")
+                        Napier.e("Failed to parse or execute command from message: ${messageString.take(50)}... Error: ${e.message}", e, tag = Tags.NETWORK_WEBSOCKET)
                     }
                 }
             }
@@ -223,13 +225,13 @@ class BrowserControlWebSocketClient(
      */
     suspend fun sendToolCall(request: CallToolRequest) {
         if (session?.isActive != true) {
-            Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
+            Napier.w("Not connected. Call connect() first.", tag = Tags.NETWORK_WEBSOCKET)
             return
         }
         try {
             val jsonString = json.encodeToString(request)
             session?.send(Frame.Text(jsonString))
-            Napier.i("Sent tool call: ${request.toolName}", tag = "VowserSocketClient")
+            Napier.i("Sent tool call: ${request.toolName}", tag = Tags.NETWORK_WEBSOCKET)
         } catch (e: Exception) {
             exceptionHandler.handleException(
                 NetworkException.ConnectionFailed(e),
@@ -245,13 +247,13 @@ class BrowserControlWebSocketClient(
      */
     suspend fun sendBrowserCommand(command: BrowserCommand) {
         if (session?.isActive != true) {
-            Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
+            Napier.w("Not connected. Call connect() first.", tag = Tags.NETWORK_WEBSOCKET)
             return
         }
         try {
             val jsonString = json.encodeToString(command)
             session?.send(Frame.Text(jsonString))
-            Napier.i("Sent browser command: $command", tag = "VowserSocketClient")
+            Napier.i("Sent browser command: $command", tag = Tags.NETWORK_WEBSOCKET)
         } catch (e: Exception) {
             exceptionHandler.handleException(
                 NetworkException.ConnectionFailed(e),
@@ -267,13 +269,13 @@ class BrowserControlWebSocketClient(
      */
     suspend fun sendContributionMessage(message: ContributionMessage) {
         if (session?.isActive != true) {
-            Napier.w("Not connected. Call connect() first.", tag = "VowserSocketClient")
+            Napier.w("Not connected. Call connect() first.", tag = Tags.NETWORK_WEBSOCKET)
             return
         }
         try {
             val jsonString = json.encodeToString(message)
             session?.send(Frame.Text(jsonString))
-            Napier.i("Sent contribution message: sessionId=${message.sessionId}, steps=${message.steps.size}", tag = "VowserSocketClient")
+            Napier.i("Sent contribution message: sessionId=${LogUtils.filterSensitive(message.sessionId)}, steps=${message.steps.size}", tag = Tags.CONTRIBUTION)
         } catch (e: Exception) {
             exceptionHandler.handleException(
                 ContributionException.DataTransmissionFailed(e),
@@ -289,6 +291,6 @@ class BrowserControlWebSocketClient(
         session?.close(CloseReason(CloseReason.Codes.NORMAL, "Client initiated disconnect"))
         session = null
         client.close()
-        Napier.i("Connection closed.", tag = "VowserSocketClient")
+        Napier.i("Connection closed.", tag = Tags.NETWORK_WEBSOCKET)
     }
 }

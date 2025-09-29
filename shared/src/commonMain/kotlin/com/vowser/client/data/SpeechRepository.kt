@@ -1,6 +1,7 @@
 package com.vowser.client.data
 
 import io.github.aakira.napier.Napier
+import com.vowser.client.logging.Tags
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -30,7 +31,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
         return try {
             val backendUrl = "http://localhost:8080/api/v1/speech/transcribe"
 
-            Napier.i("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId, Modes: $selectedModes", tag = "SpeechRepository")
+            Napier.i("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId, Modes: $selectedModes", tag = Tags.NETWORK)
 
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
@@ -51,18 +52,18 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
             when (response.status) {
                 HttpStatusCode.OK -> {
                     val responseText = response.bodyAsText()
-                    Napier.i("Audio transcription successful: $responseText", tag = "SpeechRepository")
+                    Napier.i("Audio transcription successful: $responseText", tag = Tags.NETWORK)
                     Result.success(responseText)
                 }
                 else -> {
                     val errorText = response.bodyAsText()
-                    Napier.e("Audio transcription failed: ${response.status} - $errorText", tag = "SpeechRepository")
+                    Napier.e("Audio transcription failed: ${response.status} - $errorText", tag = Tags.NETWORK)
                     Result.failure(Exception("HTTP ${response.status}: $errorText"))
                 }
             }
 
         } catch (e: Exception) {
-            Napier.e("Failed to transcribe audio: ${e.message}", e, tag = "SpeechRepository")
+            Napier.e("Failed to transcribe audio: ${e.message}", tag = Tags.NETWORK)
             Result.failure(e)
         }
     }
@@ -71,7 +72,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
         return try {
             val backendUrl = "http://localhost:8080/api/v1/speech/process"
             
-            Napier.i("Uploading audio for processing. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", tag = "SpeechRepository")
+            Napier.i("Uploading audio for processing. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", tag = Tags.NETWORK)
 
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
@@ -88,18 +89,18 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
             when (response.status) {
                 HttpStatusCode.OK -> {
                     val responseText = response.bodyAsText()
-                    Napier.i("Audio processing successful: $responseText", tag = "SpeechRepository")
+                    Napier.i("Audio processing successful: $responseText", tag = Tags.NETWORK)
                     Result.success(responseText)
                 }
                 else -> {
                     val errorText = response.bodyAsText()
-                    Napier.e("Audio processing failed: ${response.status} - $errorText", tag = "SpeechRepository")
+                    Napier.e("Audio processing failed: ${response.status} - $errorText", tag = Tags.NETWORK)
                     Result.failure(Exception("HTTP ${response.status}: $errorText"))
                 }
             }
 
         } catch (e: Exception) {
-            Napier.e("Failed to process audio: ${e.message}", e, tag = "SpeechRepository")
+            Napier.e("Failed to process audio: ${e.message}", tag = Tags.NETWORK)
             Result.failure(e)
         }
     }

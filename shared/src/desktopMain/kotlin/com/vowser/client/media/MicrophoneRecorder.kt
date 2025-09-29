@@ -1,6 +1,7 @@
 package com.vowser.client.media
 
 import io.github.aakira.napier.Napier
+import com.vowser.client.logging.Tags
 import java.io.File
 import javax.sound.sampled.*
 import kotlin.concurrent.thread
@@ -13,7 +14,7 @@ class MicrophoneRecorder {
 
     fun startRecording(): Boolean {
         if (isRecording) {
-            Napier.w("Already recording", tag = "MicrophoneRecorder")
+            Napier.w("Already recording", tag = Tags.MEDIA_RECORDING)
             return false
         }
 
@@ -22,7 +23,7 @@ class MicrophoneRecorder {
             val info = DataLine.Info(TargetDataLine::class.java, format)
 
             if (!AudioSystem.isLineSupported(info)) {
-                Napier.e("Audio line not supported", tag = "MicrophoneRecorder")
+                Napier.e("Audio line not supported", tag = Tags.MEDIA_RECORDING)
                 return false
             }
 
@@ -48,15 +49,15 @@ class MicrophoneRecorder {
                         }
                     }
                 } catch (e: Exception) {
-                    Napier.e("Error during recording: ${e.message}", e, tag = "MicrophoneRecorder")
+                    Napier.e("Error during recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
                 }
             }
 
-            Napier.i("Recording started to ${audioFile?.absolutePath}", tag = "MicrophoneRecorder")
+            Napier.i("Recording started to ${audioFile?.absolutePath}", tag = Tags.MEDIA_RECORDING)
             return true
 
         } catch (e: Exception) {
-            Napier.e("Failed to start recording: ${e.message}", e, tag = "MicrophoneRecorder")
+            Napier.e("Failed to start recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
             isRecording = false
             return false
         }
@@ -64,7 +65,7 @@ class MicrophoneRecorder {
 
     fun stopRecording(): File? {
         if (!isRecording) {
-            Napier.w("Not currently recording", tag = "MicrophoneRecorder")
+            Napier.w("Not currently recording", tag = Tags.MEDIA_RECORDING)
             return null
         }
 
@@ -77,11 +78,11 @@ class MicrophoneRecorder {
             // 녹음 스레드가 완료될 때까지 잠시 대기
             recordingThread?.join(1000) // 최대 1초 대기
             
-            Napier.i("Recording stopped. File: ${audioFile?.absolutePath}", tag = "MicrophoneRecorder")
+            Napier.i("Recording stopped. File: ${audioFile?.absolutePath}", tag = Tags.MEDIA_RECORDING)
             return audioFile
             
         } catch (e: Exception) {
-            Napier.e("Error stopping recording: ${e.message}", e, tag = "MicrophoneRecorder")
+            Napier.e("Error stopping recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
             return null
         }
     }

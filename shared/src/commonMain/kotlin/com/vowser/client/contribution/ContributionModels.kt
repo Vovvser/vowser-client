@@ -4,6 +4,7 @@ import com.benasher44.uuid.uuid4
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import io.github.aakira.napier.Napier
+import com.vowser.client.logging.Tags
 
 @Serializable
 data class ContributionStep(
@@ -105,7 +106,7 @@ object ContributionDataValidator {
                 htmlAttributes = sanitizedAttributes
             )
         } catch (e: Exception) {
-            Napier.w("Failed to sanitize contribution step: ${e.message}", tag = "ContributionDataValidator")
+            Napier.w("Failed to sanitize contribution step: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             return null
         }
     }
