@@ -1,6 +1,6 @@
 package com.vowser.client.data
 
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -31,7 +31,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
         return try {
             val backendUrl = "http://localhost:8080/api/v1/speech/transcribe"
 
-            VowserLogger.info("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId, Modes: $selectedModes", Tags.NETWORK)
+            Napier.i("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId, Modes: $selectedModes", tag = Tags.NETWORK)
 
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
@@ -52,18 +52,18 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
             when (response.status) {
                 HttpStatusCode.OK -> {
                     val responseText = response.bodyAsText()
-                    VowserLogger.info("Audio transcription successful: $responseText", Tags.NETWORK)
+                    Napier.i("Audio transcription successful: $responseText", tag = Tags.NETWORK)
                     Result.success(responseText)
                 }
                 else -> {
                     val errorText = response.bodyAsText()
-                    VowserLogger.error("Audio transcription failed: ${response.status} - $errorText", Tags.NETWORK)
+                    Napier.e("Audio transcription failed: ${response.status} - $errorText", tag = Tags.NETWORK)
                     Result.failure(Exception("HTTP ${response.status}: $errorText"))
                 }
             }
 
         } catch (e: Exception) {
-            VowserLogger.error("Failed to transcribe audio: ${e.message}", Tags.NETWORK)
+            Napier.e("Failed to transcribe audio: ${e.message}", tag = Tags.NETWORK)
             Result.failure(e)
         }
     }
@@ -72,7 +72,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
         return try {
             val backendUrl = "http://localhost:8080/api/v1/speech/process"
             
-            VowserLogger.info("Uploading audio for processing. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", Tags.NETWORK)
+            Napier.i("Uploading audio for processing. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", tag = Tags.NETWORK)
 
             val response: HttpResponse = client.post(backendUrl) {
                 setBody(MultiPartFormDataContent(
@@ -89,18 +89,18 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
             when (response.status) {
                 HttpStatusCode.OK -> {
                     val responseText = response.bodyAsText()
-                    VowserLogger.info("Audio processing successful: $responseText", Tags.NETWORK)
+                    Napier.i("Audio processing successful: $responseText", tag = Tags.NETWORK)
                     Result.success(responseText)
                 }
                 else -> {
                     val errorText = response.bodyAsText()
-                    VowserLogger.error("Audio processing failed: ${response.status} - $errorText", Tags.NETWORK)
+                    Napier.e("Audio processing failed: ${response.status} - $errorText", tag = Tags.NETWORK)
                     Result.failure(Exception("HTTP ${response.status}: $errorText"))
                 }
             }
 
         } catch (e: Exception) {
-            VowserLogger.error("Failed to process audio: ${e.message}", Tags.NETWORK)
+            Napier.e("Failed to process audio: ${e.message}", tag = Tags.NETWORK)
             Result.failure(e)
         }
     }

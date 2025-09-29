@@ -1,44 +1,19 @@
 package com.vowser.client.logging
 
-import io.github.aakira.napier.Napier
-
 /**
  * Vowser logging utilities
  */
-object VowserLogger {
+object LogUtils {
+    private val sensitiveDataRegex = Regex(
+        "(sessionId|apiKey|token|key)\\s*[=:]\\s*[^&\\s,}]+|\"(sessionId|apiKey|token|key)\"\\s*:\\s*\"[^\"]+\"",
+        RegexOption.IGNORE_CASE
+    )
 
-    private val isDevelopment by lazy { detectDevelopmentEnvironment() }
-    private val sensitiveDataRegex by lazy {
-        Regex("(sessionId|apiKey|token|key)\\s*[=:]\\s*[^&\\s,}]+|\"(sessionId|apiKey|token|key)\"\\s*:\\s*\"[^\"]+\"", RegexOption.IGNORE_CASE)
-    }
-
-    private fun detectDevelopmentEnvironment(): Boolean = true
-
-    private inline fun logIfEnabled(level: () -> Unit) {
-        if (isDevelopment) level()
-    }
-
-    fun debug(message: String, tag: String = Tags.VOWSER, throwable: Throwable? = null) {
-        logIfEnabled { Napier.d(message, throwable, tag = tag) }
-    }
-
-    fun info(message: String, tag: String = Tags.VOWSER, throwable: Throwable? = null) {
-        logIfEnabled { Napier.i(message, throwable, tag = tag) }
-    }
-
-    fun warn(message: String, tag: String = Tags.VOWSER, throwable: Throwable? = null) {
-        logIfEnabled { Napier.w(message, throwable, tag = tag) }
-    }
-
-    fun error(message: String, tag: String = Tags.VOWSER, throwable: Throwable? = null) {
-        Napier.e(message, throwable, tag = tag)
-    }
-
-    fun filterSensitiveData(data: String): String =
-        if (isDevelopment) data else sensitiveDataRegex.replace(data) { "${it.groupValues[1]}=***" }
-
-    fun logUrl(url: String): String = url
-    fun logUserInput(input: String): String = input
+    /**
+     * Filter sensitive information for production logging
+     */
+    fun filterSensitive(data: String): String =
+        sensitiveDataRegex.replace(data) { "${it.groupValues[1]}=***" }
 }
 
 /**

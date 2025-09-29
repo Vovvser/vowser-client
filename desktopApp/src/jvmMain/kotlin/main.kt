@@ -1,7 +1,7 @@
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.vowserclient.shared.browserautomation.BrowserAutomationService
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import kotlinx.coroutines.runBlocking
 
@@ -15,9 +15,9 @@ fun main() = application {
         runBlocking { // shutdown hook 스레드 내에서 suspend 함수를 호출하기 위해 runBlocking 사용
             try {
                 BrowserAutomationService.cleanup()
-                VowserLogger.info("BrowserAutomationService 정리 완료.", Tags.SYSTEM_SHUTDOWN)
+                Napier.i("BrowserAutomationService 정리 완료.", tag = Tags.SYSTEM_SHUTDOWN)
             } catch (e: Exception) {
-                VowserLogger.error("BrowserAutomationService 정리 중 오류 발생: ${e.message}", Tags.SYSTEM_SHUTDOWN)
+                Napier.e("BrowserAutomationService 정리 중 오류 발생: ${e.message}", e, tag = Tags.SYSTEM_SHUTDOWN)
             }
         }
     })

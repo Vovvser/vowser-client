@@ -1,6 +1,6 @@
 package com.vowser.client.media
 
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import java.io.File
 import javax.sound.sampled.*
@@ -14,7 +14,7 @@ class MicrophoneRecorder {
 
     fun startRecording(): Boolean {
         if (isRecording) {
-            VowserLogger.warn("Already recording", Tags.MEDIA_RECORDING)
+            Napier.w("Already recording", tag = Tags.MEDIA_RECORDING)
             return false
         }
 
@@ -23,7 +23,7 @@ class MicrophoneRecorder {
             val info = DataLine.Info(TargetDataLine::class.java, format)
 
             if (!AudioSystem.isLineSupported(info)) {
-                VowserLogger.error("Audio line not supported", Tags.MEDIA_RECORDING)
+                Napier.e("Audio line not supported", tag = Tags.MEDIA_RECORDING)
                 return false
             }
 
@@ -49,15 +49,15 @@ class MicrophoneRecorder {
                         }
                     }
                 } catch (e: Exception) {
-                    VowserLogger.error("Error during recording: ${e.message}", Tags.MEDIA_RECORDING, e)
+                    Napier.e("Error during recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
                 }
             }
 
-            VowserLogger.info("Recording started to ${audioFile?.absolutePath}", Tags.MEDIA_RECORDING)
+            Napier.i("Recording started to ${audioFile?.absolutePath}", tag = Tags.MEDIA_RECORDING)
             return true
 
         } catch (e: Exception) {
-            VowserLogger.error("Failed to start recording: ${e.message}", Tags.MEDIA_RECORDING, e)
+            Napier.e("Failed to start recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
             isRecording = false
             return false
         }
@@ -65,7 +65,7 @@ class MicrophoneRecorder {
 
     fun stopRecording(): File? {
         if (!isRecording) {
-            VowserLogger.warn("Not currently recording", Tags.MEDIA_RECORDING)
+            Napier.w("Not currently recording", tag = Tags.MEDIA_RECORDING)
             return null
         }
 
@@ -78,11 +78,11 @@ class MicrophoneRecorder {
             // 녹음 스레드가 완료될 때까지 잠시 대기
             recordingThread?.join(1000) // 최대 1초 대기
             
-            VowserLogger.info("Recording stopped. File: ${audioFile?.absolutePath}", Tags.MEDIA_RECORDING)
+            Napier.i("Recording stopped. File: ${audioFile?.absolutePath}", tag = Tags.MEDIA_RECORDING)
             return audioFile
             
         } catch (e: Exception) {
-            VowserLogger.error("Error stopping recording: ${e.message}", Tags.MEDIA_RECORDING, e)
+            Napier.e("Error stopping recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
             return null
         }
     }

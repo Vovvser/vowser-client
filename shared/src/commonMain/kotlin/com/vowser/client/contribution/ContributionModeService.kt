@@ -1,6 +1,6 @@
 package com.vowser.client.contribution
 
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -39,13 +39,13 @@ class ContributionModeService(
     
     fun startSession(task: String) {
         if (currentSession?.isActive == true) {
-            VowserLogger.warn("Contribution session already active - sessionId: ${currentSession?.sessionId}, task: ${currentSession?.task}", Tags.BROWSER_AUTOMATION)
+            Napier.w("Contribution session already active - sessionId: ${currentSession?.sessionId}, task: ${currentSession?.task}", tag = Tags.BROWSER_AUTOMATION)
             return
         }
         
         val sanitizedTask = ContributionDataValidator.sanitizeString(task, ContributionConstants.MAX_TITLE_LENGTH)
         if (sanitizedTask.isBlank()) {
-            VowserLogger.error("Invalid task provided for contribution session", Tags.BROWSER_AUTOMATION)
+            Napier.e("Invalid task provided for contribution session", tag = Tags.BROWSER_AUTOMATION)
             return
         }
         
@@ -59,20 +59,20 @@ class ContributionModeService(
         
         startTimeoutTimer()
         
-        VowserLogger.info("🚀 Contribution session started - sessionId: ${currentSession?.sessionId}, task: '$sanitizedTask', timeout: $sessionTimeout", Tags.BROWSER_AUTOMATION)
+        Napier.i("🚀 Contribution session started - sessionId: ${currentSession?.sessionId}, task: '$sanitizedTask', timeout: $sessionTimeout", tag = Tags.BROWSER_AUTOMATION)
     }
     
     fun recordStep(step: ContributionStep) {
         val session = currentSession
         if (session == null || !session.isActive) {
-            VowserLogger.warn("No active contribution session to record step", Tags.BROWSER_AUTOMATION)
+            Napier.w("No active contribution session to record step", tag = Tags.BROWSER_AUTOMATION)
             return
         }
         
         // 데이터 검증 및 정화
         val sanitizedStep = ContributionDataValidator.sanitizeContributionStep(step)
         if (sanitizedStep == null) {
-            VowserLogger.warn("Invalid contribution step discarded: ${step.action} on ${step.url}", Tags.BROWSER_AUTOMATION)
+            Napier.w("Invalid contribution step discarded: ${step.action} on ${step.url}", tag = Tags.BROWSER_AUTOMATION)
             return
         }
 
@@ -112,7 +112,7 @@ class ContributionModeService(
             }
         }
         
-        VowserLogger.debug("Typing step debounced: ${step.htmlAttributes?.get("text") ?: step.title}", Tags.BROWSER_AUTOMATION)
+        Napier.d("Typing step debounced: ${step.htmlAttributes?.get("text") ?: step.title}", tag = Tags.BROWSER_AUTOMATION)
     }
     
     /**
@@ -123,7 +123,7 @@ class ContributionModeService(
         pendingTypingStep?.let { pendingStep ->
             recordStepImmediately(pendingStep)
             pendingTypingStep = null
-            VowserLogger.debug("Flushed pending typing step due to other action", Tags.BROWSER_AUTOMATION)
+            Napier.d("Flushed pending typing step due to other action", tag = Tags.BROWSER_AUTOMATION)
         }
     }
     
@@ -145,7 +145,7 @@ class ContributionModeService(
         
         onUILog?.invoke(session.steps.size, step.action, elementName, step.url)
         
-        VowserLogger.info("Step ${session.steps.size}: [${step.action}] ${step.selector ?: "N/A"} - ${step.htmlAttributes?.get("text") ?: step.title}", Tags.BROWSER_AUTOMATION)
+        Napier.i("Step ${session.steps.size}: [${step.action}] ${step.selector ?: "N/A"} - ${step.htmlAttributes?.get("text") ?: step.title}", tag = Tags.BROWSER_AUTOMATION)
 
         if (stepBuffer.size >= ContributionConstants.BATCH_SIZE) {
             coroutineScope.launch {
@@ -156,18 +156,18 @@ class ContributionModeService(
     
     fun endSession() {
         val session = currentSession ?: run {
-            VowserLogger.warn("No active session to end", Tags.BROWSER_AUTOMATION)
+            Napier.w("No active session to end", tag = Tags.BROWSER_AUTOMATION)
             return
         }
         
         if (!session.isActive) {
-            VowserLogger.warn("Session already ended - sessionId: ${session.sessionId}", Tags.BROWSER_AUTOMATION)
+            Napier.w("Session already ended - sessionId: ${session.sessionId}", tag = Tags.BROWSER_AUTOMATION)
             return
         }
 
         flushPendingTypingStep()
         
-        VowserLogger.info("🏁 Ending contribution session - sessionId: ${session.sessionId}, totalSteps: ${session.steps.size}, bufferSize: ${stepBuffer.size}", Tags.BROWSER_AUTOMATION)
+        Napier.i("🏁 Ending contribution session - sessionId: ${session.sessionId}, totalSteps: ${session.steps.size}, bufferSize: ${stepBuffer.size}", tag = Tags.BROWSER_AUTOMATION)
         
         session.isActive = false
         _status.value = ContributionStatus.SENDING
@@ -176,10 +176,10 @@ class ContributionModeService(
             try {
                 sendBufferedSteps(isPartial = false, isComplete = true)
                 _status.value = ContributionStatus.COMPLETED
-                VowserLogger.info("✅ Contribution session completed successfully - sessionId: ${session.sessionId}, duration: ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - session.startTime}ms", Tags.BROWSER_AUTOMATION)
+                Napier.i("✅ Contribution session completed successfully - sessionId: ${session.sessionId}, duration: ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - session.startTime}ms", tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
                 _status.value = ContributionStatus.ERROR
-                VowserLogger.error("❌ Failed to complete contribution session - sessionId: ${session.sessionId}, error: ${e.message}", Tags.BROWSER_AUTOMATION)
+                Napier.e("❌ Failed to complete contribution session - sessionId: ${session.sessionId}, error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -214,17 +214,17 @@ class ContributionModeService(
                     lastSentIndex = session.steps.size
                 }
 
-                VowserLogger.info("✅ Sent ${stepsToSend.size} steps (partial: $isPartial, complete: $isComplete), sessionId: ${message.sessionId}", Tags.BROWSER_AUTOMATION)
+                Napier.i("✅ Sent ${stepsToSend.size} steps (partial: $isPartial, complete: $isComplete), sessionId: ${message.sessionId}", tag = Tags.BROWSER_AUTOMATION)
                 return
 
             } catch (e: Exception) {
                 retryCount++
                 if (retryCount <= maxRetries) {
                     val delayMs = retryDelays.getOrElse(retryCount - 1) { 5000L }
-                    VowserLogger.warn("Failed to send contribution steps (attempt $retryCount/$maxRetries): ${e.message}. Retrying in ${delayMs}ms...", Tags.BROWSER_AUTOMATION)
+                    Napier.w("Failed to send contribution steps (attempt $retryCount/$maxRetries): ${e.message}. Retrying in ${delayMs}ms...", tag = Tags.BROWSER_AUTOMATION)
                     delay(delayMs)
                 } else {
-                    VowserLogger.error("Failed to send contribution steps after $maxRetries attempts: ${e.message}", Tags.BROWSER_AUTOMATION)
+                    Napier.e("Failed to send contribution steps after $maxRetries attempts: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                     throw e
                 }
             }
@@ -236,7 +236,7 @@ class ContributionModeService(
         timeoutJob = coroutineScope.launch {
             delay(sessionTimeout)
             if (currentSession?.isActive == true) {
-                VowserLogger.info("Session timeout reached, auto-ending session", Tags.BROWSER_AUTOMATION)
+                Napier.i("Session timeout reached, auto-ending session", tag = Tags.BROWSER_AUTOMATION)
                 endSessionWithTimeout()
             }
         }
@@ -250,10 +250,10 @@ class ContributionModeService(
             try {
                 sendBufferedSteps(isPartial = false, isComplete = true)
                 _status.value = ContributionStatus.COMPLETED
-                VowserLogger.info("Contribution session auto-completed due to timeout", Tags.BROWSER_AUTOMATION)
+                Napier.i("Contribution session auto-completed due to timeout", tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
                 _status.value = ContributionStatus.ERROR
-                VowserLogger.error("Failed to auto-complete contribution session: ${e.message}", Tags.BROWSER_AUTOMATION)
+                Napier.e("Failed to auto-complete contribution session: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
@@ -279,6 +279,6 @@ class ContributionModeService(
         _currentStepCount.value = 0
         _currentTask.value = ""
         
-        VowserLogger.info("🔄 Session reset - previousSessionId: ${previousSessionId ?: "none"}, previousSteps: $previousSteps", Tags.BROWSER_AUTOMATION)
+        Napier.i("🔄 Session reset - previousSessionId: ${previousSessionId ?: "none"}, previousSteps: $previousSteps", tag = Tags.BROWSER_AUTOMATION)
     }
 }

@@ -3,7 +3,7 @@ package com.vowser.client.contribution
 import com.benasher44.uuid.uuid4
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 
 @Serializable
@@ -106,7 +106,7 @@ object ContributionDataValidator {
                 htmlAttributes = sanitizedAttributes
             )
         } catch (e: Exception) {
-            VowserLogger.warn("Failed to sanitize contribution step: ${e.message}", Tags.BROWSER_AUTOMATION)
+            Napier.w("Failed to sanitize contribution step: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             return null
         }
     }

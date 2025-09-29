@@ -1,7 +1,7 @@
 package com.vowser.client
 
 import com.vowser.client.media.MicrophoneRecorder
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 
 private object DesktopRecorderManager {
@@ -12,13 +12,13 @@ actual suspend fun startPlatformRecording(): Boolean {
     return try {
         val success = DesktopRecorderManager.recorder.startRecording()
         if (success) {
-            VowserLogger.info("Desktop recording started", Tags.MEDIA_RECORDING)
+            Napier.i("Desktop recording started", tag = Tags.MEDIA_RECORDING)
         } else {
-            VowserLogger.error("Failed to start desktop recording", Tags.MEDIA_RECORDING)
+            Napier.e("Failed to start desktop recording", tag = Tags.MEDIA_RECORDING)
         }
         success
     } catch (e: Exception) {
-        VowserLogger.error("Error starting desktop recording: ${e.message}", Tags.MEDIA_RECORDING, e)
+        Napier.e("Error starting desktop recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
         false
     }
 }
@@ -29,14 +29,14 @@ actual suspend fun stopPlatformRecording(): ByteArray? {
         if (audioFile != null && audioFile.exists()) {
             val audioBytes = audioFile.readBytes()
             audioFile.delete()
-            VowserLogger.info("Desktop recording stopped. Audio size: ${audioBytes.size} bytes", Tags.MEDIA_RECORDING)
+            Napier.i("Desktop recording stopped. Audio size: ${audioBytes.size} bytes", tag = Tags.MEDIA_RECORDING)
             audioBytes
         } else {
-            VowserLogger.warn("No audio file found after stopping recording", Tags.MEDIA_RECORDING)
+            Napier.w("No audio file found after stopping recording", tag = Tags.MEDIA_RECORDING)
             null
         }
     } catch (e: Exception) {
-        VowserLogger.error("Error stopping desktop recording: ${e.message}", Tags.MEDIA_RECORDING, e)
+        Napier.e("Error stopping desktop recording: ${e.message}", e, tag = Tags.MEDIA_RECORDING)
         null
     }
 }

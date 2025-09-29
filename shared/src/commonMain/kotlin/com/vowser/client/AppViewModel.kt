@@ -25,8 +25,9 @@ import com.vowser.client.websocket.dto.AllPathsResponse
 import com.vowser.client.websocket.dto.PathDetail
 import com.vowserclient.shared.browserautomation.BrowserAutomationBridge
 import com.vowser.client.exception.ExceptionHandler
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import com.vowser.client.logging.LogUtils
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -201,7 +202,7 @@ class AppViewModel(
                 addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
                 addStatusLog("음성으로 명령해보세요! (예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\")", StatusLogType.INFO)
             } catch (e: Exception) {
-                VowserLogger.error("ViewModel: Failed to connect WebSocket: ${e.message}", Tags.APP_VIEWMODEL, e)
+                Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
                 _connectionStatus.value = ConnectionStatus.Error
                 exceptionHandler.handleException(e, "WebSocket initial connection") {
                     connectWebSocket()
@@ -223,7 +224,7 @@ class AppViewModel(
     private suspend fun handleMockNavigationData() {
         try {
             _graphLoading.value = true
-            VowserLogger.info("Processing mock navigation data", Tags.APP_VIEWMODEL)
+            Napier.i("Processing mock navigation data", tag = Tags.APP_VIEWMODEL)
             
             // 새로운 날씨 검색 결과로 모의 AllPathsResponse 객체 생성
             val mockNavigationSteps = listOf(
@@ -285,12 +286,12 @@ class AppViewModel(
             
             // 그래프 UI 업데이트
             val visualizationData = GraphDataConverter.convertFromAllPaths(mockAllPaths)
-            VowserLogger.info("Mock graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", Tags.APP_VIEWMODEL)
+            Napier.i("Mock graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = Tags.APP_VIEWMODEL)
             _currentGraphData.value = visualizationData
             _graphLoading.value = false
             
             // 첫번째 경로 자동 실행 (playwright)
-            VowserLogger.info("Auto-executing mock navigation path: ${mockPathDetail.pathId}", Tags.APP_VIEWMODEL)
+            Napier.i("Auto-executing mock navigation path: ${mockPathDetail.pathId}", tag = Tags.APP_VIEWMODEL)
             try {
                 val navigationPath = NavigationPath(
                     pathId = mockPathDetail.pathId,
@@ -298,13 +299,13 @@ class AppViewModel(
                     description = "Mock test execution from UI"
                 )
                 BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                VowserLogger.info("Successfully started automation for mock path: ${mockPathDetail.pathId}", Tags.APP_VIEWMODEL)
+                Napier.i("Successfully started automation for mock path: ${mockPathDetail.pathId}", tag = Tags.APP_VIEWMODEL)
             } catch (e: Exception) {
-                VowserLogger.error("Failed to execute mock navigation path: ${e.message}", Tags.APP_VIEWMODEL, e)
+                Napier.e("Failed to execute mock navigation path: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
             }
             
         } catch (e: Exception) {
-            VowserLogger.error("Failed to process mock navigation data: ${e.message}", Tags.APP_VIEWMODEL, e)
+            Napier.e("Failed to process mock navigation data: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
             _graphLoading.value = false
         }
     }
@@ -335,11 +336,11 @@ class AppViewModel(
             _isRecording.value = true
             _recordingStatus.value = "Recording..."
             addStatusLog("음성 녹음 중", StatusLogType.INFO)
-            VowserLogger.info("Recording started successfully", Tags.MEDIA_RECORDING)
+            Napier.i("Recording started successfully", tag = Tags.MEDIA_RECORDING)
         } else {
             _recordingStatus.value = "Failed to start recording"
             addStatusLog("음성 녹음 시작 실패", StatusLogType.ERROR)
-            VowserLogger.error("Failed to start recording", Tags.MEDIA_RECORDING)
+            Napier.e("Failed to start recording", tag = Tags.MEDIA_RECORDING)
         }
     }
 
@@ -358,7 +359,7 @@ class AppViewModel(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"
                         addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
-                        VowserLogger.info("Audio transcription result: ${VowserLogger.filterSensitiveData(response.toString())}", Tags.MEDIA_SPEECH)
+                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response.toString())}", tag = Tags.MEDIA_SPEECH)
                     },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
@@ -398,25 +399,25 @@ class AppViewModel(
      * WebSocket 콜백 설정
      */
     private fun setupWebSocketCallbacks() {
-        VowserLogger.info("Setting up WebSocket callbacks", Tags.APP_VIEWMODEL)
+        Napier.i("Setting up WebSocket callbacks", tag = Tags.APP_VIEWMODEL)
         webSocketClient.onAllPathsReceived = { allPaths ->
             coroutineScope.launch {
-                VowserLogger.info("Received all paths for query: ${allPaths.query}", Tags.APP_VIEWMODEL)
+                Napier.i("Received all paths for query: ${allPaths.query}", tag = Tags.APP_VIEWMODEL)
                 addStatusLog("경로 분석 완료: ${allPaths.query}", StatusLogType.SUCCESS)
 
                 // 1. 그래프 UI 업데이트
                 // AllPathsResponse를 시각화 데이터로 변환 (GraphDataConverter에 새 함수 추가 필요)
                 val visualizationData = GraphDataConverter.convertFromAllPaths(allPaths)
                 addStatusLog("그래프 데이터 생성됨 (노드: ${visualizationData.nodes.size}개)", StatusLogType.INFO)
-                VowserLogger.info("Graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", Tags.UI_GRAPH)
+                Napier.i("Graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = Tags.UI_GRAPH)
                 _currentGraphData.value = visualizationData
                 _graphLoading.value = false
-                VowserLogger.debug("Graph data updated and loading set to false", Tags.UI_GRAPH)
+                Napier.d("Graph data updated and loading set to false", tag = Tags.UI_GRAPH)
 
                 // 첫번째 경로 자동 실행 (가중치가 가장 높음)
                 val firstPath = allPaths.paths.firstOrNull()
                 if (firstPath != null) {
-                    VowserLogger.info("Auto-executing the first path: ${firstPath.pathId}", Tags.BROWSER_AUTOMATION)
+                    Napier.i("Auto-executing the first path: ${firstPath.pathId}", tag = Tags.BROWSER_AUTOMATION)
                     addStatusLog("브라우저 자동화 시작", StatusLogType.INFO)
                     try {
                         val navigationPath = NavigationPath(
@@ -426,7 +427,7 @@ class AppViewModel(
                         )
                         BrowserAutomationBridge.executeNavigationPath(navigationPath)
                         addStatusLog("브라우저 제어 완료", StatusLogType.SUCCESS)
-                        VowserLogger.info("Successfully started automation for path: ${firstPath.pathId}", Tags.BROWSER_AUTOMATION)
+                        Napier.i("Successfully started automation for path: ${firstPath.pathId}", tag = Tags.BROWSER_AUTOMATION)
                     } catch (e: Exception) {
                         exceptionHandler.handleException(e, "Browser automation execution") {
                             val navigationPath = NavigationPath(
@@ -443,7 +444,7 @@ class AppViewModel(
 
         webSocketClient.onVoiceProcessingResultReceived = { voiceResult ->
             coroutineScope.launch {
-                VowserLogger.info("Received voice processing result: ${VowserLogger.logUserInput(voiceResult.transcript ?: "")}", Tags.MEDIA_SPEECH)
+                Napier.i("Received voice processing result: ${voiceResult.transcript ?: ""}", tag = Tags.MEDIA_SPEECH)
                 _lastVoiceResult.value = voiceResult
 
                 if (voiceResult.success) {
@@ -457,7 +458,7 @@ class AppViewModel(
                 }
             }
         }
-        VowserLogger.info("WebSocket callbacks setup completed", Tags.APP_VIEWMODEL)
+        Napier.i("WebSocket callbacks setup completed", tag = Tags.APP_VIEWMODEL)
     }
 
     /**
@@ -470,9 +471,9 @@ class AppViewModel(
                 webSocketClient.sendToolCall(CallToolRequest("refresh_graph", mapOf(
                     "sessionId" to sessionId
                 )))
-                VowserLogger.info("Graph refresh requested", Tags.UI_GRAPH)
+                Napier.i("Graph refresh requested", tag = Tags.UI_GRAPH)
             } catch (e: Exception) {
-                VowserLogger.error("Failed to request graph refresh: ${e.message}", Tags.UI_GRAPH, e)
+                Napier.e("Failed to request graph refresh: ${e.message}", e, tag = Tags.UI_GRAPH)
                 _graphLoading.value = false
             }
         }
@@ -512,7 +513,7 @@ class AppViewModel(
                     BrowserAutomationBridge.stopContributionRecording()
                     contributionModeService.resetSession()
                 } catch (cleanupError: Exception) {
-                    VowserLogger.warn("Cleanup error: ${cleanupError.message}", Tags.CONTRIBUTION_MODE)
+                    Napier.w("Cleanup error: ${cleanupError.message}", tag = Tags.CONTRIBUTION_MODE)
                 }
             }
         }

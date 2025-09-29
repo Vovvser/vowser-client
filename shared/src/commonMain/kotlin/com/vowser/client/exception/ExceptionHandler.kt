@@ -1,6 +1,6 @@
 package com.vowser.client.exception
 
-import com.vowser.client.logging.VowserLogger
+import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -65,17 +65,17 @@ class ExceptionHandler(
             while (attempt <= strategy.maxRetries && !success) {
                 if (attempt > 0) {
                     val delayMs = calculateDelayMs(attempt - 1, strategy)
-                    VowserLogger.info("Retrying ${exception.errorCode} after ${delayMs}ms (attempt $attempt/${strategy.maxRetries})", Tags.EXCEPTION_RECOVERY)
+                    Napier.i("Retrying ${exception.errorCode} after ${delayMs}ms (attempt $attempt/${strategy.maxRetries})", tag = Tags.EXCEPTION_RECOVERY)
                     delay(delayMs)
                 }
 
                 try {
                     onRecovery()
                     success = true
-                    VowserLogger.info("Auto recovery succeeded for ${exception.errorCode} after $attempt attempts", Tags.EXCEPTION_RECOVERY)
+                    Napier.i("Auto recovery succeeded for ${exception.errorCode} after $attempt attempts", tag = Tags.EXCEPTION_RECOVERY)
                 } catch (e: Exception) {
                     attempt++
-                    VowserLogger.warn("Auto recovery attempt $attempt failed for ${exception.errorCode}: ${e.message}", Tags.EXCEPTION_RECOVERY, e)
+                    Napier.w("Auto recovery attempt $attempt failed for ${exception.errorCode}: ${e.message}", e, tag = Tags.EXCEPTION_RECOVERY)
                 }
             }
 
@@ -199,22 +199,22 @@ class ExceptionHandler(
 
         when (exception) {
             is NetworkException -> {
-                VowserLogger.warn("Network Exception${contextInfo}: ${exception.message}", Tags.EXCEPTION_HANDLER, exception)
+                Napier.w("Network Exception${contextInfo}: ${exception.message}", exception, tag = Tags.EXCEPTION_HANDLER)
             }
             is BrowserException -> {
-                VowserLogger.error("Browser Exception${contextInfo}: ${exception.message}", Tags.EXCEPTION_HANDLER, exception)
+                Napier.e("Browser Exception${contextInfo}: ${exception.message}", exception, tag = Tags.EXCEPTION_HANDLER)
             }
             is ContributionException -> {
-                VowserLogger.warn("Contribution Exception${contextInfo}: ${exception.message}", Tags.EXCEPTION_HANDLER, exception)
+                Napier.w("Contribution Exception${contextInfo}: ${exception.message}", exception, tag = Tags.EXCEPTION_HANDLER)
             }
             is SystemException -> {
-                VowserLogger.error("System Exception${contextInfo}: ${exception.message}", Tags.EXCEPTION_HANDLER, exception)
+                Napier.e("System Exception${contextInfo}: ${exception.message}", exception, tag = Tags.EXCEPTION_HANDLER)
             }
         }
 
         // 개발 모드에서는 더 상세한 정보 로깅
         if (isDevelopmentMode) {
-            VowserLogger.debug("Exception details - ErrorCode: ${exception.errorCode}, Retryable: ${exception.isRetryable}", Tags.EXCEPTION_HANDLER)
+            Napier.d("Exception details - ErrorCode: ${exception.errorCode}, Retryable: ${exception.isRetryable}", tag = Tags.EXCEPTION_HANDLER)
         }
     }
 
