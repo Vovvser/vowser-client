@@ -7,8 +7,8 @@ import com.vowser.client.logging.Tags
 
 actual object BrowserAutomationBridge {
     actual suspend fun executeNavigationPath(path: NavigationPath) {
-        Napier.i("iOS: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) - Not implemented yet", tag = Tags.BROWSER_AUTOMATION)
         // TODO: iOS 브라우저 자동화 구현
+        Napier.i("iOS: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) - Not implemented yet", tag = Tags.BROWSER_AUTOMATION)
     }
 
     actual suspend fun startContributionRecording() {
