@@ -28,6 +28,9 @@ object ContributionConstants {
     
     // 타이핑 디바운싱 설정
     const val TYPING_DEBOUNCE_TIME_MS = 1500L
+
+    // 중복 제거 설정
+    const val DEDUPLICATION_WINDOW_MS = 2000L
     
     // 데이터 검증 제한
     const val MAX_URL_LENGTH = 2048

@@ -501,7 +501,7 @@ class AppViewModel(
                 delay(ContributionConstants.BROWSER_INIT_WAIT_MS) // 브라우저 초기화 대기
                 BrowserAutomationBridge.navigate("about:blank")
                 
-                addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
+                addStatusLog("🤝 기여 모드 시작됨", StatusLogType.SUCCESS)
                 
             } catch (e: Exception) {
                 exceptionHandler.handleException(e, "Contribution mode initialization") {
