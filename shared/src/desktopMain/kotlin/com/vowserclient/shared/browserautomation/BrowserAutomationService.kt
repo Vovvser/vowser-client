@@ -54,7 +54,20 @@ object BrowserAutomationService {
                     browser = playwright.chromium().launch(
                         BrowserType.LaunchOptions()
                             .setHeadless(false)
-                            .setChannel("chrome")
+                            .setArgs(listOf(
+                                "--no-first-run",
+                                "--no-default-browser-check",
+                                "--disable-background-timer-throttling",
+                                "--disable-backgrounding-occluded-windows",
+                                "--disable-renderer-backgrounding",
+                                "--disable-features=TranslateUI",
+                                "--disable-ipc-flooding-protection",
+                                "--disable-accessibility-api",
+                                "--disable-dev-shm-usage",
+                                "--no-sandbox",
+                                "--disable-web-security",
+                                "--disable-blink-features=AutomationControlled"
+                            ))
                     )
                 }
                 
