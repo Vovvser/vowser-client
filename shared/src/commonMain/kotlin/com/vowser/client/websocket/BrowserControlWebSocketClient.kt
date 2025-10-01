@@ -41,33 +41,36 @@ class BrowserControlWebSocketClient(
     private val exceptionHandler: ExceptionHandler
 ) {
 
+    companion object {
+        private val json = Json {
+            prettyPrint = true
+            isLenient = true
+            ignoreUnknownKeys = true
+            useAlternativeNames = false
+            serializersModule = SerializersModule {
+                polymorphic(WebSocketMessage::class) {
+                    subclass(WebSocketMessage.AllPathsWrapper::class)
+                    subclass(WebSocketMessage.BrowserCommandWrapper::class)
+                    subclass(WebSocketMessage.GraphUpdateWrapper::class)
+                    subclass(WebSocketMessage.VoiceProcessingResultWrapper::class)
+                    subclass(WebSocketMessage.ErrorWrapper::class)
+                    subclass(WebSocketMessage.SearchPathResultWrapper::class)
+                }
+                polymorphic(BrowserCommand::class) {
+                    subclass(BrowserCommand.Navigate::class)
+                    subclass(BrowserCommand.GoBack::class)
+                    subclass(BrowserCommand.GoForward::class)
+                }
+            }
+        }
+    }
+
     var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
     var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
     var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
 
     private var currentNavigationJob: Job? = null
-
-    private val json = Json {
-        prettyPrint = true
-        isLenient = true
-        ignoreUnknownKeys = true
-        useAlternativeNames = false
-        serializersModule = SerializersModule {
-            polymorphic(WebSocketMessage::class) {
-                subclass(WebSocketMessage.AllPathsWrapper::class)
-                subclass(WebSocketMessage.BrowserCommandWrapper::class)
-                subclass(WebSocketMessage.GraphUpdateWrapper::class)
-                subclass(WebSocketMessage.VoiceProcessingResultWrapper::class)
-                subclass(WebSocketMessage.ErrorWrapper::class)
-                subclass(WebSocketMessage.SearchPathResultWrapper::class)
-            }
-            polymorphic(BrowserCommand::class) {
-                subclass(BrowserCommand.Navigate::class)
-                subclass(BrowserCommand.GoBack::class)
-                subclass(BrowserCommand.GoForward::class)
-            }
-        }
-    }
+    private var messageReceivingJob: Job? = null
 
     private val client = HttpClient {
         install(WebSockets)
@@ -159,7 +162,7 @@ class BrowserControlWebSocketClient(
      */
     private fun startReceivingMessages() {
         Napier.d("=== DEBUG: startReceivingMessages() 호출됨 ===", tag = Tags.NETWORK_WEBSOCKET)
-        CoroutineScope(Dispatchers.IO).launch {
+        messageReceivingJob = CoroutineScope(Dispatchers.IO).launch {
             receiveMessages().collect { messageString ->
                 Napier.d("Received raw message: ${messageString.take(100)}...", tag = Tags.NETWORK_WEBSOCKET)
                 try {
@@ -287,10 +290,30 @@ class BrowserControlWebSocketClient(
     }
 
     suspend fun close() {
-        currentNavigationJob?.cancel()
-        session?.close(CloseReason(CloseReason.Codes.NORMAL, "Client initiated disconnect"))
-        session = null
-        client.close()
-        Napier.i("Connection closed.", tag = Tags.NETWORK_WEBSOCKET)
+        try {
+            Napier.i("Starting connection cleanup...", tag = Tags.NETWORK_WEBSOCKET)
+
+            currentNavigationJob?.cancel()
+            messageReceivingJob?.cancel()
+            delay(100)
+            session?.let { activeSession ->
+                if (activeSession.isActive) {
+                    activeSession.close(CloseReason(CloseReason.Codes.GOING_AWAY, "Client disconnect"))
+                    Napier.d("WebSocket session closed with GOING_AWAY reason", tag = Tags.NETWORK_WEBSOCKET)
+                }
+            }
+            session = null
+            isConnecting = false
+            onAllPathsReceived = null
+            onGraphUpdateReceived = null
+            onVoiceProcessingResultReceived = null
+            client.close()
+            Napier.i("Connection closed and all resources cleaned up successfully.", tag = Tags.NETWORK_WEBSOCKET)
+        } catch (e: Exception) {
+            Napier.e("Error during resource cleanup: ${e.message}", e, tag = Tags.NETWORK_WEBSOCKET)
+            session = null
+            isConnecting = false
+            throw e
+        }
     }
 }
