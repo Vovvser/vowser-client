@@ -94,7 +94,14 @@ class AppViewModel(
     val contributionTask = contributionModeService.currentTask
 
     private val speechRepository = SpeechRepository(HttpClient(CIO))
-    private val authRepository = AuthRepository()
+    private val authRepository = AuthRepository().apply {
+        // 토큰 갱신 실패 시 로그아웃 처리
+        setTokenRefreshFailedCallback {
+            coroutineScope.launch {
+                handleTokenRefreshFailed()
+            }
+        }
+    }
     val sessionId = uuid4().toString()
 
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
@@ -598,6 +605,15 @@ class AppViewModel(
      */
     fun handleOAuthCallback() {
         checkAuthStatus()
+    }
+
+    /**
+     * RefreshToken 만료 시 토큰 갱신 실패 처리
+     */
+    private fun handleTokenRefreshFailed() {
+        _authState.value = AuthState.NotAuthenticated
+        addStatusLog("세션이 만료되었습니다. 다시 로그인해주세요.", StatusLogType.WARNING)
+        Napier.w("Token refresh failed - user logged out")
     }
 }
 
