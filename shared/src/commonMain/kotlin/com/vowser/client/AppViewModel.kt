@@ -5,6 +5,8 @@ import com.vowser.client.websocket.ConnectionStatus
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.data.SpeechRepository
+import com.vowser.client.data.AuthRepository
+import com.vowser.client.model.AuthState
 import com.vowser.client.contribution.ContributionModeService
 import com.vowser.client.contribution.ContributionMessage
 import com.vowser.client.contribution.ContributionConstants
@@ -92,10 +94,15 @@ class AppViewModel(
     val contributionTask = contributionModeService.currentTask
 
     private val speechRepository = SpeechRepository(HttpClient(CIO))
+    private val authRepository = AuthRepository()
     val sessionId = uuid4().toString()
 
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
     val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
+
+    // 로그인 상태 관리
+    private val _authState = MutableStateFlow<AuthState>(AuthState.NotAuthenticated)
+    val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     /**
      * STT 모드 토글
@@ -131,6 +138,7 @@ class AppViewModel(
         connectWebSocket()
         setupContributionMode()
         addStatusLog("시스템 시작", StatusLogType.INFO)
+        checkAuthStatus()
     }
 
     /**
@@ -359,7 +367,7 @@ class AppViewModel(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"
                         addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
-                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response.toString())}", tag = Tags.MEDIA_SPEECH)
+                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response)}", tag = Tags.MEDIA_SPEECH)
                     },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
@@ -536,7 +544,63 @@ class AppViewModel(
             }
         }
     }
+
+    /**
+     * 로그인 상태 확인
+     */
+    fun checkAuthStatus() {
+        coroutineScope.launch {
+            _authState.value = AuthState.Loading
+            val result = authRepository.getCurrentUser()
+            result.fold(
+                onSuccess = { user ->
+                    _authState.value = AuthState.Authenticated(user)
+                    addStatusLog("${user.name}님 로그인되었습니다.", StatusLogType.SUCCESS)
+                },
+                onFailure = { error ->
+                    _authState.value = AuthState.NotAuthenticated
+                    Napier.d("Not authenticated: ${error.message}")
+                }
+            )
+        }
+    }
+
+    /**
+     * 로그인
+     */
+    fun login() {
+        val oauthUrl = authRepository.getOAuthLoginUrl()
+        openUrlInBrowser(oauthUrl)
+    }
+
+    /**
+     * 로그아웃
+     */
+    fun logout() {
+        coroutineScope.launch {
+            _authState.value = AuthState.Loading
+            val result = authRepository.logout()
+            result.fold(
+                onSuccess = {
+                    _authState.value = AuthState.NotAuthenticated
+                    addStatusLog("로그아웃되었습니다.", StatusLogType.SUCCESS)
+                },
+                onFailure = { error ->
+                    _authState.value = AuthState.Error(error.message ?: "Logout failed")
+                    addStatusLog("로그아웃에 실패했습니다. : ${error.message}", StatusLogType.ERROR)
+                }
+            )
+        }
+    }
+
+    /**
+     * OAuth 성공 후 콜백 처리
+     */
+    fun handleOAuthCallback() {
+        checkAuthStatus()
+    }
 }
 
 expect suspend fun startPlatformRecording(): Boolean
 expect suspend fun stopPlatformRecording(): ByteArray?
+expect fun openUrlInBrowser(url: String)
