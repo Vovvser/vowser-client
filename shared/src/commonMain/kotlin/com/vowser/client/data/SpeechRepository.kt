@@ -12,7 +12,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
 class SpeechRepository(private val httpClient: HttpClient? = null) {
-    
+
     private val client = httpClient ?: HttpClient {
         install(ContentNegotiation) {
             json(Json {
@@ -71,7 +71,7 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
     suspend fun uploadAudioForProcessing(audioFileBytes: ByteArray, sessionId: String): Result<String> {
         return try {
             val backendUrl = "http://localhost:8080/api/v1/speech/process"
-            
+
             Napier.i("Uploading audio for processing. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", tag = Tags.NETWORK)
 
             val response: HttpResponse = client.post(backendUrl) {
