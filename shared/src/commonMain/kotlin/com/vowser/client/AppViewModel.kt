@@ -8,9 +8,6 @@ import com.vowser.client.data.SpeechRepository
 import com.vowser.client.contribution.ContributionModeService
 import com.vowser.client.contribution.ContributionMessage
 import com.vowser.client.contribution.ContributionConstants
-import com.vowser.client.api.PathApiClient
-import com.vowser.client.api.PathExecutor
-import com.vowser.client.api.dto.MatchedPathDetail
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import kotlinx.coroutines.CoroutineScope
@@ -21,13 +18,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.benasher44.uuid.uuid4
+import com.vowser.client.api.PathApiClient
+import com.vowser.client.api.PathExecutor
+import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.visualization.GraphVisualizationData
-import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.data.AuthRepository
 import com.vowser.client.exception.ExceptionHandler
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import com.vowser.client.logging.LogUtils
+import com.vowser.client.model.AuthState
+import com.vowser.client.websocket.dto.toMatchedPathDetail
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -92,6 +94,15 @@ class AppViewModel(
     val contributionTask = contributionModeService.currentTask
 
     private val speechRepository = SpeechRepository(HttpClient(CIO))
+    private val authRepository = AuthRepository().apply {
+        // 토큰 갱신 실패 시 로그아웃 처리
+        setTokenRefreshFailedCallback {
+            coroutineScope.launch {
+                handleTokenRefreshFailed()
+            }
+        }
+    }
+
     val sessionId = uuid4().toString()
 
     // REST API 클라이언트 (경로 저장/검색)
@@ -101,6 +112,10 @@ class AppViewModel(
 
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
     val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
+
+    // 로그인 상태 관리
+    private val _authState = MutableStateFlow<AuthState>(AuthState.NotAuthenticated)
+    val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     // 경로 검색 결과
     private val _searchedPaths = MutableStateFlow<List<MatchedPathDetail>>(emptyList())
@@ -147,6 +162,7 @@ class AppViewModel(
         connectWebSocket()
         setupContributionMode()
         addStatusLog("시스템 시작", StatusLogType.INFO)
+        checkAuthStatus()
     }
 
     /**
@@ -285,8 +301,7 @@ class AppViewModel(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"
                         addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
-                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response.toString())}", tag = Tags.MEDIA_SPEECH)
-                    },
+                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response)}", tag = Tags.MEDIA_SPEECH)                    },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
                         exceptionHandler.handleException(
@@ -515,6 +530,7 @@ class AppViewModel(
         }
     }
 
+
     // ===== 경로 검색 및 실행 기능 =====
 
     /**
@@ -672,7 +688,73 @@ class AppViewModel(
 
         return GraphVisualizationData(nodes, edges)
     }
+
+
+    /**
+     * 로그인 상태 확인
+     */
+    fun checkAuthStatus() {
+        coroutineScope.launch {
+            _authState.value = AuthState.Loading
+            val result = authRepository.getCurrentUser()
+            result.fold(
+                onSuccess = { user ->
+                    _authState.value = AuthState.Authenticated(user)
+                    addStatusLog("${user.name}님 로그인되었습니다.", StatusLogType.SUCCESS)
+                },
+                onFailure = { error ->
+                    _authState.value = AuthState.NotAuthenticated
+                    Napier.d("Not authenticated: ${error.message}")
+                }
+            )
+        }
+    }
+
+    /**
+     * 로그인
+     */
+    fun login() {
+        val oauthUrl = authRepository.getOAuthLoginUrl()
+        openUrlInBrowser(oauthUrl)
+    }
+
+    /**
+     * 로그아웃
+     */
+    fun logout() {
+        coroutineScope.launch {
+            _authState.value = AuthState.Loading
+            val result = authRepository.logout()
+            result.fold(
+                onSuccess = {
+                    _authState.value = AuthState.NotAuthenticated
+                    addStatusLog("로그아웃되었습니다.", StatusLogType.SUCCESS)
+                },
+                onFailure = { error ->
+                    _authState.value = AuthState.Error(error.message ?: "Logout failed")
+                    addStatusLog("로그아웃에 실패했습니다. : ${error.message}", StatusLogType.ERROR)
+                }
+            )
+        }
+    }
+
+    /**
+     * OAuth 성공 후 콜백 처리
+     */
+    fun handleOAuthCallback() {
+        checkAuthStatus()
+    }
+
+    /**
+     * RefreshToken 만료 시 토큰 갱신 실패 처리
+     */
+    private fun handleTokenRefreshFailed() {
+        _authState.value = AuthState.NotAuthenticated
+        addStatusLog("세션이 만료되었습니다. 다시 로그인해주세요.", StatusLogType.WARNING)
+        Napier.w("Token refresh failed - user logged out")
+    }
 }
 
 expect suspend fun startPlatformRecording(): Boolean
 expect suspend fun stopPlatformRecording(): ByteArray?
+expect fun openUrlInBrowser(url: String)

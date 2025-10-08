@@ -8,17 +8,24 @@ import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.contribution.ContributionConstants
 
 @Composable
-fun App() {
+fun App(
+    onOAuthCallbackReceived: ((AppViewModel) -> Unit)? = null
+) {
     // 앱 전역 상태 관리
     var currentScreen by remember { mutableStateOf(AppScreen.GRAPH) }
     var isContributionMode by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
     var isDeveloperMode by remember { mutableStateOf(false) }
-    
+
     // 의존성 초기화
     val coroutineScope = rememberCoroutineScope()
     val viewModel = remember { AppViewModel(coroutineScope) }
+
+    // OAuth 콜백 설정
+    LaunchedEffect(Unit) {
+        onOAuthCallbackReceived?.invoke(viewModel)
+    }
     
     // WebSocket 상태 구독
     val connectionStatus by viewModel.connectionStatus.collectAsState()
@@ -30,6 +37,9 @@ fun App() {
 
     // STT 모드 상태 구독
     val selectedSttModes by viewModel.selectedSttModes.collectAsState()
+
+    // 로그인 상태 구독
+    val authState by viewModel.authState.collectAsState()
     
     // 그래프 데이터 구독
     val currentGraphData by viewModel.currentGraphData.collectAsState()
@@ -92,8 +102,11 @@ fun App() {
             }
             AppScreen.SETTINGS -> {
                 SettingsScreen(
+                    authState = authState,
                     isDarkTheme = isDarkTheme,
                     isDeveloperMode = isDeveloperMode,
+                    onLogin = { viewModel.login() },
+                    onLogout = { viewModel.logout() },
                     onThemeToggle = { isDarkTheme = it },
                     onDeveloperModeToggle = { isDeveloperMode = it },
                     onBackPress = { currentScreen = AppScreen.GRAPH }

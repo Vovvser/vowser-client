@@ -54,4 +54,7 @@ object Tags {
 
     // App related
     const val APP_VIEWMODEL = "Vowser.App.ViewModel"
+
+    // Auth related
+    const val AUTH = "Vowser.Auth"
 }
