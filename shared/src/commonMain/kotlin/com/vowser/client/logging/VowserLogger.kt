@@ -25,6 +25,7 @@ object Tags {
     // Network related
     const val NETWORK = "Vowser.Network"
     const val NETWORK_WEBSOCKET = "Vowser.Network.WebSocket"
+    const val API = "Vowser.Network.API"
 
     // Browser related
     const val BROWSER = "Vowser.Browser"
