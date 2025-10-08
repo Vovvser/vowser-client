@@ -13,3 +13,7 @@ actual suspend fun stopPlatformRecording(): ByteArray? {
     Napier.w("Audio recording not implemented for iOS platform", tag = Tags.MEDIA_RECORDING)
     return null
 }
+
+actual fun openUrlInBrowser(url: String) {
+    Napier.w("openUrlInBrowser not implemented for iOS platform", tag = Tags.AUTH)
+}
