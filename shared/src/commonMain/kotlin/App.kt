@@ -102,11 +102,11 @@ fun App(
             }
             AppScreen.SETTINGS -> {
                 SettingsScreen(
-                    authState = authState,
+//                    authState = authState,
                     isDarkTheme = isDarkTheme,
                     isDeveloperMode = isDeveloperMode,
-                    onLogin = { viewModel.login() },
-                    onLogout = { viewModel.logout() },
+//                    onLogin = { viewModel.login() },
+//                    onLogout = { viewModel.logout() },
                     onThemeToggle = { isDarkTheme = it },
                     onDeveloperModeToggle = { isDeveloperMode = it },
                     onBackPress = { currentScreen = AppScreen.GRAPH }
