@@ -351,7 +351,9 @@ class ContributionModeService(
     fun isSessionActive(): Boolean = currentSession?.isActive == true
     
     fun getCurrentSessionId(): String? = currentSession?.sessionId
-    
+
+    fun getCurrentSession(): ContributionSession? = currentSession
+
     fun resetSession() {
         timeoutJob?.cancel()
         timeoutJob = null

@@ -1,8 +1,6 @@
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.*
 import com.vowser.client.AppViewModel
-import com.vowser.client.data.RealNaverDataGenerator
-import com.vowser.client.navigation.NavigationProcessor
 import com.vowser.client.ui.screens.AppScreen
 import com.vowser.client.ui.screens.GraphScreen
 import com.vowser.client.ui.screens.SettingsScreen
@@ -27,12 +25,6 @@ fun App(
     // OAuth 콜백 설정
     LaunchedEffect(Unit) {
         onOAuthCallbackReceived?.invoke(viewModel)
-    }
-    
-    // 네비게이션 프로세서 초기화 - 실제 네이버 데이터 사용
-    val expandedGraph = remember { RealNaverDataGenerator.createExpandedNaverData() }
-    val navigationProcessor = remember { 
-        NavigationProcessor(expandedGraph) 
     }
     
     // WebSocket 상태 구독
@@ -76,7 +68,6 @@ fun App(
             AppScreen.GRAPH -> {
                 GraphScreen(
                     appViewModel = viewModel,
-                    navigationProcessor = navigationProcessor,
                     isContributionMode = isContributionMode,
                     isLoading = isLoading || graphLoading,
                     connectionStatus = connectionStatus.toString(),
@@ -111,11 +102,11 @@ fun App(
             }
             AppScreen.SETTINGS -> {
                 SettingsScreen(
-                    authState = authState,
+//                    authState = authState,
                     isDarkTheme = isDarkTheme,
                     isDeveloperMode = isDeveloperMode,
-                    onLogin = { viewModel.login() },
-                    onLogout = { viewModel.logout() },
+//                    onLogin = { viewModel.login() },
+//                    onLogout = { viewModel.logout() },
                     onThemeToggle = { isDarkTheme = it },
                     onDeveloperModeToggle = { isDeveloperMode = it },
                     onBackPress = { currentScreen = AppScreen.GRAPH }

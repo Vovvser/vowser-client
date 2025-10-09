@@ -8,27 +8,31 @@ data class ErrorData(val message: String)
 
 @Serializable
 data class PathStep(
-    val title: String,
-    val action: String,
-    val url: String,
-    val selector: String = ""
+    @SerialName("order") val order: Int,
+    @SerialName("url") val url: String,
+    @SerialName("action") val action: String,
+    @SerialName("selectors") val selectors: List<String>,
+    @SerialName("description") val description: String,
+    @SerialName("isInput") val isInput: Boolean = false,
+    @SerialName("inputType") val inputType: String? = null,
+    @SerialName("inputPlaceholder") val inputPlaceholder: String? = null,
+    @SerialName("shouldWait") val shouldWait: Boolean = false,
+    @SerialName("waitMessage") val waitMessage: String? = null,
+    @SerialName("textLabels") val textLabels: List<String> = emptyList()
 )
 
 @Serializable
 data class MatchedPath(
-    val pathId: String,
-    val description: String,
-    val score: Double,
-    val startCommand: String,
-    val startUrl: String,
-    val total_weight: Int,
-    val steps: List<PathStep>
+    @SerialName("domain") val domain: String,
+    @SerialName("taskIntent") val taskIntent: String,
+    @SerialName("relevance_score") val relevanceScore: Double,
+    @SerialName("weight") val weight: Int,
+    @SerialName("steps") val steps: List<PathStep>
 )
 
 @Serializable
 data class PerformanceData(
-    val query_time: Long,
-    val search_time: Long
+    @SerialName("search_time") val searchTime: Long
 )
 
 @Serializable

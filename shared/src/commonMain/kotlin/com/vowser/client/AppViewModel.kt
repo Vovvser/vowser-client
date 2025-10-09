@@ -5,8 +5,6 @@ import com.vowser.client.websocket.ConnectionStatus
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.data.SpeechRepository
-import com.vowser.client.data.AuthRepository
-import com.vowser.client.model.AuthState
 import com.vowser.client.contribution.ContributionModeService
 import com.vowser.client.contribution.ContributionMessage
 import com.vowser.client.contribution.ContributionConstants
@@ -20,16 +18,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.benasher44.uuid.uuid4
-import com.vowser.client.data.GraphDataConverter
+import com.vowser.client.api.PathApiClient
+import com.vowser.client.api.PathExecutor
+import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.visualization.GraphVisualizationData
-import com.vowser.client.websocket.dto.NavigationPath
-import com.vowser.client.websocket.dto.AllPathsResponse
-import com.vowser.client.websocket.dto.PathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.data.AuthRepository
 import com.vowser.client.exception.ExceptionHandler
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import com.vowser.client.logging.LogUtils
+import com.vowser.client.model.AuthState
+import com.vowser.client.websocket.dto.toMatchedPathDetail
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -102,7 +102,13 @@ class AppViewModel(
             }
         }
     }
+
     val sessionId = uuid4().toString()
+
+    // REST API 클라이언트 (경로 저장/검색)
+    private val backendUrl = "http://localhost:8080"
+    private val pathApiClient = PathApiClient(HttpClient(CIO), backendUrl)
+    private val pathExecutor = PathExecutor()
 
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
     val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
@@ -110,6 +116,17 @@ class AppViewModel(
     // 로그인 상태 관리
     private val _authState = MutableStateFlow<AuthState>(AuthState.NotAuthenticated)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    // 경로 검색 결과
+    private val _searchedPaths = MutableStateFlow<List<MatchedPathDetail>>(emptyList())
+    val searchedPaths: StateFlow<List<MatchedPathDetail>> = _searchedPaths.asStateFlow()
+
+    // 경로 실행 상태
+    private val _isExecutingPath = MutableStateFlow(false)
+    val isExecutingPath: StateFlow<Boolean> = _isExecutingPath.asStateFlow()
+
+    private val _executionProgress = MutableStateFlow("")
+    val executionProgress: StateFlow<String> = _executionProgress.asStateFlow()
 
     /**
      * STT 모드 토글
@@ -228,100 +245,10 @@ class AppViewModel(
 
     fun sendToolCall(toolName: String, args: Map<String, String>) {
         coroutineScope.launch {
-            if (toolName == "mock_navigation_data") {
-                handleMockNavigationData()
-            } else {
-                webSocketClient.sendToolCall(CallToolRequest(toolName, args))
-            }
-        }
-    }
-    
-    private suspend fun handleMockNavigationData() {
-        try {
-            _graphLoading.value = true
-            Napier.i("Processing mock navigation data", tag = Tags.APP_VIEWMODEL)
-            
-            // 새로운 날씨 검색 결과로 모의 AllPathsResponse 객체 생성
-            val mockNavigationSteps = listOf(
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://naver.com",
-                    title = "naver.com 메인",
-                    action = "navigate",
-                    selector = ""
-                ),
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://www.naver.com",
-                    title = "날씨",
-                    action = "click",
-                    selector = "a[href*='weather.naver.com']"
-                ),
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://weather.naver.com",
-                    title = "지역선택",
-                    action = "click",
-                    selector = ".region_select .btn_region"
-                ),
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://weather.naver.com/region/list",
-                    title = "부산",
-                    action = "click",
-                    selector = ".region_list .region_item[data-region='busan'] a"
-                ),
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://weather.naver.com/today/09440111",
-                    title = "미세먼지",
-                    action = "click",
-                    selector = ".content_tabmenu .tab_item[data-tab='air'] a"
-                ),
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://weather.naver.com/air/09440111",
-                    title = "주간",
-                    action = "click",
-                    selector = ".air_chart_area .btn_chart_period[data-period='week']"
-                ),
-                com.vowser.client.websocket.dto.NavigationStep(
-                    url = "https://weather.naver.com/air/09440111?period=week",
-                    title = "지역비교",
-                    action = "click",
-                    selector = ".compare_area .btn_compare"
-                )
-            )
-            
-            val mockPathDetail = PathDetail(
-                pathId = "09e2a975413c0e18a7cd9d0f57b15dea",
-                score = 0.489,
-                total_weight = 73,
-                steps = mockNavigationSteps
-            )
-            
-            val mockAllPaths = AllPathsResponse(
-                query = "우리 지역 날씨 알고 싶어",
-                paths = listOf(mockPathDetail)
-            )
-            
-            // 그래프 UI 업데이트
-            val visualizationData = GraphDataConverter.convertFromAllPaths(mockAllPaths)
-            Napier.i("Mock graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = Tags.APP_VIEWMODEL)
-            _currentGraphData.value = visualizationData
-            _graphLoading.value = false
-            
-            // 첫번째 경로 자동 실행 (playwright)
-            Napier.i("Auto-executing mock navigation path: ${mockPathDetail.pathId}", tag = Tags.APP_VIEWMODEL)
-            try {
-                val navigationPath = NavigationPath(
-                    pathId = mockPathDetail.pathId,
-                    steps = mockPathDetail.steps,
-                    description = "Mock test execution from UI"
-                )
-                BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                Napier.i("Successfully started automation for mock path: ${mockPathDetail.pathId}", tag = Tags.APP_VIEWMODEL)
-            } catch (e: Exception) {
-                Napier.e("Failed to execute mock navigation path: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
-            }
-            
-        } catch (e: Exception) {
-            Napier.e("Failed to process mock navigation data: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
-            _graphLoading.value = false
+            /**
+             * ToDO - 새로 바뀐 구조로 추가 예정
+             */
+            webSocketClient.sendToolCall(CallToolRequest(toolName, args))
         }
     }
 
@@ -374,8 +301,7 @@ class AppViewModel(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"
                         addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
-                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response)}", tag = Tags.MEDIA_SPEECH)
-                    },
+                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response)}", tag = Tags.MEDIA_SPEECH)                    },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
                         exceptionHandler.handleException(
@@ -415,44 +341,24 @@ class AppViewModel(
      */
     private fun setupWebSocketCallbacks() {
         Napier.i("Setting up WebSocket callbacks", tag = Tags.APP_VIEWMODEL)
-        webSocketClient.onAllPathsReceived = { allPaths ->
-            coroutineScope.launch {
-                Napier.i("Received all paths for query: ${allPaths.query}", tag = Tags.APP_VIEWMODEL)
-                addStatusLog("경로 분석 완료: ${allPaths.query}", StatusLogType.SUCCESS)
 
-                // 1. 그래프 UI 업데이트
-                // AllPathsResponse를 시각화 데이터로 변환 (GraphDataConverter에 새 함수 추가 필요)
-                val visualizationData = GraphDataConverter.convertFromAllPaths(allPaths)
-                addStatusLog("그래프 데이터 생성됨 (노드: ${visualizationData.nodes.size}개)", StatusLogType.INFO)
-                Napier.i("Graph visualization data created - Nodes: ${visualizationData.nodes.size}, Edges: ${visualizationData.edges.size}", tag = Tags.UI_GRAPH)
+        // 검색 결과 콜백
+        webSocketClient.onSearchResultReceived = { matchedPaths, query ->
+            coroutineScope.launch {
+                addStatusLog("✅ ${matchedPaths.size}개 경로 검색됨: $query", StatusLogType.SUCCESS)
+                Napier.i("Received ${matchedPaths.size} matched paths for query: $query", tag = Tags.APP_VIEWMODEL)
+
+                // 그래프 시각화
+                val pathDetails = matchedPaths.map { it.toMatchedPathDetail() }
+                val visualizationData = convertToGraph(pathDetails)
                 _currentGraphData.value = visualizationData
                 _graphLoading.value = false
-                Napier.d("Graph data updated and loading set to false", tag = Tags.UI_GRAPH)
 
-                // 첫번째 경로 자동 실행 (가중치가 가장 높음)
-                val firstPath = allPaths.paths.firstOrNull()
+                // 첫 번째 경로의 전체 스텝 실행
+                val firstPath = matchedPaths.firstOrNull()
                 if (firstPath != null) {
-                    Napier.i("Auto-executing the first path: ${firstPath.pathId}", tag = Tags.BROWSER_AUTOMATION)
-                    addStatusLog("브라우저 자동화 시작", StatusLogType.INFO)
-                    try {
-                        val navigationPath = NavigationPath(
-                            pathId = firstPath.pathId,
-                            steps = firstPath.steps,
-                            description = "Auto-executed path from voice command"
-                        )
-                        BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                        addStatusLog("브라우저 제어 완료", StatusLogType.SUCCESS)
-                        Napier.i("Successfully started automation for path: ${firstPath.pathId}", tag = Tags.BROWSER_AUTOMATION)
-                    } catch (e: Exception) {
-                        exceptionHandler.handleException(e, "Browser automation execution") {
-                            val navigationPath = NavigationPath(
-                                pathId = firstPath.pathId,
-                                steps = firstPath.steps,
-                                description = "Auto-executed path from voice command"
-                            )
-                            BrowserAutomationBridge.executeNavigationPath(navigationPath)
-                        }
-                    }
+                    addStatusLog("🚀 경로 실행: ${firstPath.taskIntent} (${firstPath.steps.size} 스텝)", StatusLogType.INFO)
+                    executeFullPath(firstPath)
                 }
             }
         }
@@ -465,8 +371,12 @@ class AppViewModel(
                 if (voiceResult.success) {
                     _recordingStatus.value = "Voice processed: ${voiceResult.transcript}"
                     addStatusLog("음성 인식됨: ${voiceResult.transcript}", StatusLogType.SUCCESS)
-                    _graphLoading.value = true
-                    addStatusLog("경로 분석 중...", StatusLogType.INFO)
+
+                    // 새로운 REST API로 경로 검색 및 실행
+                    val transcript = voiceResult.transcript
+                    if (!transcript.isNullOrBlank()) {
+                        handleVoiceCommand(transcript)
+                    }
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
                     addStatusLog("음성 인식 실패: ${voiceResult.error?.message ?: "Unknown error"}", StatusLogType.ERROR)
@@ -535,10 +445,78 @@ class AppViewModel(
     }
 
     fun stopContribution() {
-        val stepCount = contributionModeService.currentStepCount.value
-        BrowserAutomationBridge.stopContributionRecording()
-        contributionModeService.endSession()
-        addStatusLog("🏁 기여 모드 완료 - 총 ${stepCount}개 스텝 기록됨", StatusLogType.SUCCESS)
+        coroutineScope.launch {
+            try {
+                val stepCount = contributionModeService.currentStepCount.value
+                val task = contributionModeService.currentTask.value
+                val sessionId = contributionModeService.getCurrentSessionId()
+
+                // 브라우저 녹화 중지
+                BrowserAutomationBridge.stopContributionRecording()
+
+                // 세션 종료 (WebSocket으로 전송)
+                contributionModeService.endSession()
+
+                addStatusLog("🏁 기여 모드 완료 - 총 ${stepCount}개 스텝 기록됨", StatusLogType.SUCCESS)
+
+                // 추가로 REST API를 통해 저장 (새로운 방식)
+                if (sessionId != null && task.isNotBlank() && stepCount > 0) {
+                    addStatusLog("경로 데이터 저장 중...", StatusLogType.INFO)
+                    saveContributionPath(sessionId, task)
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to stop contribution: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
+                addStatusLog("기여 모드 종료 실패: ${e.message}", StatusLogType.ERROR)
+            }
+        }
+    }
+
+    /**
+     * 기여 경로를 REST API를 통해 저장
+     */
+    private suspend fun saveContributionPath(sessionId: String, taskIntent: String) {
+        try {
+            // 현재 세션의 스텝들을 가져옴
+            val steps = contributionModeService.getCurrentSession()?.steps ?: emptyList()
+
+            if (steps.isEmpty()) {
+                Napier.w("No steps to save for session: $sessionId", tag = Tags.CONTRIBUTION_MODE)
+                return
+            }
+
+            // 도메인 추출 (첫 번째 스텝의 URL에서)
+            val domain = steps.firstOrNull()?.url?.let { url ->
+                try {
+                    val host = url.substringAfter("://").substringBefore("/")
+                    host.replace("www.", "")
+                } catch (e: Exception) {
+                    "unknown.com"
+                }
+            } ?: "unknown.com"
+
+            // REST API를 통해 저장
+            val result = pathApiClient.savePath(
+                sessionId = sessionId,
+                taskIntent = taskIntent,
+                domain = domain,
+                steps = steps
+            )
+
+            result.fold(
+                onSuccess = { response ->
+                    val savedSteps = response.data.result.steps_saved
+                    addStatusLog("경로 저장 완료: $taskIntent ($savedSteps 단계)", StatusLogType.SUCCESS)
+                    Napier.i("Path saved via REST API: $savedSteps steps for task '$taskIntent'", tag = Tags.CONTRIBUTION_MODE)
+                },
+                onFailure = { error ->
+                    addStatusLog("경로 저장 실패: ${error.message}", StatusLogType.WARNING)
+                    Napier.e("Failed to save path via REST API: ${error.message}", error, tag = Tags.CONTRIBUTION_MODE)
+                }
+            )
+        } catch (e: Exception) {
+            Napier.e("Error in saveContributionPath: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
+            addStatusLog("경로 저장 오류: ${e.message}", StatusLogType.WARNING)
+        }
     }
 
     private suspend fun sendContributionMessage(message: ContributionMessage) {
@@ -551,6 +529,166 @@ class AppViewModel(
             }
         }
     }
+
+
+    // ===== 경로 검색 및 실행 기능 =====
+
+    /**
+     * 음성 명령 처리 (REST API 기반)
+     */
+    private suspend fun handleVoiceCommand(transcript: String) {
+        try {
+            _graphLoading.value = true
+            addStatusLog("경로 검색 중: $transcript", StatusLogType.INFO)
+
+            // REST API로 경로 검색
+            val result = pathApiClient.searchPaths(transcript, limit = 5)
+
+            result.fold(
+                onSuccess = { response ->
+                    val paths = response.data.matched_paths
+                    _searchedPaths.value = paths
+
+                    if (paths.isEmpty()) {
+                        addStatusLog("검색 결과 없음: $transcript", StatusLogType.WARNING)
+                        _graphLoading.value = false
+                        return
+                    }
+
+                    addStatusLog("${paths.size}개 경로 검색됨 (${response.data.performance.search_time}ms)", StatusLogType.SUCCESS)
+                    Napier.i("Found ${paths.size} paths for query: $transcript", tag = Tags.APP_VIEWMODEL)
+
+                    // 그래프 시각화
+                    val visualizationData = convertToGraph(paths)
+                    _currentGraphData.value = visualizationData
+                    _graphLoading.value = false
+
+                    // 첫 번째 경로 자동 실행
+                    val firstPath = paths.firstOrNull()
+                    if (firstPath != null) {
+                        addStatusLog("최적 경로 실행 중: ${firstPath.task_intent} (관련도: ${(firstPath.relevance_score * 100).toInt()}%)", StatusLogType.INFO)
+
+                        executePathFromVoice(firstPath)
+                    }
+                },
+                onFailure = { error ->
+                    _searchedPaths.value = emptyList()
+                    _graphLoading.value = false
+                    addStatusLog("경로 검색 실패: ${error.message}", StatusLogType.ERROR)
+                    Napier.e("Failed to search paths: ${error.message}", error, tag = Tags.APP_VIEWMODEL)
+                }
+            )
+        } catch (e: Exception) {
+            _searchedPaths.value = emptyList()
+            _graphLoading.value = false
+            addStatusLog("경로 검색 오류: ${e.message}", StatusLogType.ERROR)
+            Napier.e("Error in handleVoiceCommand: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
+        }
+    }
+
+    /**
+     * 음성 명령으로부터 경로 실행
+     */
+    private suspend fun executePathFromVoice(path: MatchedPathDetail) {
+        try {
+            if (_isExecutingPath.value) {
+                addStatusLog("다른 경로가 실행 중입니다", StatusLogType.WARNING)
+                return
+            }
+
+            _isExecutingPath.value = true
+            _executionProgress.value = "0/${path.steps.size}"
+
+            val result = pathExecutor.executePath(
+                path = path,
+                onStepComplete = { current, total, description ->
+                    _executionProgress.value = "$current/$total"
+                    addStatusLog("[$current/$total] $description", StatusLogType.INFO)
+                },
+                getUserInput = null
+            )
+
+            if (result.success) {
+                addStatusLog("경로 실행 완료: ${path.task_intent}", StatusLogType.SUCCESS)
+                Napier.i("Voice command path execution completed: ${path.task_intent}", tag = Tags.BROWSER_AUTOMATION)
+            } else {
+                val failedStep = result.failedAt?.let { "${it + 1}/${result.totalSteps}" } ?: "Unknown"
+                addStatusLog("경로 실행 실패 (단계 $failedStep): ${result.error}", StatusLogType.ERROR)
+                Napier.e("Voice command path execution failed at step $failedStep: ${result.error}", tag = Tags.BROWSER_AUTOMATION)
+            }
+        } catch (e: Exception) {
+            addStatusLog("경로 실행 오류: ${e.message}", StatusLogType.ERROR)
+            Napier.e("Error executing voice command path: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+        } finally {
+            _isExecutingPath.value = false
+            _executionProgress.value = ""
+        }
+    }
+
+    /**
+     * 전체 경로 실행 (MatchedPath를 받아서 모든 스텝 순차 실행)
+     */
+    private suspend fun executeFullPath(path: com.vowser.client.websocket.dto.MatchedPath) {
+        try {
+            _isExecutingPath.value = true
+            _executionProgress.value = "0/${path.steps.size}"
+
+            // MatchedPath → MatchedPathDetail 변환
+            val pathDetail = path.toMatchedPathDetail()
+
+            val result = pathExecutor.executePath(
+                path = pathDetail,
+                onStepComplete = { current, total, description ->
+                    _executionProgress.value = "$current/$total"
+                    addStatusLog("[$current/$total] $description", StatusLogType.INFO)
+                },
+                getUserInput = null  // 자동 실행 (input 스킵)
+            )
+
+            if (result.success) {
+                addStatusLog("전체 경로 완료: ${path.taskIntent} (${result.stepsCompleted}/${result.totalSteps})", StatusLogType.SUCCESS)
+            } else {
+                addStatusLog("실패 (${result.failedAt}/${result.totalSteps}): ${result.error}", StatusLogType.ERROR)
+            }
+        } catch (e: Exception) {
+            addStatusLog("경로 실행 오류: ${e.message}", StatusLogType.ERROR)
+        } finally {
+            _isExecutingPath.value = false
+            _executionProgress.value = ""
+        }
+    }
+
+    /**
+     * 그래프 변환
+     */
+    private fun convertToGraph(paths: List<MatchedPathDetail>): GraphVisualizationData {
+        val nodes = mutableListOf<com.vowser.client.ui.graph.GraphNode>()
+        val edges = mutableListOf<com.vowser.client.ui.graph.GraphEdge>()
+
+        paths.forEachIndexed { pathIndex, path ->
+            path.steps.forEachIndexed { stepIndex, step ->
+                val nodeId = "path${pathIndex}_step${stepIndex}"
+                nodes.add(
+                    com.vowser.client.ui.graph.GraphNode(
+                        id = nodeId,
+                        label = step.description
+                    )
+                )
+
+                if (stepIndex > 0) {
+                    edges.add(
+                        com.vowser.client.ui.graph.GraphEdge(
+                            from = "path${pathIndex}_step${stepIndex - 1}",
+                            to = nodeId
+                        )
+                    )
+                }
+            }
+        }
+
+        return GraphVisualizationData(nodes, edges)
+    }
+
 
     /**
      * 로그인 상태 확인

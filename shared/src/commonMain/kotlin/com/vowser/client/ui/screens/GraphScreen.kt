@@ -17,8 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import com.vowser.client.data.VoiceTestScenario
-import com.vowser.client.navigation.NavigationProcessor
 import com.vowser.client.ui.graph.ModernNetworkGraph
 import com.vowser.client.ui.graph.GraphInteractionType
 import com.vowser.client.ui.error.ErrorBoundary
@@ -43,7 +41,6 @@ import com.vowser.client.AppViewModel
 @Composable
 fun GraphScreen(
     appViewModel: AppViewModel,
-    navigationProcessor: NavigationProcessor,
     isContributionMode: Boolean,
     isLoading: Boolean,
     connectionStatus: String,
@@ -78,13 +75,9 @@ fun GraphScreen(
     var loadingState by remember { mutableStateOf<LoadingState>(LoadingState.Idle) }
     var errorState by remember { mutableStateOf<ErrorState>(ErrorState.None) }
 
-    // 음성 테스트 상태
-    var currentVoiceTest by remember { mutableStateOf<VoiceTestScenario?>(null) }
-
     // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
     val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
-        ?: currentVoiceTest?.expectedPath?.takeIf { it.isNotEmpty() } 
-        ?: selectedPath.takeIf { it.isNotEmpty() } 
+        ?: selectedPath.takeIf { it.isNotEmpty() }
         ?: listOf("voice_start", "naver_main")
     
     // 실시간 데이터에서 활성 노드 가져오기 
@@ -143,7 +136,7 @@ fun GraphScreen(
                     contributionTask = contributionTask,
                     statusHistory = statusHistory,
                     isDeveloperMode = isDeveloperMode,
-                    receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
+                    receivedMessage = receivedMessage,
                     selectedSttModes = selectedSttModes,
                     onToggleRecording = onToggleRecording,
                     onModeToggle = onModeToggle,
@@ -249,7 +242,6 @@ fun GraphScreen(
             // 통계 패널
             if (isDeveloperMode && showStats) {
                 StatisticsPanel(
-                    navigationProcessor = navigationProcessor,
                     onClose = { showStats = false },
                     modifier = Modifier.align(Alignment.CenterEnd)
                 )
