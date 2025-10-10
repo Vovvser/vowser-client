@@ -34,10 +34,11 @@ object UserInputMatcher {
         }
 
         // 2. 생년월일 필드 매칭
-        if (matchesBirthDate(combinedLabels)) {
-            // TODO: 백엔드에 birthDate 필드 추가 후 사용
-            Napier.w("⚠ Birth date field detected but not available in userInfo", tag = Tags.BROWSER_AUTOMATION)
-            return null
+        val birthdate = userInfo.birthdate
+        if (!birthdate.isNullOrBlank() && matchesBirthDate(combinedLabels)) {
+            val formattedBirthdate = formatBirthDate(birthdate)
+            Napier.i("✓ Auto-fill: birthdate → $formattedBirthdate", tag = Tags.BROWSER_AUTOMATION)
+            return formattedBirthdate
         }
 
         // 3. 전화번호 필드 매칭
@@ -138,5 +139,13 @@ object UserInputMatcher {
             11 -> "${digitsOnly.substring(0, 3)}-${digitsOnly.substring(3, 7)}-${digitsOnly.substring(7)}"
             else -> digitsOnly
         }
+    }
+
+    /**
+     * 생년월일을 8자리 숫자 형식으로 변환 (YYYYMMDD)
+     * 예: "1990-01-01" → "19900101"
+     */
+    private fun formatBirthDate(birthdate: String): String {
+        return birthdate.replace("-", "").replace(".", "").replace("/", "").replace(" ", "")
     }
 }
