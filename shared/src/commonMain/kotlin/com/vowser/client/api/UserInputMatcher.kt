@@ -103,7 +103,7 @@ object UserInputMatcher {
         return when {
             // "뒤 4자리" 또는 "뒷 번호"
             labels.contains("뒤") || labels.contains("뒷") || labels.contains("last") -> {
-                digitsOnly.takeLast(4)
+                digitsOnly.takeLast(8)
             }
             // "중간 번호"
             labels.contains("중간") || labels.contains("middle") -> {
