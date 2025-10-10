@@ -25,9 +25,9 @@ object BrowserAutomationService {
     private lateinit var browser: Browser
     private lateinit var page: Page
     private val mutex = Mutex()
-    
+
     // Memory management uses ContributionConstants
-    
+
     private var contributionRecordingCallback: ((ContributionStep) -> Unit)? = null
     private var isRecordingContributions = false
     private var pollingJob: Job? = null
@@ -213,23 +213,31 @@ object BrowserAutomationService {
                 return@withContext false
             }
             try {
-                val locator = page.locator(selector)
-                
-                // 먼저 요소 존재 여부를 빠르게 확인
+                // 1. 메인 프레임에서 요소 찾기
+                var locator = page.locator(selector)
+
+                // 2. 메인 프레임에서 못 찾으면 iframe 탐색
                 if (locator.count() == 0) {
-                    Napier.w("Element with selector $selector not found on page, trying alternatives.", tag = Tags.BROWSER_AUTOMATION)
-                    return@withContext tryAlternativeSelectors(selector)
+                    Napier.i("Element not found in main frame, searching in iframes...", tag = Tags.BROWSER_AUTOMATION)
+                    val iframeLocator = findElementInFrames(selector)
+                    if (iframeLocator != null) {
+                        locator = iframeLocator
+                        Napier.i("Element found in iframe: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    } else {
+                        Napier.w("Element with selector $selector not found in any frame", tag = Tags.BROWSER_AUTOMATION)
+                        return@withContext false
+                    }
                 }
-                
+
                 if (!AdaptiveWaitManager.waitForElement(locator, page, "element with selector: $selector")) {
                     Napier.w("Element with selector $selector not found or not visible after adaptive waiting.", tag = Tags.BROWSER_AUTOMATION)
-                    return@withContext tryAlternativeSelectors(selector)
+                    return@withContext false
                 }
-                
+
                 return@withContext executeHoverHighlightClick(locator, selector)
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-                return@withContext tryAlternativeSelectors(selector)
+                return@withContext false
             } catch (e: Exception) {
                 Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
@@ -237,69 +245,83 @@ object BrowserAutomationService {
         }
     }
     
-    private suspend fun tryAlternativeSelectors(originalSelector: String): Boolean = withContext(Dispatchers.IO) {
-        val alternativeSelectors = when (originalSelector) {
-            "a[href='/webtoon?tab=mon']" -> listOf(
-                "a[href*='tab=mon']",
-                ".tab_list a:contains('월요웹툰')",
-                "[data-tab='mon']",
-                ".tab_mon"
-            )
-            "ul.img_list li:first-child a" -> listOf(
-                ".img_list li:first-child a",
-                ".thumb_area:first-child a",
-                ".daily_img:first-child a"
-            )
-            // YouTube 검색창 alternative selectors
-            "input#search" -> listOf(
-                "input[name='search_query']",
-                "#search input",
-                "[aria-label*='검색']",
-                "[aria-label*='Search']",
-                "#search-input input",
-                "input[type='text']"
-            )
-            // YouTube 필터 버튼 alternative selectors  
-            "button[aria-label='검색 필터']" -> listOf(
-                "button[aria-label*='필터']",
-                "button[aria-label*='Filter']",
-                ".filter-button",
-                "#filter-menu button",
-                "button[title*='필터']"
-            )
-            else -> emptyList()
-        }
-        
-        if (alternativeSelectors.isEmpty()) {
-            Napier.w("No alternative selectors available for: $originalSelector. Skipping this step.", tag = Tags.BROWSER_AUTOMATION)
-            return@withContext false
-        }
-        
-        for (altSelector in alternativeSelectors) {
-            try {
-                Napier.i("Trying alternative selector: $altSelector", tag = Tags.BROWSER_AUTOMATION)
-                val locator = page.locator(altSelector)
-                
-                // 빠른 존재 확인
-                if (locator.count() == 0) {
-                    Napier.w("Alternative selector $altSelector not found", tag = Tags.BROWSER_AUTOMATION)
-                    continue
-                }
-                
-                if (AdaptiveWaitManager.waitForElement(locator, page, "alternative selector: $altSelector")) {
-                    val success = executeHoverHighlightClick(locator, altSelector)
-                    if (success) {
-                        Napier.i("Successfully clicked using alternative selector: $altSelector", tag = Tags.BROWSER_AUTOMATION)
-                        return@withContext true
+    /**
+     * 모든 iframe을 순회하며 요소 찾기
+     */
+    private suspend fun findElementInFrames(selector: String): Locator? = withContext(Dispatchers.IO) {
+        if (!::page.isInitialized) return@withContext null
+
+        try {
+            // 현재 페이지의 모든 프레임 탐색
+            val frames = page.frames()
+            Napier.d("Searching in ${frames.size} frames for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+
+            for (frame in frames) {
+                try {
+                    if (frame == page.mainFrame()) continue
+
+                    val frameLocator = frame.locator(selector)
+                    if (frameLocator.count() > 0) {
+                        Napier.i("Found element in iframe: ${frame.url()}", tag = Tags.BROWSER_AUTOMATION)
+                        return@withContext frameLocator
                     }
+                } catch (e: Exception) {
+                    Napier.d("Failed to access frame ${frame.url()}: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
-            } catch (e: Exception) {
-                Napier.w("Alternative selector $altSelector also failed: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
+
+            // 정부24 처리(모듈화 예정)
+            if (page.url().contains("gov.kr")) {
+                Napier.i("Detected gov.kr domain, trying nested iframe search...", tag = Tags.BROWSER_AUTOMATION)
+                return@withContext findElementInGovKrIframes(selector)
+            }
+
+        } catch (e: Exception) {
+            Napier.w("Error during iframe search: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
         }
-        Napier.w("All alternative selectors failed for original selector: $originalSelector. Continuing anyway.", tag = Tags.BROWSER_AUTOMATION)
-        return@withContext false
+
+        return@withContext null
     }
+
+    /**
+     * 정부24 포털 특화: 중첩된 iframe 구조 처리
+     */
+    private suspend fun findElementInGovKrIframes(selector: String): Locator? = withContext(Dispatchers.IO) {
+        if (!::page.isInitialized) return@withContext null
+
+        try {
+            // 정부24의 iframe 구조
+            val commonIframeIds = listOf(
+                "#mainFrame",
+                "#contentFrame",
+                "#bodyFrame",
+                "[name='mainFrame']",
+                "[name='contentFrame']"
+            )
+
+            for (iframeId in commonIframeIds) {
+                try {
+                    val frameLocator = page.frameLocator(iframeId)
+                    val locator = frameLocator.locator(selector)
+
+                    try {
+                        locator.first().isVisible()
+                        Napier.i("Found element in gov.kr iframe $iframeId: $selector", tag = Tags.BROWSER_AUTOMATION)
+                        return@withContext locator
+                    } catch (e: Exception) {
+                        // 요소가 없거나 보이지 않음 - 다음 iframe 시도
+                    }
+                } catch (e: Exception) {
+                    // iframe이 존재하지 않음 - 다음 시도
+                }
+            }
+        } catch (e: Exception) {
+            Napier.w("Error during gov.kr iframe search: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+        }
+
+        return@withContext null
+    }
+
 
     private suspend fun executeHoverHighlightClick(locator: Locator, selector: String): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -384,7 +406,22 @@ object BrowserAutomationService {
                 return@withContext
             }
             try {
-                val locator = page.locator(selector)
+                // 1. 메인 프레임에서 요소 찾기
+                var locator = page.locator(selector)
+
+                // 2. 메인 프레임에서 못 찾으면 iframe 탐색
+                if (locator.count() == 0) {
+                    Napier.i("Input element not found in main frame, searching in iframes...", tag = Tags.BROWSER_AUTOMATION)
+                    val iframeLocator = findElementInFrames(selector)
+                    if (iframeLocator != null) {
+                        locator = iframeLocator
+                        Napier.i("Input element found in iframe: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    } else {
+                        Napier.w("Element with selector $selector not found in any frame for typing.", tag = Tags.BROWSER_AUTOMATION)
+                        return@withContext
+                    }
+                }
+
                 if (locator.count() > 0 && locator.first().isVisible) {
                     if (delayMs != null) {
                         locator.first().pressSequentially(text, Locator.PressSequentiallyOptions().setDelay(delayMs))
@@ -392,10 +429,10 @@ object BrowserAutomationService {
                         locator.first().fill(text)
                     }
                     recordContributionStep(
-                        page.url(), 
-                        page.title(), 
-                        "type", 
-                        selector, 
+                        page.url(),
+                        page.title(),
+                        "type",
+                        selector,
                         mapOf("text" to text)
                     )
                     Napier.i("Typed text '$text' into element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
