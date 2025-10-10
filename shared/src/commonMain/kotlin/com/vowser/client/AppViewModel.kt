@@ -599,13 +599,23 @@ class AppViewModel(
             _isExecutingPath.value = true
             _executionProgress.value = "0/${path.steps.size}"
 
+            // 사용자 정보 가져오기 (자동 입력용)
+            val userInfo = authRepository.getCurrentUser().getOrNull()
+            if (userInfo != null) {
+                addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
+            }
+
             val result = pathExecutor.executePath(
                 path = path,
+                userInfo = userInfo,
                 onStepComplete = { current, total, description ->
                     _executionProgress.value = "$current/$total"
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
-                getUserInput = null
+                getUserInput = null,
+                onLog = { message ->
+                    addStatusLog(message, StatusLogType.INFO)
+                }
             )
 
             if (result.success) {
@@ -636,13 +646,22 @@ class AppViewModel(
             // MatchedPath → MatchedPathDetail 변환
             val pathDetail = path.toMatchedPathDetail()
 
+            val userInfo = authRepository.getCurrentUser().getOrNull()
+            if (userInfo != null) {
+                addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
+            }
+
             val result = pathExecutor.executePath(
                 path = pathDetail,
+                userInfo = userInfo,
                 onStepComplete = { current, total, description ->
                     _executionProgress.value = "$current/$total"
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
-                getUserInput = null  // 자동 실행 (input 스킵)
+                getUserInput = null,
+                onLog = { message ->
+                    addStatusLog(message, StatusLogType.INFO)
+                }
             )
 
             if (result.success) {
@@ -743,6 +762,30 @@ class AppViewModel(
      */
     fun handleOAuthCallback() {
         checkAuthStatus()
+    }
+
+    /**
+     * 브라우저에서 복사한 쿠키를 수동으로 설정 (테스트용)
+     * @param accessToken AccessToken 쿠키 값
+     * @param refreshToken RefreshToken 쿠키 값 (옵션)
+     */
+    fun setManualCookies(accessToken: String, refreshToken: String? = null) {
+        coroutineScope.launch {
+            addStatusLog("쿠키 수동 설정 중...", StatusLogType.INFO)
+
+            val result = authRepository.setManualCookies(accessToken, refreshToken)
+            result.fold(
+                onSuccess = { message ->
+                    addStatusLog(message, StatusLogType.SUCCESS)
+                    // 쿠키 설정 후 바로 사용자 정보 확인
+                    checkAuthStatus()
+                },
+                onFailure = { error ->
+                    addStatusLog("쿠키 설정 실패: ${error.message}", StatusLogType.ERROR)
+                    Napier.e("Failed to set manual cookies: ${error.message}", error)
+                }
+            )
+        }
     }
 
     /**

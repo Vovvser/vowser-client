@@ -80,6 +80,15 @@ fun main() = application {
             DeepLinkServer.onOAuthCallback = {
                 viewModel.handleOAuthCallback()
             }
+
+            // ===== 임시 테스트: 여기에 브라우저에서 복사한 쿠키 붙여넣기 =====
+            // 1. http://localhost:8080/test 에서 네이버 로그인
+            // 2. F12 개발자 도구 → Application → Cookies → AccessToken 복사
+            // 3. 아래 주석 해제하고 쿠키 값 붙여넣기
+
+//            viewModel.setManualCookies(
+//                accessToken = "임시용입니다. 토큰 입력해주세요"
+//            )
         }
     }
 

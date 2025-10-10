@@ -10,6 +10,7 @@ data class MemberResponse(
     val id: Long,
     val email: String,
     val name: String,
+    val phoneNumber: String? = null,
     val naverId: String? = null,
     val createdAt: String,
     val updatedAt: String

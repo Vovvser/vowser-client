@@ -3,6 +3,7 @@ package com.vowser.client.api
 import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.api.dto.PathStepDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.model.MemberResponse
 import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.websocket.dto.NavigationStep
 import io.github.aakira.napier.Napier
@@ -28,17 +29,23 @@ class PathExecutor {
     private var currentStepIndex = 0
     private var currentPath: MatchedPathDetail? = null
     private var isExecuting = false
+    private var currentUserInfo: MemberResponse? = null
+    private var currentOnLog: ((String) -> Unit)? = null
 
     /**
-     * 경로 실행
+     * 경로 실행 (사용자 정보를 통한 자동 입력 지원)
      * @param path 실행할 경로
+     * @param userInfo 자동 입력에 사용할 사용자 정보 (옵션)
      * @param onStepComplete 각 단계 완료 시 호출되는 콜백 (stepIndex, totalSteps, description)
-     * @param getUserInput Input 액션 시 사용자 입력을 받는 함수
+     * @param getUserInput Input 액션 시 사용자 입력을 받는 함수 (자동 입력 실패 시 fallback)
+     * @param onLog UI 로그 출력 콜백 (message: String)
      */
     suspend fun executePath(
         path: MatchedPathDetail,
+        userInfo: MemberResponse? = null,
         onStepComplete: ((Int, Int, String) -> Unit)? = null,
-        getUserInput: (suspend (PathStepDetail) -> String)? = null
+        getUserInput: (suspend (PathStepDetail) -> String)? = null,
+        onLog: ((String) -> Unit)? = null
     ): PathExecutionResult {
         if (isExecuting) {
             return PathExecutionResult(
@@ -52,8 +59,14 @@ class PathExecutor {
         isExecuting = true
         currentPath = path
         currentStepIndex = 0
+        currentUserInfo = userInfo
+        currentOnLog = onLog
 
-        Napier.i("🚀 Executing path: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+        if (userInfo != null) {
+            Napier.i("🚀 Executing path with auto-fill: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+        } else {
+            Napier.i("🚀 Executing path: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+        }
 
         try {
             // 단계별 실행
@@ -89,6 +102,8 @@ class PathExecutor {
         } finally {
             isExecuting = false
             currentPath = null
+            currentUserInfo = null
+            currentOnLog = null
         }
     }
 
@@ -381,14 +396,29 @@ class PathExecutor {
         step: PathStepDetail,
         getUserInput: (suspend (PathStepDetail) -> String)?
     ) {
-        // Input 액션은 자동 실행 모드에서 스킵
-        if (getUserInput == null) {
-            Napier.w("Skipping input step (auto-execution mode): ${step.description}", tag = Tags.BROWSER_AUTOMATION)
-            return
+        Napier.d("📝 Input step detected: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+
+        var inputValue: String? = null
+
+        if (currentUserInfo != null && step.is_input) {
+            inputValue = UserInputMatcher.getAutoFillValue(step, currentUserInfo!!)
+            if (inputValue != null) {
+                Napier.i("✅ Auto-filled: ${step.description} → $inputValue", tag = Tags.BROWSER_AUTOMATION)
+                currentOnLog?.invoke("✅ 자동 입력: ${step.description} → $inputValue")
+            } else {
+                Napier.w("⚠️ Auto-fill failed for: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+            }
         }
 
-        // 사용자 입력 받기
-        val inputValue = getUserInput.invoke(step)
+        // 2. 자동 입력 실패 시, getUserInput 콜백 사용
+        if (inputValue == null) {
+            if (getUserInput == null) {
+                Napier.w("❌ Skipping input step: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+                return
+            }
+            Napier.d("Waiting for user input", tag = Tags.BROWSER_AUTOMATION)
+            inputValue = getUserInput.invoke(step)
+        }
 
         if (inputValue.isEmpty()) {
             Napier.w("Empty input value provided for step: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
