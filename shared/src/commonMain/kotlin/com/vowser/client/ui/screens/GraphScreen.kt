@@ -53,6 +53,8 @@ fun GraphScreen(
     contributionStepCount: Int,
     contributionTask: String,
     selectedSttModes: Set<String>,
+    isWaitingForUser: Boolean,
+    waitMessage: String,
     onModeToggle: () -> Unit,
     onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
@@ -61,6 +63,7 @@ fun GraphScreen(
     onRefreshGraph: () -> Unit,
     onClearStatusHistory: () -> Unit,
     onToggleSttMode: (String) -> Unit,
+    onConfirmUserWait: () -> Unit,
 ) {
     val dialogState by appViewModel.dialogState.collectAsState()
     // 그래프 상태
@@ -260,6 +263,14 @@ fun GraphScreen(
                 },
                 modifier = Modifier.align(Alignment.Center)
             )
+
+            // 사용자 대기 다이얼로그
+            if (isWaitingForUser) {
+                UserWaitDialog(
+                    waitMessage = waitMessage,
+                    onConfirm = onConfirmUserWait
+                )
+            }
 
             // 에러 다이얼로그
             when (val currentDialogState = dialogState) {
@@ -526,7 +537,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                horizontal = AppTheme.Dimensions.paddingSmall, 
+                horizontal = AppTheme.Dimensions.paddingSmall,
                 vertical = AppTheme.Dimensions.paddingXSmall
             ),
         verticalAlignment = Alignment.CenterVertically
@@ -537,13 +548,13 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠️"
             StatusLogType.INFO -> MaterialTheme.colors.primary to "ℹ️"
         }
-        
+
         Text(
             text = icon,
             fontSize = 12.sp,
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
-        
+
         // 타임스탬프
         Text(
             text = entry.timestamp,
@@ -551,7 +562,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
-        
+
         // 메시지
         Text(
             text = entry.message,
@@ -560,4 +571,60 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             modifier = Modifier.weight(1f)
         )
     }
+}
+
+/**
+ * 사용자 작업 완료 대기 다이얼로그
+ */
+@Composable
+private fun UserWaitDialog(
+    waitMessage: String,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* 사용자가 임의로 닫을 수 없음 */ },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
+            ) {
+                Text(
+                    text = "⏸️",
+                    fontSize = 24.sp
+                )
+                Text(
+                    text = "사용자 작업 대기 중",
+                    style = MaterialTheme.typography.h6
+                )
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+            ) {
+                Text(
+                    text = waitMessage,
+                    style = MaterialTheme.typography.body1
+                )
+                Text(
+                    text = "작업을 완료하신 후 아래 버튼을 눌러주세요.",
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = AppTheme.Colors.Success,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("완료")
+            }
+        },
+        backgroundColor = MaterialTheme.colors.surface,
+        contentColor = MaterialTheme.colors.onSurface
+    )
 }

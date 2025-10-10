@@ -34,6 +34,8 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 
 data class StatusLogEntry(
@@ -127,6 +129,16 @@ class AppViewModel(
 
     private val _executionProgress = MutableStateFlow("")
     val executionProgress: StateFlow<String> = _executionProgress.asStateFlow()
+
+    // 사용자 대기 상태
+    private val _isWaitingForUser = MutableStateFlow(false)
+    val isWaitingForUser: StateFlow<Boolean> = _isWaitingForUser.asStateFlow()
+
+    private val _waitMessage = MutableStateFlow("")
+    val waitMessage: StateFlow<String> = _waitMessage.asStateFlow()
+
+    // 사용자 확인 대기를 위한 continuation 저장
+    private var waitContinuation: kotlin.coroutines.Continuation<Unit>? = null
 
     /**
      * STT 모드 토글
@@ -615,6 +627,9 @@ class AppViewModel(
                 getUserInput = null,
                 onLog = { message ->
                     addStatusLog(message, StatusLogType.INFO)
+                },
+                onWaitForUser = { message ->
+                    waitForUserConfirmation(message)
                 }
             )
 
@@ -661,6 +676,9 @@ class AppViewModel(
                 getUserInput = null,
                 onLog = { message ->
                     addStatusLog(message, StatusLogType.INFO)
+                },
+                onWaitForUser = { message ->
+                    waitForUserConfirmation(message)
                 }
             )
 
@@ -795,6 +813,39 @@ class AppViewModel(
         _authState.value = AuthState.NotAuthenticated
         addStatusLog("세션이 만료되었습니다. 다시 로그인해주세요.", StatusLogType.WARNING)
         Napier.w("Token refresh failed - user logged out")
+    }
+
+    // ===== 사용자 대기 관련 기능 =====
+
+    /**
+     * 사용자 확인을 기다리는 suspend 함수
+     * - PathExecutor의 onWaitForUser 콜백에 전달됩니다
+     * - UI에서 사용자가 확인 버튼을 누를 때까지 대기합니다
+     */
+    private suspend fun waitForUserConfirmation(message: String) {
+        suspendCancellableCoroutine { continuation ->
+            _isWaitingForUser.value = true
+            _waitMessage.value = message
+            waitContinuation = continuation
+
+            continuation.invokeOnCancellation {
+                _isWaitingForUser.value = false
+                _waitMessage.value = ""
+                waitContinuation = null
+            }
+        }
+    }
+
+    /**
+     * 사용자가 확인 버튼을 누를 때 호출되는 함수
+     * - UI에서 호출합니다
+     */
+    fun confirmUserWait() {
+        waitContinuation?.resume(Unit)
+        waitContinuation = null
+        _isWaitingForUser.value = false
+        _waitMessage.value = ""
+        addStatusLog("✅ 사용자 확인 완료 - 다음 단계 진행", StatusLogType.SUCCESS)
     }
 }
 

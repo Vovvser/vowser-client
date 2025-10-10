@@ -31,6 +31,7 @@ class PathExecutor {
     private var isExecuting = false
     private var currentUserInfo: MemberResponse? = null
     private var currentOnLog: ((String) -> Unit)? = null
+    private var currentOnWaitForUser: (suspend (String) -> Unit)? = null
 
     /**
      * 경로 실행 (사용자 정보를 통한 자동 입력 지원)
@@ -39,13 +40,15 @@ class PathExecutor {
      * @param onStepComplete 각 단계 완료 시 호출되는 콜백 (stepIndex, totalSteps, description)
      * @param getUserInput Input 액션 시 사용자 입력을 받는 함수 (자동 입력 실패 시 fallback)
      * @param onLog UI 로그 출력 콜백 (message: String)
+     * @param onWaitForUser Wait 액션 시 사용자 확인을 기다리는 함수 (waitMessage: String)
      */
     suspend fun executePath(
         path: MatchedPathDetail,
         userInfo: MemberResponse? = null,
         onStepComplete: ((Int, Int, String) -> Unit)? = null,
         getUserInput: (suspend (PathStepDetail) -> String)? = null,
-        onLog: ((String) -> Unit)? = null
+        onLog: ((String) -> Unit)? = null,
+        onWaitForUser: (suspend (String) -> Unit)? = null
     ): PathExecutionResult {
         if (isExecuting) {
             return PathExecutionResult(
@@ -61,6 +64,7 @@ class PathExecutor {
         currentStepIndex = 0
         currentUserInfo = userInfo
         currentOnLog = onLog
+        currentOnWaitForUser = onWaitForUser
 
         if (userInfo != null) {
             Napier.i("🚀 Executing path with auto-fill: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
@@ -104,6 +108,7 @@ class PathExecutor {
             currentPath = null
             currentUserInfo = null
             currentOnLog = null
+            currentOnWaitForUser = null
         }
     }
 
@@ -459,10 +464,23 @@ class PathExecutor {
      */
     private suspend fun executeWaitStep(step: PathStepDetail) {
         val message = step.wait_message ?: "작업을 완료한 후 계속하세요"
-        Napier.i("⏸️ Waiting for user action: $message", tag = Tags.BROWSER_AUTOMATION)
+        Napier.i("⏸️  Waiting for user action: $message", tag = Tags.BROWSER_AUTOMATION)
 
-        // TODO: UI에 대기 메시지 표시 및 사용자 확인 대기
-        // 현재는 5초 자동 대기
-        delay(5000)
+        currentOnLog?.invoke("⏸️ 사용자 작업 대기 중: $message")
+
+        if (currentOnWaitForUser != null) {
+            try {
+                currentOnWaitForUser?.invoke(message)
+                Napier.i("✅ User confirmed completion of: $message", tag = Tags.BROWSER_AUTOMATION)
+                currentOnLog?.invoke("✅ 사용자 확인 완료")
+            } catch (e: Exception) {
+                Napier.e("User wait step failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            }
+        } else {
+            Napier.w("No onWaitForUser callback provided, using default 10s wait", tag = Tags.BROWSER_AUTOMATION)
+            currentOnLog?.invoke("⚠️ 대기 콜백 없음 - 10초 자동 대기")
+            delay(10000)
+        }
     }
 }

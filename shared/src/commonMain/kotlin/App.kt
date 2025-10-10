@@ -52,6 +52,10 @@ fun App(
     val contributionStatus by viewModel.contributionStatus.collectAsState()
     val contributionStepCount by viewModel.contributionStepCount.collectAsState()
     val contributionTask by viewModel.contributionTask.collectAsState()
+
+    // 사용자 대기 상태 구독
+    val isWaitingForUser by viewModel.isWaitingForUser.collectAsState()
+    val waitMessage by viewModel.waitMessage.collectAsState()
     
     // 테마 적용
     val colors = if (isDarkTheme) {
@@ -80,6 +84,8 @@ fun App(
                     contributionStepCount = contributionStepCount,
                     contributionTask = contributionTask,
                     selectedSttModes = selectedSttModes,
+                    isWaitingForUser = isWaitingForUser,
+                    waitMessage = waitMessage,
                     onModeToggle = {
                         isContributionMode = !isContributionMode
                         if (isContributionMode) {
@@ -97,7 +103,8 @@ fun App(
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
                     onClearStatusHistory = { viewModel.clearStatusHistory() },
-                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) }
+                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) },
+                    onConfirmUserWait = { viewModel.confirmUserWait() }
                 )
             }
             AppScreen.SETTINGS -> {
