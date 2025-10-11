@@ -6,8 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +20,7 @@ import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
 import com.vowser.client.contribution.ContributionStatus
 import com.vowser.client.exception.DialogState
+import com.vowser.client.model.AuthState
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.components.StandardDialogs
@@ -62,6 +62,8 @@ fun GraphScreen(
     onToggleSttMode: (String) -> Unit,
 ) {
     val dialogState by appViewModel.dialogState.collectAsState()
+    val authState by appViewModel.authState.collectAsState()
+
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeNodeId by remember { mutableStateOf<String?>(null) }
@@ -91,14 +93,20 @@ fun GraphScreen(
             loadingState = LoadingState.Idle
         }
     }
-
+    
     ErrorBoundary(
         errorState = errorState,
-        onRetry = {
+        onRetry = { 
             loadingState = LoadingState.Loading
         }
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            // 상단 앱바
+            GraphAppBar(
+                onBackPress = { onScreenChange(AppScreen.HOME) },
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+
             if (isDeveloperMode && showGraphView && currentGraphData != null) {
                 //  그래프 화면
                 ModernNetworkGraph(
@@ -137,6 +145,7 @@ fun GraphScreen(
                     isDeveloperMode = isDeveloperMode,
                     receivedMessage = receivedMessage,
                     selectedSttModes = selectedSttModes,
+                    authState = authState,
                     onToggleRecording = onToggleRecording,
                     onModeToggle = onModeToggle,
                     onReconnect = onReconnect,
@@ -213,10 +222,10 @@ fun GraphScreen(
                           }
                         }
                         """.trimIndent()
-
+                        
                         // 서버에 모의 데이터 전송
                         onSendToolCall("mock_navigation_data", mapOf("data" to mockData))
-
+                        
                         // 그래프 표시 위해 로딩 상태로 전환
                         loadingState = LoadingState.Loading
                     },
@@ -224,10 +233,6 @@ fun GraphScreen(
                     modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
                 )
             }
-
-
-            // 상단 앱바
-
 
             // 통계 패널
             if (isDeveloperMode && showStats) {
@@ -237,12 +242,11 @@ fun GraphScreen(
                 )
             }
 
-
             // 스마트 로딩 인디케이터
             SmartLoadingIndicator(
                 loadingState = loadingState,
                 loadingMessage = "그래프를 업데이트하는 중...",
-                onRetry = {
+                onRetry = { 
                     loadingState = LoadingState.Loading
                 },
                 onDismiss = {
@@ -315,6 +319,7 @@ private fun EmptyStateUI(
     receivedMessage: String,
     selectedSttModes: Set<String>,
     onToggleRecording: () -> Unit,
+    authState: AuthState,
     onModeToggle: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
@@ -323,8 +328,9 @@ private fun EmptyStateUI(
     onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isLoggedIn = authState is AuthState.Authenticated
     val listState = rememberLazyListState()
-
+    
     // 새 로그가 추가될 때 자동 스크롤
     LaunchedEffect(statusHistory.size) {
         if (statusHistory.isNotEmpty()) {
@@ -342,32 +348,17 @@ private fun EmptyStateUI(
             horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 음성 녹음 버튼
-            Button(
-                onClick = onToggleRecording,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(
-                    imageVector = if (isRecording) Icons.Default.Clear else Icons.Default.PlayArrow,
-                    contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
-                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
-                )
-                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingXSmall))
-                Text(if (isRecording) "녹음 중지" else "음성 녹음")
-            }
-
-            // 기여 모드 토글
-            Button(
-                onClick = onModeToggle,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isContributionMode) AppTheme.Colors.Contribution else MaterialTheme.colorScheme.secondary,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(if (isContributionMode) "기여모드 완료" else "기여모드 시작")
+            // 기여 모드 토글 (로그인 시에만 표시)
+            if (isLoggedIn) {
+                Button(
+                    onClick = onModeToggle,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isContributionMode) AppTheme.Colors.Contribution else MaterialTheme.colorScheme.secondary,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(if (isContributionMode) "기여모드 완료" else "기여모드 시작")
+                }
             }
 
             // 재연결 버튼
@@ -398,7 +389,7 @@ private fun EmptyStateUI(
                 ) {
                     Text("모의 테스트")
                 }
-
+                
                 // 그래프 보기 버튼
                 if (receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
                     Button(
@@ -489,7 +480,7 @@ private fun EmptyStateUI(
                             StatusLogItem(logEntry)
                         }
                     }
-
+                    
                     // 개발자 모드에서만 receivedMessage 표시
                     if (isDeveloperMode && receivedMessage != "No message") {
                         item {
@@ -514,7 +505,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                horizontal = AppTheme.Dimensions.paddingSmall,
+                horizontal = AppTheme.Dimensions.paddingSmall, 
                 vertical = AppTheme.Dimensions.paddingXSmall
             ),
         verticalAlignment = Alignment.CenterVertically
@@ -525,13 +516,13 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠️"
             StatusLogType.INFO -> MaterialTheme.colorScheme.primary to "ℹ️"
         }
-
+        
         Text(
             text = icon,
             fontSize = 12.sp,
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
-
+        
         // 타임스탬프
         Text(
             text = entry.timestamp,
@@ -539,7 +530,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
-
+        
         // 메시지
         Text(
             text = entry.message,
@@ -548,4 +539,31 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             modifier = Modifier.weight(1f)
         )
     }
+}
+
+/**
+ * GraphScreen 상단 앱바
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GraphAppBar(
+    onBackPress: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    TopAppBar(
+        title = { Text("Vowser", style = MaterialTheme.typography.titleLarge) },
+        navigationIcon = {
+            IconButton(onClick = onBackPress) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back to Home",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        ),
+        modifier = modifier
+    )
 }

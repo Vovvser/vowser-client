@@ -20,8 +20,6 @@ import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
 import io.github.aakira.napier.Napier
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,7 +74,7 @@ class AppViewModel(
 
     // REST API 클라이언트 (경로 저장/검색)
     private val backendUrl = "http://localhost:8080"
-    private val pathApiClient = PathApiClient(HttpClient(CIO), backendUrl)
+    private val pathApiClient = PathApiClient(createHttpClient(tokenStorage), backendUrl)
     private val pathExecutor = PathExecutor()
 
     // 경로 검색 및 실행 상태
@@ -124,15 +122,12 @@ class AppViewModel(
                 return@launch
             }
 
-            println("AppViewModel: Calling authRepository.getMe()...")
             val result = authRepository.getMe()
             result.onSuccess {
                 _authState.value = AuthState.Authenticated(it.name, it.email)
-                println("AppViewModel: getMe() success! authState = Authenticated(${it.name}, ${it.email})")
             }.onFailure {
                 _authState.value = AuthState.NotAuthenticated
                 tokenStorage.clearTokens()
-                println("AppViewModel: getMe() failed: ${it.message}, authState = NotAuthenticated")
             }
         }
     }
@@ -157,6 +152,12 @@ class AppViewModel(
             authRepository.logout()
             tokenStorage.clearTokens()
             _authState.value = AuthState.NotAuthenticated
+        }
+    }
+
+    fun executeQuery(query: String) {
+        coroutineScope.launch {
+            handleVoiceCommand(query)
         }
     }
 
@@ -424,7 +425,7 @@ class AppViewModel(
     }
 
     private fun setupContributionMode() {
-        com.vowser.client.browserautomation.BrowserAutomationBridge.setContributionRecordingCallback { step ->
+        BrowserAutomationBridge.setContributionRecordingCallback { step ->
             contributionModeService.recordStep(step)
         }
     }
@@ -434,12 +435,12 @@ class AppViewModel(
             try {
                 addStatusLog("기여 모드 초기화 중...", StatusLogType.INFO)
 
-                com.vowser.client.browserautomation.BrowserAutomationBridge.startContributionRecording()
+                BrowserAutomationBridge.startContributionRecording()
 
                 contributionModeService.startSession(task)
 
                 kotlinx.coroutines.delay(com.vowser.client.contribution.ContributionConstants.BROWSER_INIT_WAIT_MS) // 브라우저 초기화 대기
-                com.vowser.client.browserautomation.BrowserAutomationBridge.navigate("about:blank")
+                BrowserAutomationBridge.navigate("about:blank")
 
                 addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
 
@@ -449,7 +450,7 @@ class AppViewModel(
                 }
 
                 try {
-                    com.vowser.client.browserautomation.BrowserAutomationBridge.stopContributionRecording()
+                    BrowserAutomationBridge.stopContributionRecording()
                     contributionModeService.resetSession()
                 } catch (cleanupError: Exception) {
                     Napier.w("Cleanup error: ${cleanupError.message}", tag = Tags.CONTRIBUTION_MODE)
@@ -557,8 +558,9 @@ class AppViewModel(
             _graphLoading.value = true
             addStatusLog("경로 검색 중: $transcript", StatusLogType.INFO)
 
-            // REST API로 경로 검색
-            val result = pathApiClient.searchPaths(transcript, limit = 5)
+            val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                pathApiClient.searchPaths(transcript, limit = 5)
+            }
 
             result.fold(
                 onSuccess = { response ->
@@ -577,12 +579,10 @@ class AppViewModel(
                     )
                     Napier.i("Found ${paths.size} paths for query: $transcript", tag = Tags.APP_VIEWMODEL)
 
-                    // 그래프 시각화
                     val visualizationData = convertToGraph(paths)
                     _currentGraphData.value = visualizationData
                     _graphLoading.value = false
 
-                    // 첫 번째 경로 자동 실행
                     val firstPath = paths.firstOrNull()
                     if (firstPath != null) {
                         addStatusLog(
@@ -590,7 +590,9 @@ class AppViewModel(
                             StatusLogType.INFO
                         )
 
-                        executePathFromVoice(firstPath)
+                        coroutineScope.launch {
+                            executePathFromVoice(firstPath)
+                        }
                     }
                 },
                 onFailure = { error ->
