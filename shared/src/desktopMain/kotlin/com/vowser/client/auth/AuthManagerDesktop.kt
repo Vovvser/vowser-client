@@ -16,18 +16,12 @@ class AuthManagerDesktop(private val backendUrl: String = "http://localhost:8080
     }
 
     override fun login() {
-        // 백엔드의 OAuth2 인증 URL로 브라우저를 열기
         val authUrl = "$backendUrl/oauth2/authorization/naver"
-
         try {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(URI(authUrl))
-                println("AuthManagerDesktop: Opening browser for OAuth2 login: $authUrl")
-            } else {
-                println("AuthManagerDesktop: Desktop browsing not supported. Please navigate to: $authUrl")
             }
         } catch (e: Exception) {
-            println("AuthManagerDesktop: Failed to open browser: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -36,62 +30,46 @@ class AuthManagerDesktop(private val backendUrl: String = "http://localhost:8080
         this.onTokenReceivedCallback = onTokenReceived
 
         try {
-            // HTTP 서버 생성 및 시작
             callbackServer = HttpServer.create(InetSocketAddress(CALLBACK_PORT), 0)
-
             callbackServer?.createContext(CALLBACK_PATH) { exchange ->
                 try {
-                    val query = exchange.requestURI.query ?: ""
-                    val params = parseQueryString(query)
+                    val cookieString = exchange.requestHeaders.getFirst("Cookie") ?: ""
+                    println("AuthManagerDesktop: Received Cookie header: $cookieString")
+                    val cookies = parseCookies(cookieString)
+                    println("AuthManagerDesktop: Parsed cookies: ${cookies.keys}")
 
-                    val accessToken = params["access_token"]
-                    val refreshToken = params["refresh_token"]
+                    val accessToken = cookies["AccessToken"]
+                    val refreshToken = cookies["RefreshToken"]
+                    println("AuthManagerDesktop: AccessToken found: ${accessToken != null}, RefreshToken found: ${refreshToken != null}")
 
                     if (accessToken != null && refreshToken != null) {
-                        // 성공 페이지 응답
                         val response = """
-                            <!DOCTYPE html>
-                            <html>
-                            <head><title>Login Success</title></head>
+                            <!DOCTYPE html><html><head><title>Login Success</title></head>
                             <body>
-                                <h1>로그인 성공!</h1>
-                                <p>이제 이 창을 닫고 Vowser 앱으로 돌아가세요.</p>
-                                <script>setTimeout(() => window.close(), 2000);</script>
-                            </body>
-                            </html>
+                                <h1>로그인 성공!</h1><p>이제 이 창을 닫고 Vowser 앱으로 돌아가세요.</p>
+                                <script>setTimeout(() => window.close(), 1000);</script>
+                            </body></html>
                         """.trimIndent()
 
                         exchange.sendResponseHeaders(200, response.toByteArray().size.toLong())
-                        exchange.responseBody.write(response.toByteArray())
-                        exchange.responseBody.close()
+                        exchange.responseBody.use { it.write(response.toByteArray()) }
 
-                        // 토큰 콜백 실행
                         onTokenReceivedCallback?.invoke(accessToken, refreshToken)
-                        println("AuthManagerDesktop: Tokens received successfully")
 
-                        // 서버 종료 (약간의 딜레이 후)
                         Thread {
-                            Thread.sleep(1000)
+                            Thread.sleep(500)
                             stopCallbackServer()
                         }.start()
                     } else {
-                        // 에러 페이지 응답
                         val response = """
-                            <!DOCTYPE html>
-                            <html>
-                            <head><title>Login Failed</title></head>
-                            <body>
-                                <h1>로그인 실패</h1>
-                                <p>토큰을 받지 못했습니다. 다시 시도해주세요.</p>
-                            </body>
-                            </html>
+                            <!DOCTYPE html><html><head><title>Login Failed</title></head>
+                            <body><h1>로그인 실패</h1><p>토큰을 받지 못했습니다. 다시 시도해주세요.</p></body></html>
                         """.trimIndent()
 
                         exchange.sendResponseHeaders(400, response.toByteArray().size.toLong())
-                        exchange.responseBody.write(response.toByteArray())
-                        exchange.responseBody.close()
+                        exchange.responseBody.use { it.write(response.toByteArray()) }
 
-                        println("AuthManagerDesktop: Login failed - tokens not found in callback")
+                        println("AuthManagerDesktop: Login failed - tokens not found in cookies")
                     }
                 } catch (e: Exception) {
                     println("AuthManagerDesktop: Error handling callback: ${e.message}")
@@ -99,7 +77,7 @@ class AuthManagerDesktop(private val backendUrl: String = "http://localhost:8080
                 }
             }
 
-            callbackServer?.executor = null // 기본 executor 사용
+            callbackServer?.executor = null
             callbackServer?.start()
 
             println("AuthManagerDesktop: Callback server started on http://localhost:$CALLBACK_PORT$CALLBACK_PATH")
@@ -115,16 +93,15 @@ class AuthManagerDesktop(private val backendUrl: String = "http://localhost:8080
         println("AuthManagerDesktop: Callback server stopped")
     }
 
-    private fun parseQueryString(query: String): Map<String, String> {
-        return query.split("&")
-            .mapNotNull { param ->
-                val parts = param.split("=", limit = 2)
-                if (parts.size == 2) {
-                    URLDecoder.decode(parts[0], "UTF-8") to URLDecoder.decode(parts[1], "UTF-8")
-                } else {
-                    null
-                }
+    private fun parseCookies(cookieString: String): Map<String, String> {
+        return cookieString.split(";")
+            .map { it.trim() }
+            .filter { it.contains("=") }
+            .associate {
+                val parts = it.split("=", limit = 2)
+                val name = URLDecoder.decode(parts[0], "UTF-8")
+                val value = URLDecoder.decode(parts[1], "UTF-8")
+                name to value
             }
-            .toMap()
     }
 }
