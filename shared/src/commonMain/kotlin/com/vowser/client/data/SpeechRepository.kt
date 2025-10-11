@@ -12,7 +12,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
 class SpeechRepository(private val httpClient: HttpClient? = null) {
-    
+
     private val client = httpClient ?: HttpClient {
         install(ContentNegotiation) {
             json(Json {

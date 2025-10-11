@@ -19,11 +19,15 @@ class ContributionModeService(
     private var currentSession: ContributionSession? = null
     private val stepBuffer = mutableListOf<ContributionStep>()
     private var lastSentIndex = 0
-    
+
     // 타이핑 디바운싱 관련 프로퍼티
     private var typingDebounceJob: Job? = null
     private var pendingTypingStep: ContributionStep? = null
     private val typingDebounceTimeMs = ContributionConstants.TYPING_DEBOUNCE_TIME_MS
+
+    // 중복 제거 관련 프로퍼티
+    private val recentActions = mutableMapOf<String, Long>()
+    private val deduplicationWindowMs = ContributionConstants.DEDUPLICATION_WINDOW_MS
     
     private val _status = MutableStateFlow(ContributionStatus.INACTIVE)
     val status: StateFlow<ContributionStatus> = _status.asStateFlow()
@@ -68,11 +72,16 @@ class ContributionModeService(
             Napier.w("No active contribution session to record step", tag = Tags.BROWSER_AUTOMATION)
             return
         }
-        
+
         // 데이터 검증 및 정화
         val sanitizedStep = ContributionDataValidator.sanitizeContributionStep(step)
         if (sanitizedStep == null) {
             Napier.w("Invalid contribution step discarded: ${step.action} on ${step.url}", tag = Tags.BROWSER_AUTOMATION)
+            return
+        }
+
+        // 중복 체크
+        if (isDuplicateAction(sanitizedStep)) {
             return
         }
 
@@ -85,6 +94,87 @@ class ContributionModeService(
         }
     }
     
+    /**
+     * URL fragment, query parameter 제거
+     */
+    private fun normalizeUrl(url: String): String {
+        return url.substringBefore('#')
+            .substringBefore('?')
+            .lowercase()
+    }
+
+    /**
+     * 중복 액션 체크
+     */
+    private fun isDuplicateAction(step: ContributionStep): Boolean {
+        val normalizedUrl = normalizeUrl(step.url)
+        val actionKey = "${step.action}:$normalizedUrl"
+        val now = step.timestamp
+        val lastTime = recentActions[actionKey] ?: 0L
+
+        return if (now - lastTime < deduplicationWindowMs) {
+            when (step.action) {
+                "click" -> {
+                    // 클릭 우선
+                    recentActions["navigate:$normalizedUrl"] = 0L
+                    recentActions["new_tab:$normalizedUrl"] = 0L
+                    recentActions[actionKey] = now
+                    false
+                }
+                "navigate" -> {
+                    // 최근에 클릭이나 타입 액션이 있었다면 무시
+                    val recentClick = recentActions["click:$normalizedUrl"] ?: 0L
+                    val recentType = recentActions["type:$normalizedUrl"] ?: 0L
+                    val recentNavigate = recentActions["navigate:$normalizedUrl"] ?: 0L
+
+                    when {
+                        now - recentClick < deduplicationWindowMs -> true
+                        now - recentType < deduplicationWindowMs -> true
+                        now - recentNavigate < 1000L -> true
+                        else -> {
+                            recentActions[actionKey] = now
+                            false
+                        }
+                    }
+                }
+                "new_tab" -> {
+                    // 최근에 클릭 액션이 있었다면 무시
+                    val recentClick = recentActions["click:$normalizedUrl"] ?: 0L
+                    if (now - recentClick < deduplicationWindowMs) {
+                        true
+                    } else {
+                        recentActions[actionKey] = now
+                        false
+                    }
+                }
+                "type" -> {
+                    val isAddressBarType = step.selector?.contains("address") == true ||
+                                         step.selector?.contains("url") == true ||
+                                         step.htmlAttributes?.get("type") == "url"
+
+                    if (isAddressBarType) {
+                        if (now - lastTime < 3000L) {
+                            true
+                        } else {
+                            recentActions[actionKey] = now
+                            false
+                        }
+                    } else {
+                        recentActions[actionKey] = now
+                        false
+                    }
+                }
+                else -> {
+                    recentActions[actionKey] = now
+                    false
+                }
+            }
+        } else { // 시간 창 밖이므로 기록
+            recentActions[actionKey] = now
+            false
+        }
+    }
+
     /**
      * 타이핑 스텝을 디바운싱하여 기록
      */
@@ -261,24 +351,24 @@ class ContributionModeService(
     fun isSessionActive(): Boolean = currentSession?.isActive == true
     
     fun getCurrentSessionId(): String? = currentSession?.sessionId
-    
+
+    fun getCurrentSession(): ContributionSession? = currentSession
+
     fun resetSession() {
         timeoutJob?.cancel()
         timeoutJob = null
         val previousSessionId = currentSession?.sessionId
         val previousSteps = currentSession?.steps?.size ?: 0
-        
-        // 리셋 시에도 대기 중인 타이핑 스텝 정리
         typingDebounceJob?.cancel()
         pendingTypingStep = null
-        
+        recentActions.clear()
         currentSession = null
         stepBuffer.clear()
         lastSentIndex = 0
         _status.value = ContributionStatus.INACTIVE
         _currentStepCount.value = 0
         _currentTask.value = ""
-        
+
         Napier.i("🔄 Session reset - previousSessionId: ${previousSessionId ?: "none"}, previousSteps: $previousSteps", tag = Tags.BROWSER_AUTOMATION)
     }
 }

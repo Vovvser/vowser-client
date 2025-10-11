@@ -28,6 +28,9 @@ object ContributionConstants {
     
     // 타이핑 디바운싱 설정
     const val TYPING_DEBOUNCE_TIME_MS = 1500L
+
+    // 중복 제거 설정
+    const val DEDUPLICATION_WINDOW_MS = 2000L
     
     // 데이터 검증 제한
     const val MAX_URL_LENGTH = 2048
@@ -39,10 +42,10 @@ object ContributionConstants {
     const val MAX_ACTION_NAME_LENGTH = 50
     
     // 브라우저 자동화 설정
-    const val PAGE_LOAD_WAIT_MS = 3000L
-    const val CLICK_WAIT_MS = 2000L
-    const val TYPE_WAIT_MS = 1000L
-    const val BROWSER_INIT_WAIT_MS = 1000L
+    const val PAGE_LOAD_WAIT_MS = 2000L
+    const val CLICK_WAIT_MS = 1500L
+    const val TYPE_WAIT_MS = 800L
+    const val BROWSER_INIT_WAIT_MS = 500L
     
     // UI 상태 관리 설정
     const val RECORDING_STATUS_RESET_DELAY_MS = 3000L

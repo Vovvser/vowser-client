@@ -5,24 +5,26 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.vowser.client.ui.theme.AppTheme
-import com.vowser.client.navigation.NavigationProcessor
 
 /**
  * 그래프 통계 패널 컴포넌트
  */
 @Composable
 fun StatisticsPanel(
-    navigationProcessor: NavigationProcessor,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val stats by navigationProcessor.graphStatistics.collectAsState()
+    // Mock 통계 데이터 (실제 데이터는 백엔드에서 제공)
+    data class GraphStats(
+        val totalNodes: Int = 0,
+        val totalPaths: Int = 0,
+        val avgPathLength: Double = 0.0
+    )
+    val stats = GraphStats()
 
     Card(
         modifier = modifier
@@ -54,10 +56,8 @@ fun StatisticsPanel(
 
             Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             // 통계 항목들
-            StatItem("총 노드", "${stats.totalNodes}개")
-            StatItem("총 관계", "${stats.totalRelationships}개")
-            StatItem("평균 클릭수", "${stats.averageClicks}")
-            StatItem("평균 시간", "${stats.averageTime.toInt()}초")
+            StatItem("총 경로", "${stats.totalPaths}개")
+            StatItem("평균 경로 길이", "${stats.avgPathLength}")
         }
     }
 }

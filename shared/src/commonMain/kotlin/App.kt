@@ -71,8 +71,7 @@ fun App(viewModel: AppViewModel) {
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
                     onClearStatusHistory = { viewModel.clearStatusHistory() },
-                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) },
-                    navigationProcessor = viewModel.navigationProcessor
+                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) }
                 )
             }
             AppScreen.SETTINGS -> {

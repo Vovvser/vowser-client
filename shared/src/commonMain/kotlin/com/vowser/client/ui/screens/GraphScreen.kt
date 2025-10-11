@@ -20,9 +20,7 @@ import com.vowser.client.AppViewModel
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
 import com.vowser.client.contribution.ContributionStatus
-import com.vowser.client.data.VoiceTestScenario
 import com.vowser.client.exception.DialogState
-import com.vowser.client.navigation.NavigationProcessor
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.components.StandardDialogs
@@ -42,7 +40,6 @@ import kotlinx.coroutines.delay
 @Composable
 fun GraphScreen(
     appViewModel: AppViewModel,
-    navigationProcessor: NavigationProcessor,
     isContributionMode: Boolean,
     isLoading: Boolean,
     connectionStatus: String,
@@ -69,7 +66,7 @@ fun GraphScreen(
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeNodeId by remember { mutableStateOf<String?>(null) }
     var showStats by remember { mutableStateOf(false) }
-    
+
     // 뷰 모드 상태
     var showGraphView by remember { mutableStateOf(false) }
 
@@ -77,18 +74,14 @@ fun GraphScreen(
     var loadingState by remember { mutableStateOf<LoadingState>(LoadingState.Idle) }
     var errorState by remember { mutableStateOf<ErrorState>(ErrorState.None) }
 
-    // 음성 테스트 상태
-    var currentVoiceTest by remember { mutableStateOf<VoiceTestScenario?>(null) }
-
     // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
     val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
-        ?: currentVoiceTest?.expectedPath?.takeIf { it.isNotEmpty() } 
-        ?: selectedPath.takeIf { it.isNotEmpty() } 
+        ?: selectedPath.takeIf { it.isNotEmpty() }
         ?: listOf("voice_start", "naver_main")
-    
-    // 실시간 데이터에서 활성 노드 가져오기 
+
+    // 실시간 데이터에서 활성 노드 가져오기
     val realTimeActiveNodeId = currentGraphData?.activeNodeId
-    
+
     // 로딩 상태 자동 해제
     LaunchedEffect(loadingState) {
         if (loadingState is LoadingState.Loading) {
@@ -98,10 +91,10 @@ fun GraphScreen(
             loadingState = LoadingState.Idle
         }
     }
-    
+
     ErrorBoundary(
         errorState = errorState,
-        onRetry = { 
+        onRetry = {
             loadingState = LoadingState.Loading
         }
     ) {
@@ -115,23 +108,23 @@ fun GraphScreen(
                     activeNodeId = realTimeActiveNodeId ?: activeNodeId,
                     isContributionMode = isContributionMode,
                     isLoading = isLoading,
-                onGraphInteraction = { interactionType ->
-                    when (interactionType) {
-                        GraphInteractionType.ToggleMode -> onModeToggle()
-                        GraphInteractionType.CenterView -> {
-                            selectedPath = emptyList()
-                            activeNodeId = null
+                    onGraphInteraction = { interactionType ->
+                        when (interactionType) {
+                            GraphInteractionType.ToggleMode -> onModeToggle()
+                            GraphInteractionType.CenterView -> {
+                                selectedPath = emptyList()
+                                activeNodeId = null
+                            }
+                            GraphInteractionType.Reset -> {
+                                selectedPath = emptyList()
+                                activeNodeId = null
+                                // 그래프 새로고침 요청
+                                onRefreshGraph()
+                            }
                         }
-                        GraphInteractionType.Reset -> {
-                            selectedPath = emptyList()
-                            activeNodeId = null
-                            // 그래프 새로고침 요청
-                            onRefreshGraph()
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
             } else {
                 // 통합 상태 UI
                 EmptyStateUI(
@@ -142,7 +135,7 @@ fun GraphScreen(
                     contributionTask = contributionTask,
                     statusHistory = statusHistory,
                     isDeveloperMode = isDeveloperMode,
-                    receivedMessage = currentVoiceTest?.voiceCommand ?: receivedMessage,
+                    receivedMessage = receivedMessage,
                     selectedSttModes = selectedSttModes,
                     onToggleRecording = onToggleRecording,
                     onModeToggle = onModeToggle,
@@ -220,10 +213,10 @@ fun GraphScreen(
                           }
                         }
                         """.trimIndent()
-                        
+
                         // 서버에 모의 데이터 전송
                         onSendToolCall("mock_navigation_data", mapOf("data" to mockData))
-                        
+
                         // 그래프 표시 위해 로딩 상태로 전환
                         loadingState = LoadingState.Loading
                     },
@@ -231,26 +224,25 @@ fun GraphScreen(
                     modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
                 )
             }
-            
-        
+
+
             // 상단 앱바
-            
-            
+
+
             // 통계 패널
             if (isDeveloperMode && showStats) {
                 StatisticsPanel(
-                    navigationProcessor = navigationProcessor, // Pass the navigationProcessor
                     onClose = { showStats = false },
                     modifier = Modifier.align(Alignment.CenterEnd)
                 )
             }
-            
-            
+
+
             // 스마트 로딩 인디케이터
             SmartLoadingIndicator(
                 loadingState = loadingState,
                 loadingMessage = "그래프를 업데이트하는 중...",
-                onRetry = { 
+                onRetry = {
                     loadingState = LoadingState.Loading
                 },
                 onDismiss = {
@@ -332,7 +324,7 @@ private fun EmptyStateUI(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
-    
+
     // 새 로그가 추가될 때 자동 스크롤
     LaunchedEffect(statusHistory.size) {
         if (statusHistory.isNotEmpty()) {
@@ -406,7 +398,7 @@ private fun EmptyStateUI(
                 ) {
                     Text("모의 테스트")
                 }
-                
+
                 // 그래프 보기 버튼
                 if (receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
                     Button(
@@ -497,7 +489,7 @@ private fun EmptyStateUI(
                             StatusLogItem(logEntry)
                         }
                     }
-                    
+
                     // 개발자 모드에서만 receivedMessage 표시
                     if (isDeveloperMode && receivedMessage != "No message") {
                         item {
@@ -522,7 +514,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                horizontal = AppTheme.Dimensions.paddingSmall, 
+                horizontal = AppTheme.Dimensions.paddingSmall,
                 vertical = AppTheme.Dimensions.paddingXSmall
             ),
         verticalAlignment = Alignment.CenterVertically
@@ -533,13 +525,13 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠️"
             StatusLogType.INFO -> MaterialTheme.colorScheme.primary to "ℹ️"
         }
-        
+
         Text(
             text = icon,
             fontSize = 12.sp,
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
-        
+
         // 타임스탬프
         Text(
             text = entry.timestamp,
@@ -547,7 +539,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
-        
+
         // 메시지
         Text(
             text = entry.message,

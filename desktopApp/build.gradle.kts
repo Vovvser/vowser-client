@@ -33,6 +33,16 @@ compose.desktop {
     application {
         mainClass = "MainKt"
 
+        jvmArgs += listOf(
+            "-Djava.awt.headless=false",
+            "-Dapple.awt.enableTemplateImages=false",
+            "-Dapple.laf.useScreenMenuBar=false",
+            "-Dcom.apple.macos.useScreenMenuBar=false",
+            "-Djava.awt.accessibility=false",
+            "-Dsun.awt.noerasebackground=true",  // 윈도우 깜빡임 방지
+            "-Dsun.java2d.opengl=true"           // 윈도우 OpenGL 가속
+        )
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "KotlinMultiplatformComposeDesktopApplication"

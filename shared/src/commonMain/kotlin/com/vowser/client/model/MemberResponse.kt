@@ -9,7 +9,7 @@ data class MemberResponse(
     val name: String,
     val naverId: String? = null,
     val phoneNumber: String? = null,
-    val birthdate: String? = null,  // LocalDate는 String으로 직렬화됨
-    val createdAt: String? = null,  // LocalDateTime은 String으로 직렬화됨
+    val birthdate: String? = null,
+    val createdAt: String? = null,
     val updatedAt: String? = null
 )

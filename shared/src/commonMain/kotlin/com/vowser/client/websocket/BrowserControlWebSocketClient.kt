@@ -6,8 +6,7 @@ import com.vowser.client.websocket.dto.BrowserCommand
 import com.vowser.client.websocket.dto.WebSocketMessage
 import com.vowser.client.websocket.dto.GraphUpdateData
 import com.vowser.client.websocket.dto.VoiceProcessingResult
-import com.vowser.client.websocket.dto.NavigationStep
-import com.vowser.client.websocket.dto.PathDetail
+import com.vowser.client.websocket.dto.MatchedPath
 import com.vowser.client.contribution.ContributionMessage
 import com.vowser.client.exception.ExceptionHandler
 import com.vowser.client.exception.NetworkException
@@ -41,33 +40,37 @@ class BrowserControlWebSocketClient(
     private val exceptionHandler: ExceptionHandler
 ) {
 
-    var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
-    var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
-    var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
-
-    private var currentNavigationJob: Job? = null
-
-    private val json = Json {
-        prettyPrint = true
-        isLenient = true
-        ignoreUnknownKeys = true
-        useAlternativeNames = false
-        serializersModule = SerializersModule {
-            polymorphic(WebSocketMessage::class) {
-                subclass(WebSocketMessage.AllPathsWrapper::class)
-                subclass(WebSocketMessage.BrowserCommandWrapper::class)
-                subclass(WebSocketMessage.GraphUpdateWrapper::class)
-                subclass(WebSocketMessage.VoiceProcessingResultWrapper::class)
-                subclass(WebSocketMessage.ErrorWrapper::class)
-                subclass(WebSocketMessage.SearchPathResultWrapper::class)
-            }
-            polymorphic(BrowserCommand::class) {
-                subclass(BrowserCommand.Navigate::class)
-                subclass(BrowserCommand.GoBack::class)
-                subclass(BrowserCommand.GoForward::class)
+    companion object {
+        private val json = Json {
+            prettyPrint = true
+            isLenient = true
+            ignoreUnknownKeys = true
+            useAlternativeNames = false
+            serializersModule = SerializersModule {
+                polymorphic(WebSocketMessage::class) {
+                    subclass(WebSocketMessage.AllPathsWrapper::class)
+                    subclass(WebSocketMessage.BrowserCommandWrapper::class)
+                    subclass(WebSocketMessage.GraphUpdateWrapper::class)
+                    subclass(WebSocketMessage.VoiceProcessingResultWrapper::class)
+                    subclass(WebSocketMessage.ErrorWrapper::class)
+                    subclass(WebSocketMessage.SearchPathResultWrapper::class)
+                }
+                polymorphic(BrowserCommand::class) {
+                    subclass(BrowserCommand.Navigate::class)
+                    subclass(BrowserCommand.GoBack::class)
+                    subclass(BrowserCommand.GoForward::class)
+                }
             }
         }
     }
+
+    var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
+    var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
+    var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
+    var onSearchResultReceived: ((List<MatchedPath>, String) -> Unit)? = null
+
+    private var currentNavigationJob: Job? = null
+    private var messageReceivingJob: Job? = null
 
     private val client = HttpClient {
         install(WebSockets)
@@ -159,7 +162,7 @@ class BrowserControlWebSocketClient(
      */
     private fun startReceivingMessages() {
         Napier.d("=== DEBUG: startReceivingMessages() 호출됨 ===", tag = Tags.NETWORK_WEBSOCKET)
-        CoroutineScope(Dispatchers.IO).launch {
+        messageReceivingJob = CoroutineScope(Dispatchers.IO).launch {
             receiveMessages().collect { messageString ->
                 Napier.d("Received raw message: ${messageString.take(100)}...", tag = Tags.NETWORK_WEBSOCKET)
                 try {
@@ -167,45 +170,31 @@ class BrowserControlWebSocketClient(
 
                     when (message) {
                         is WebSocketMessage.AllPathsWrapper -> {
-                            val allPathsData = message.data
-                            Napier.i("Decoded all paths data for query: ${allPathsData.query}", tag = Tags.NETWORK_WEBSOCKET)
-                            Napier.d("onAllPathsReceived callback is ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = Tags.NETWORK_WEBSOCKET)
-                            onAllPathsReceived?.invoke(allPathsData)
-                            Napier.d("onAllPathsReceived callback invoked", tag = Tags.NETWORK_WEBSOCKET)
+                            Napier.i("All paths received for query: ${message.data.query}", tag = Tags.NETWORK_WEBSOCKET)
+                            onAllPathsReceived?.invoke(message.data)
                         }
 
                         is WebSocketMessage.SearchPathResultWrapper -> {
-                            val searchResult = message.data
-                            Napier.i("Search path result received. Query: ${searchResult.query}", tag = Tags.NETWORK_WEBSOCKET)
-
-                            val pathDetails = searchResult.matched_paths.map { matchedPath ->
-                                PathDetail(
-                                    pathId = matchedPath.pathId,
-                                    score = matchedPath.score,
-                                    total_weight = matchedPath.total_weight,
-                                    last_used = null,
-                                    estimated_time = null,
-                                    steps = matchedPath.steps.map { step ->
-                                        NavigationStep(
-                                            url = step.url,
-                                            title = step.title,
-                                            action = step.action,
-                                            selector = step.selector
-                                        )
-                                    }
-                                )
-                            }
-
-                            val allPathsResponse = AllPathsResponse(
-                                query = searchResult.query,
-                                paths = pathDetails
-                            )
-
-                            onAllPathsReceived?.invoke(allPathsResponse)
+                            Napier.i("Search result: ${message.data.total_matched} paths for '${message.data.query}'", tag = Tags.NETWORK_WEBSOCKET)
+                            onSearchResultReceived?.invoke(message.data.matched_paths, message.data.query)
                         }
 
-                        else -> {
-                            Napier.w("Unhandled WebSocketMessage type received.", tag = Tags.NETWORK_WEBSOCKET)
+                        is WebSocketMessage.VoiceProcessingResultWrapper -> {
+                            Napier.i("Voice result: ${message.data.transcript ?: "N/A"} (success=${message.data.success})", tag = Tags.NETWORK_WEBSOCKET)
+                            onVoiceProcessingResultReceived?.invoke(message.data)
+                        }
+
+                        is WebSocketMessage.BrowserCommandWrapper -> {
+                            Napier.i("Browser command: ${message.data::class.simpleName}", tag = Tags.NETWORK_WEBSOCKET)
+                        }
+
+                        is WebSocketMessage.GraphUpdateWrapper -> {
+                            Napier.d("Graph update received", tag = Tags.NETWORK_WEBSOCKET)
+                            onGraphUpdateReceived?.invoke(message.data)
+                        }
+
+                        is WebSocketMessage.ErrorWrapper -> {
+                            Napier.e("WebSocket error: ${message.data.message}", tag = Tags.NETWORK_WEBSOCKET)
                         }
                     }
                 } catch (e: Exception) {
@@ -287,10 +276,30 @@ class BrowserControlWebSocketClient(
     }
 
     suspend fun close() {
-        currentNavigationJob?.cancel()
-        session?.close(CloseReason(CloseReason.Codes.NORMAL, "Client initiated disconnect"))
-        session = null
-        client.close()
-        Napier.i("Connection closed.", tag = Tags.NETWORK_WEBSOCKET)
+        try {
+            Napier.i("Starting connection cleanup...", tag = Tags.NETWORK_WEBSOCKET)
+
+            currentNavigationJob?.cancel()
+            messageReceivingJob?.cancel()
+            delay(100)
+            session?.let { activeSession ->
+                if (activeSession.isActive) {
+                    activeSession.close(CloseReason(CloseReason.Codes.GOING_AWAY, "Client disconnect"))
+                    Napier.d("WebSocket session closed with GOING_AWAY reason", tag = Tags.NETWORK_WEBSOCKET)
+                }
+            }
+            session = null
+            isConnecting = false
+            onAllPathsReceived = null
+            onGraphUpdateReceived = null
+            onVoiceProcessingResultReceived = null
+            client.close()
+            Napier.i("Connection closed and all resources cleaned up successfully.", tag = Tags.NETWORK_WEBSOCKET)
+        } catch (e: Exception) {
+            Napier.e("Error during resource cleanup: ${e.message}", e, tag = Tags.NETWORK_WEBSOCKET)
+            session = null
+            isConnecting = false
+            throw e
+        }
     }
 }
