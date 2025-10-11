@@ -1,17 +1,18 @@
 package com.vowser.client.auth
 
+import com.vowser.client.logging.Tags
+import io.github.aakira.napier.Napier
+
 class AuthManagerAndroid : AuthManager {
     override fun login() {
-        // TODO: Implement Android OAuth login
-        println("AuthManagerAndroid: Login not yet implemented for Android")
+        Napier.w("Login not yet implemented for Android", tag = Tags.AUTH)
     }
 
     override fun startCallbackServer(onTokenReceived: (String, String) -> Unit) {
-        // TODO: Implement callback handling for Android
-        println("AuthManagerAndroid: Callback server not yet implemented")
+        Napier.w("Callback server not yet implemented for Android", tag = Tags.AUTH)
     }
 
     override fun stopCallbackServer() {
-        println("AuthManagerAndroid: No callback server to stop")
+        Napier.d("No callback server to stop", tag = Tags.AUTH)
     }
 }

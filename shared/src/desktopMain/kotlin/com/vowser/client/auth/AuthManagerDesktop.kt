@@ -1,6 +1,8 @@
 package com.vowser.client.auth
 
 import com.sun.net.httpserver.HttpServer
+import io.github.aakira.napier.Napier
+import com.vowser.client.logging.Tags
 import java.awt.Desktop
 import java.net.InetSocketAddress
 import java.net.URI
@@ -34,13 +36,10 @@ class AuthManagerDesktop(private val backendUrl: String = "http://localhost:8080
             callbackServer?.createContext(CALLBACK_PATH) { exchange ->
                 try {
                     val cookieString = exchange.requestHeaders.getFirst("Cookie") ?: ""
-                    println("AuthManagerDesktop: Received Cookie header: $cookieString")
                     val cookies = parseCookies(cookieString)
-                    println("AuthManagerDesktop: Parsed cookies: ${cookies.keys}")
 
                     val accessToken = cookies["AccessToken"]
                     val refreshToken = cookies["RefreshToken"]
-                    println("AuthManagerDesktop: AccessToken found: ${accessToken != null}, RefreshToken found: ${refreshToken != null}")
 
                     if (accessToken != null && refreshToken != null) {
                         val response = """
@@ -69,28 +68,26 @@ class AuthManagerDesktop(private val backendUrl: String = "http://localhost:8080
                         exchange.sendResponseHeaders(400, response.toByteArray().size.toLong())
                         exchange.responseBody.use { it.write(response.toByteArray()) }
 
-                        println("AuthManagerDesktop: Login failed - tokens not found in cookies")
+                        Napier.w("Login failed - tokens not found in cookies", tag = Tags.AUTH)
                     }
                 } catch (e: Exception) {
-                    println("AuthManagerDesktop: Error handling callback: ${e.message}")
-                    e.printStackTrace()
+                    Napier.e("Error handling callback: ${e.message}", e, tag = Tags.AUTH)
                 }
             }
 
             callbackServer?.executor = null
             callbackServer?.start()
 
-            println("AuthManagerDesktop: Callback server started on http://localhost:$CALLBACK_PORT$CALLBACK_PATH")
+            Napier.i("Callback server started on http://localhost:$CALLBACK_PORT$CALLBACK_PATH", tag = Tags.AUTH)
         } catch (e: Exception) {
-            println("AuthManagerDesktop: Failed to start callback server: ${e.message}")
-            e.printStackTrace()
+            Napier.e("Failed to start callback server: ${e.message}", e, tag = Tags.AUTH)
         }
     }
 
     override fun stopCallbackServer() {
         callbackServer?.stop(0)
         callbackServer = null
-        println("AuthManagerDesktop: Callback server stopped")
+        Napier.i("Callback server stopped", tag = Tags.AUTH)
     }
 
     private fun parseCookies(cookieString: String): Map<String, String> {

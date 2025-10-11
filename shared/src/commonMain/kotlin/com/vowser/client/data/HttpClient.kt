@@ -2,6 +2,8 @@ package com.vowser.client.data
 
 import com.vowser.client.auth.TokenStorage
 import com.vowser.client.model.ApiResponse
+import com.vowser.client.logging.Tags
+import io.github.aakira.napier.Napier
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.auth.*
@@ -34,11 +36,10 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                 }
 
                 refreshTokens {
-                    // 401 Unauthorized 응답 시 자동으로 토큰 갱신
                     val refreshToken = tokenStorage.getRefreshToken()
 
                     if (refreshToken == null) {
-                        println("HttpClient: No refresh token available")
+                        Napier.w("No refresh token available", tag = Tags.API)
                         tokenStorage.clearTokens()
                         return@refreshTokens null
                     }
@@ -49,9 +50,8 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                             header("Authorization", "Bearer $refreshToken")
                         }.body()
 
-                        // 응답 검증
                         if (!response.success || response.data == null) {
-                            println("HttpClient: Token refresh failed - API response unsuccessful")
+                            Napier.w("Token refresh failed - API response unsuccessful", tag = Tags.API)
                             tokenStorage.clearTokens()
                             return@refreshTokens null
                         }
@@ -60,21 +60,20 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                         val newRefreshToken = response.data["refreshToken"]
 
                         if (accessToken == null || newRefreshToken == null) {
-                            println("HttpClient: Token refresh failed - missing tokens in response")
+                            Napier.w("Token refresh failed - missing tokens in response", tag = Tags.API)
                             tokenStorage.clearTokens()
                             return@refreshTokens null
                         }
 
-                        // 새 토큰 저장
                         tokenStorage.saveTokens(accessToken, newRefreshToken)
-                        println("HttpClient: Token refreshed successfully")
+                        Napier.i("Token refreshed successfully", tag = Tags.API)
 
                         BearerTokens(
                             accessToken = accessToken,
                             refreshToken = newRefreshToken
                         )
                     } catch (e: Exception) {
-                        println("HttpClient: Token refresh failed: ${e.message}")
+                        Napier.e("Token refresh failed: ${e.message}", e, tag = Tags.API)
                         tokenStorage.clearTokens()
                         null
                     }

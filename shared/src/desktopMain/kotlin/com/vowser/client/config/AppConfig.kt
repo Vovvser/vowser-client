@@ -1,12 +1,10 @@
 package com.vowser.client.config
 
+import com.vowser.client.logging.Tags
+import io.github.aakira.napier.Napier
 import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
-
-/**
- * 애플리케이션 설정 관리
- */
 class AppConfig private constructor() {
     private val properties = Properties()
 
@@ -32,33 +30,29 @@ class AppConfig private constructor() {
 
     private fun loadConfig() {
         try {
-            // 1. 현재 디렉토리에서 찾기
             val currentDirConfig = File(CONFIG_FILENAME)
             if (currentDirConfig.exists()) {
                 FileInputStream(currentDirConfig).use { properties.load(it) }
-                println("AppConfig: Loaded from current directory: ${currentDirConfig.absolutePath}")
+                Napier.i("Loaded from current directory: ${currentDirConfig.absolutePath}", tag = Tags.CONFIG)
                 return
             }
 
-            // 2. resources 폴더에서 찾기
             val resourceStream = javaClass.classLoader.getResourceAsStream(CONFIG_FILENAME)
             if (resourceStream != null) {
                 resourceStream.use { properties.load(it) }
-                println("AppConfig: Loaded from resources")
+                Napier.i("Loaded from resources", tag = Tags.CONFIG)
                 return
             }
 
-            // 3. 설정 파일이 없으면 기본값 사용
-            println("AppConfig: No config file found, using defaults (backend.url=$DEFAULT_BACKEND_URL)")
+            Napier.i("No config file found, using defaults (backend.url=$DEFAULT_BACKEND_URL)", tag = Tags.CONFIG)
         } catch (e: Exception) {
-            println("AppConfig: Error loading config: ${e.message}, using defaults")
-            e.printStackTrace()
+            Napier.e("Error loading config: ${e.message}, using defaults", e, tag = Tags.CONFIG)
         }
     }
 
     fun printConfig() {
-        println("=== AppConfig ===")
-        println("backend.url: $backendUrl")
-        println("=================")
+        Napier.i("=== AppConfig ===", tag = Tags.CONFIG)
+        Napier.i("backend.url: $backendUrl", tag = Tags.CONFIG)
+        Napier.i("=================", tag = Tags.CONFIG)
     }
 }
