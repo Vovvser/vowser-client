@@ -20,6 +20,10 @@ kotlin {
                 
                 // SLF4J 로깅 구현체
                 implementation("org.slf4j:slf4j-simple:1.7.36")
+
+                implementation("io.ktor:ktor-server-core:2.3.6")
+                implementation("io.ktor:ktor-server-netty:2.3.6")
+                implementation("io.ktor:ktor-server-sessions:2.3.6")
             }
         }
     }

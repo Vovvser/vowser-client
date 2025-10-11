@@ -1,7 +1,7 @@
 package com.vowser.client.ui.theme
 
-import androidx.compose.material.darkColors
-import androidx.compose.material.lightColors
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,7 +38,7 @@ object AppTheme {
         // 컴포넌트 크기
         val buttonHeight = 48.dp
         val buttonHeightSmall = 32.dp
-        val buttonHeightLarge = 56.dp
+        val buttonHeightLarge = 48.dp
         
         // 아이콘 크기
         val iconSizeSmall = 16.dp
@@ -55,9 +55,9 @@ object AppTheme {
         
         // 테두리 radius
         val borderRadius = 8.dp
-        val borderRadiusSmall = 4.dp
         val borderRadiusLarge = 12.dp
         val borderRadiusXLarge = 16.dp
+        val borderRadiusXXLarge = 32.dp
         val borderRadiusCircle = 50.dp
         
         // 간격
@@ -65,16 +65,10 @@ object AppTheme {
         val spacingSmall = 8.dp
         val spacingMedium = 12.dp
         val spacingLarge = 16.dp
+        val spacingXLarge = 32.dp
     }
-    
-    // 애니메이션 duration
-    object Animation {
-        const val DurationFast = 150
-        const val DurationMedium = 300
-        const val DurationSlow = 500
-    }
-    
-    // 타이포그래피 체계 (중복 제거)
+
+    // 타이포그래피 체계
     object Typography {
         // 제목 크기들
         val titleLarge = 24.sp
@@ -93,7 +87,7 @@ object AppTheme {
     /**
      * 다크 테마
      */
-    val DarkTheme = darkColors(
+    val DarkTheme = darkColorScheme(
         primary = Color(0xFF3C7F9B),
         secondary = Color(0xFF3C7F59),
         background = Color(0xFF161B22),
@@ -109,7 +103,7 @@ object AppTheme {
     /**
      * 라이트 테마
      */
-    val LightTheme = lightColors(
+    val LightTheme = lightColorScheme(
         primary = Color(0xFF3C7F9B),
         secondary = Color(0xFF3C7F59),
         background = Color(234, 234, 234),

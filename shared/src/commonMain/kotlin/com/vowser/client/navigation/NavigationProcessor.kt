@@ -1,6 +1,9 @@
 package com.vowser.client.navigation
 
 import com.vowser.client.data.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 메인 탐색 처리 엔진
@@ -9,10 +12,13 @@ import com.vowser.client.data.*
 class NavigationProcessor(
     private val graph: WebNavigationGraph
 ) {
+    private val _graphStatistics = MutableStateFlow(calculateGraphStatistics())
+    val graphStatistics: StateFlow<GraphStatistics> = _graphStatistics.asStateFlow()
+
     /**
      * 그래프 통계 정보 반환
      */
-    fun getGraphStatistics(): GraphStatistics {
+    private fun calculateGraphStatistics(): GraphStatistics {
         val nodes = graph.getAllNodes()
         val relationships = graph.getAllRelationships()
         
@@ -23,6 +29,14 @@ class NavigationProcessor(
             averageClicks = relationships.map { it.requiredClicks }.average(),
             averageTime = relationships.map { it.estimatedTime }.average()
         )
+    }
+
+    /**
+     * 그래프 통계 정보를 업데이트합니다.
+     * WebNavigationGraph가 변경될 때 호출되어야 합니다.
+     */
+    fun updateGraphStatistics() {
+        _graphStatistics.value = calculateGraphStatistics()
     }
 }
 

@@ -1,10 +1,12 @@
 package com.vowser.client.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,13 +22,13 @@ fun StatisticsPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val stats = navigationProcessor.getGraphStatistics()
-    
+    val stats by navigationProcessor.graphStatistics.collectAsState()
+
     Card(
         modifier = modifier
             .width(300.dp)
             .padding(AppTheme.Dimensions.paddingMedium),
-        elevation = AppTheme.Dimensions.cardElevationXHigh
+        elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationXHigh)
     ) {
         Column(
             modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
@@ -40,7 +42,7 @@ fun StatisticsPanel(
             ) {
                 Text(
                     text = "그래프 통계",
-                    style = MaterialTheme.typography.h6
+                    style = MaterialTheme.typography.headlineSmall
                 )
                 IconButton(onClick = onClose) {
                     Icon(
@@ -49,9 +51,8 @@ fun StatisticsPanel(
                     )
                 }
             }
-            
-            Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f))
-            
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             // 통계 항목들
             StatItem("총 노드", "${stats.totalNodes}개")
             StatItem("총 관계", "${stats.totalRelationships}개")
@@ -72,12 +73,12 @@ private fun StatItem(label: String, value: String) {
     ) {
         Text(
             text = label,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
-            style = MaterialTheme.typography.body2
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.bodyMedium
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.body2
+            style = MaterialTheme.typography.bodyMedium
         )
     }
 }

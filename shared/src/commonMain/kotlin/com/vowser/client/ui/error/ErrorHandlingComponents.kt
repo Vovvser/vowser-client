@@ -7,9 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,11 +69,11 @@ fun SmartLoadingIndicator(
         Card(
             modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
             shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
-            elevation = AppTheme.Dimensions.cardElevationMax
+            elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationMax)
         ) {
             Box(
                 modifier = Modifier
-                    .background(MaterialTheme.colors.surface.copy(alpha = 0.9f))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
                     .padding(AppTheme.Dimensions.paddingLarge),
                 contentAlignment = Alignment.Center
             ) {
@@ -125,7 +126,7 @@ private fun LoadingContent(
         )
     )
 
-    val primaryColor = MaterialTheme.colors.primary;
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -144,7 +145,7 @@ private fun LoadingContent(
                 )
                 Text(
                     text = "${(progress * 100).toInt()}%",
-                    color = MaterialTheme.colors.onSurface,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -173,7 +174,7 @@ private fun LoadingContent(
         
         Text(
             text = message,
-            color = MaterialTheme.colors.onSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = AppTheme.Typography.bodyLarge,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
@@ -198,7 +199,7 @@ private fun LoadingContent(
                         modifier = Modifier
                             .size(AppTheme.Dimensions.paddingSmall)
                             .scale(dotScale)
-                            .background(MaterialTheme.colors.onSurface.copy(alpha = 0.7f), CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), CircleShape)
                     )
                 }
             }
@@ -214,7 +215,7 @@ private fun ErrorContent(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingLarge),
         modifier = Modifier.width(300.dp)
     ) {
         // 에러 아이콘
@@ -236,7 +237,7 @@ private fun ErrorContent(
                 imageVector = icon,
                 contentDescription = "Error",
                 tint = iconColor,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(AppTheme.Dimensions.iconSizeLarge)
             )
         }
         
@@ -250,7 +251,7 @@ private fun ErrorContent(
                 else -> "오류 발생"
             },
             color = Color.White,
-            fontSize = 20.sp,
+            fontSize = AppTheme.Typography.titleMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -265,7 +266,7 @@ private fun ErrorContent(
                 else -> "문제가 발생했습니다."
             },
             color = Color.White.copy(alpha = 0.8f),
-            fontSize = 14.sp,
+            fontSize = AppTheme.Typography.bodyMedium,
             textAlign = TextAlign.Center,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis
@@ -273,7 +274,7 @@ private fun ErrorContent(
         
         // 액션 버튼들
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium),
             modifier = Modifier.fillMaxWidth()
         ) {
             if (onDismiss != null) {
@@ -293,15 +294,15 @@ private fun ErrorContent(
                     onClick = onRetry,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = iconColor
+                        containerColor = iconColor
                     )
                 ) {
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = "Retry",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(AppTheme.Dimensions.spacingXSmall))
                     Text("다시 시도", color = Color.White)
                 }
             }
@@ -336,22 +337,23 @@ fun NetworkConnectionIndicator(
     ) {
         Card(
             modifier = Modifier
-                .padding(8.dp),
-            shape = RoundedCornerShape(8.dp),
-            elevation = 8.dp,
-            backgroundColor = MaterialTheme.colors.surface
+                .padding(AppTheme.Dimensions.paddingSmall),
+            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = AppTheme.Dimensions.spacingMedium, vertical = AppTheme.Dimensions.paddingSmall),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
             ) {
                 val contentColor = if (isConnecting) AppTheme.Colors.Warning else AppTheme.Colors.Error
 
                 if (isConnecting) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall),
+                        strokeWidth = AppTheme.Dimensions.cardElevationLow,
                         color = contentColor
                     )
                 } else {
@@ -359,14 +361,14 @@ fun NetworkConnectionIndicator(
                         Icons.Default.Warning,
                         contentDescription = "Disconnected",
                         tint = contentColor,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                     )
                 }
 
                 Text(
                     text = if (isConnecting) "연결 중..." else "연결 끊김",
-                    color = MaterialTheme.colors.onSurface,
-                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = AppTheme.Typography.bodySmall,
                     fontWeight = FontWeight.Medium
                 )
 
@@ -374,13 +376,13 @@ fun NetworkConnectionIndicator(
                     TextButton(
                         onClick = onReconnect,
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colors.primary
+                            contentColor = MaterialTheme.colorScheme.primary
                         ),
                         modifier = Modifier.padding(0.dp)
                     ) {
                         Text(
                             text = "재연결",
-                            fontSize = 10.sp,
+                            fontSize = AppTheme.Typography.overline,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -426,7 +428,7 @@ private fun ErrorFallbackUI(
         modifier = modifier.background(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFF1A1A1A),
+                    AppTheme.Colors.StatusBackground,
                     Color(0xFF2D2D2D)
                 )
             )
@@ -435,18 +437,18 @@ private fun ErrorFallbackUI(
     ) {
         Card(
             modifier = Modifier
-                .padding(32.dp)
+                .padding(AppTheme.Dimensions.paddingXLarge)
                 .background(
                     color = Color.Black.copy(alpha = 0.8f),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge)
                 ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = 16.dp
+            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
+            elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationMax)
         ) {
             Column(
-                modifier = Modifier.padding(32.dp),
+                modifier = Modifier.padding(AppTheme.Dimensions.paddingXLarge),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingLarge)
             ) {
                 // 큰 에러 아이콘
                 val (icon, iconColor) = when (errorState) {
@@ -474,11 +476,11 @@ private fun ErrorFallbackUI(
                 Text(
                     text = "문제가 발생했습니다",
                     color = Color.White,
-                    fontSize = 24.sp,
+                    fontSize = AppTheme.Typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                
+
                 Text(
                     text = when (errorState) {
                         is ErrorState.NetworkError -> "네트워크 연결을 확인해주세요.\n${errorState.message}"
@@ -488,47 +490,47 @@ private fun ErrorFallbackUI(
                         else -> "알 수 없는 오류가 발생했습니다."
                     },
                     color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 16.sp,
+                    fontSize = AppTheme.Typography.bodyLarge,
                     textAlign = TextAlign.Center,
-                    lineHeight = 24.sp
+                    lineHeight = AppTheme.Typography.titleLarge
                 )
                 
                 // 액션 버튼들
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingLarge)
                 ) {
                     if (onRetry != null && isRetryable(errorState)) {
                         Button(
                             onClick = onRetry,
                             colors = ButtonDefaults.buttonColors(
-                                backgroundColor = iconColor
+                                containerColor = iconColor
                             ),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius)
                         ) {
                             Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = "Retry",
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
                             Text("다시 시도", color = Color.White)
                         }
                     }
-                    
+
                     if (onReportError != null) {
                         OutlinedButton(
                             onClick = { onReportError(errorState) },
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = Color.White
                             ),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius)
                         ) {
                             Icon(
                                 Icons.Default.Warning,
                                 contentDescription = "Report",
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
                             Text("문제 신고")
                         }
                     }
@@ -560,15 +562,16 @@ fun ToastMessage(
     ) {
         Card(
             modifier = Modifier
-                .padding(16.dp),
-            shape = RoundedCornerShape(8.dp),
-            elevation = 8.dp,
-            backgroundColor = MaterialTheme.colors.surface
+                .padding(AppTheme.Dimensions.paddingMedium),
+            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium)
             ) {
                 val iconColor = when (type) {
                     ToastType.SUCCESS -> AppTheme.Colors.Success
@@ -585,13 +588,13 @@ fun ToastMessage(
                     },
                     contentDescription = null,
                     tint = iconColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium)
                 )
 
                 Text(
                     text = message,
-                    color = MaterialTheme.colors.onSurface,
-                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = AppTheme.Typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
             }

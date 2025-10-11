@@ -5,37 +5,36 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import com.vowser.client.data.VoiceTestScenario
-import com.vowser.client.navigation.NavigationProcessor
-import com.vowser.client.ui.graph.ModernNetworkGraph
-import com.vowser.client.ui.graph.GraphInteractionType
-import com.vowser.client.ui.error.ErrorBoundary
-import com.vowser.client.ui.error.LoadingState
-import com.vowser.client.ui.error.ErrorState
-import com.vowser.client.ui.error.SmartLoadingIndicator
-import com.vowser.client.ui.components.AppBar
-import com.vowser.client.ui.components.StatisticsPanel
-import com.vowser.client.ui.components.SttModeSelector
-import com.vowser.client.ui.components.StandardDialogs
-import com.vowser.client.ui.theme.AppTheme
-import com.vowser.client.visualization.GraphVisualizationData
+import com.vowser.client.AppViewModel
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
 import com.vowser.client.contribution.ContributionStatus
+import com.vowser.client.data.VoiceTestScenario
 import com.vowser.client.exception.DialogState
-import com.vowser.client.AppViewModel
+import com.vowser.client.navigation.NavigationProcessor
+import com.vowser.client.ui.components.StatisticsPanel
+import com.vowser.client.ui.components.SttModeSelector
+import com.vowser.client.ui.components.StandardDialogs
+import com.vowser.client.ui.error.ErrorBoundary
+import com.vowser.client.ui.error.ErrorState
+import com.vowser.client.ui.error.LoadingState
+import com.vowser.client.ui.error.SmartLoadingIndicator
+import com.vowser.client.ui.graph.GraphInteractionType
+import com.vowser.client.ui.graph.ModernNetworkGraph
+import com.vowser.client.ui.theme.AppTheme
+import com.vowser.client.visualization.GraphVisualizationData
+import kotlinx.coroutines.delay
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -106,7 +105,7 @@ fun GraphScreen(
             loadingState = LoadingState.Loading
         }
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colors.background)) {
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             if (isDeveloperMode && showGraphView && currentGraphData != null) {
                 //  그래프 화면
                 ModernNetworkGraph(
@@ -235,21 +234,12 @@ fun GraphScreen(
             
         
             // 상단 앱바
-            AppBar(
-                connectionStatus = connectionStatus,
-                onSettingsClick = { onScreenChange(AppScreen.SETTINGS) },
-                onStatsToggle = { showStats = !showStats },
-                showHomeButton = isDeveloperMode && showGraphView && currentGraphData != null,
-                onHomeClick = { showGraphView = false },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-            )
+            
             
             // 통계 패널
             if (isDeveloperMode && showStats) {
                 StatisticsPanel(
-                    navigationProcessor = navigationProcessor,
+                    navigationProcessor = navigationProcessor, // Pass the navigationProcessor
                     onClose = { showStats = false },
                     modifier = Modifier.align(Alignment.CenterEnd)
                 )
@@ -364,7 +354,7 @@ private fun EmptyStateUI(
             Button(
                 onClick = onToggleRecording,
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colors.primary,
+                    containerColor = if (isRecording) AppTheme.Colors.Error else MaterialTheme.colorScheme.primary,
                     contentColor = Color.White
                 )
             ) {
@@ -381,7 +371,7 @@ private fun EmptyStateUI(
             Button(
                 onClick = onModeToggle,
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (isContributionMode) AppTheme.Colors.Contribution else MaterialTheme.colors.secondary,
+                    containerColor = if (isContributionMode) AppTheme.Colors.Contribution else MaterialTheme.colorScheme.secondary,
                     contentColor = Color.White
                 )
             ) {
@@ -392,7 +382,7 @@ private fun EmptyStateUI(
             Button(
                 onClick = onReconnect,
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = AppTheme.Colors.ButtonSecondary,
+                    containerColor = AppTheme.Colors.ButtonSecondary,
                     contentColor = Color.White
                 )
             ) {
@@ -410,7 +400,7 @@ private fun EmptyStateUI(
                 Button(
                     onClick = onTestCommand,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = AppTheme.Colors.Success,
+                        containerColor = AppTheme.Colors.Success,
                         contentColor = Color.White
                     )
                 ) {
@@ -422,7 +412,7 @@ private fun EmptyStateUI(
                     Button(
                         onClick = onShowGraph,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = AppTheme.Colors.Info,
+                            containerColor = AppTheme.Colors.Info,
                             contentColor = Color.White
                         )
                     ) {
@@ -437,7 +427,7 @@ private fun EmptyStateUI(
             OutlinedButton(
                 onClick = onClearStatusHistory,
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colors.onSurface
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
                 Text("Clear")
@@ -456,21 +446,20 @@ private fun EmptyStateUI(
         if (isContributionMode) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = AppTheme.Colors.Contribution.copy(alpha = 0.1f),
-                elevation = AppTheme.Dimensions.cardElevationLow
+                colors = CardDefaults.cardColors(containerColor = AppTheme.Colors.Contribution.copy(alpha = 0.1f)),
             ) {
                 Column(
                     modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium)
                 ) {
                     Text(
                         text = "🤝 기여 모드 활성화됨",
-                        style = MaterialTheme.typography.h6,
+                        style = MaterialTheme.typography.headlineSmall,
                         color = AppTheme.Colors.Contribution
                     )
                     Text(
                         text = "$contributionTask 패턴을 기록하고 있는 중입니다.",
-                        style = MaterialTheme.typography.body2,
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -481,7 +470,6 @@ private fun EmptyStateUI(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            elevation = AppTheme.Dimensions.cardElevation
         ) {
             Column {
                 LazyColumn(
@@ -499,8 +487,8 @@ private fun EmptyStateUI(
                                 Text(
                                     text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
                                     textAlign = TextAlign.Center,
-                                    style = MaterialTheme.typography.body2,
-                                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )
                             }
                         }
@@ -543,7 +531,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             StatusLogType.SUCCESS -> AppTheme.Colors.Success to "✅"
             StatusLogType.ERROR -> AppTheme.Colors.Error to "❌"
             StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠️"
-            StatusLogType.INFO -> MaterialTheme.colors.primary to "ℹ️"
+            StatusLogType.INFO -> MaterialTheme.colorScheme.primary to "ℹ️"
         }
         
         Text(
@@ -556,7 +544,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         Text(
             text = entry.timestamp,
             fontSize = 12.sp,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
         )
         
@@ -564,7 +552,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         Text(
             text = entry.message,
             fontSize = 13.sp,
-            color = MaterialTheme.colors.onSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
     }
