@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +30,7 @@ fun GlassmorphismHeader(
             .fillMaxWidth()
             .padding(AppTheme.Dimensions.paddingMedium),
         shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
-        elevation = 0.dp  // 의도적으로 0
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier

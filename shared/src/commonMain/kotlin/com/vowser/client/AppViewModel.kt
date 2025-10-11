@@ -110,13 +110,22 @@ class AppViewModel(
                 return@launch
             }
 
+            println("AppViewModel: Calling authRepository.getMe()...")
             val result = authRepository.getMe()
             result.onSuccess {
                 _authState.value = AuthState.Authenticated(it.name, it.email)
+                println("AppViewModel: getMe() success! authState = Authenticated(${it.name}, ${it.email})")
             }.onFailure {
                 _authState.value = AuthState.NotAuthenticated
                 tokenStorage.clearTokens()
+                println("AppViewModel: getMe() failed: ${it.message}, authState = NotAuthenticated")
             }
+        }
+    }
+
+    fun startAuthCallbackServer() {
+        authManager.startCallbackServer { accessToken, refreshToken ->
+            handleLoginSuccess(accessToken, refreshToken)
         }
     }
 

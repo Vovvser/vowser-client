@@ -52,7 +52,7 @@ fun StatisticsPanel(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+            Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             // 통계 항목들
             StatItem("총 노드", "${stats.totalNodes}개")
             StatItem("총 관계", "${stats.totalRelationships}개")

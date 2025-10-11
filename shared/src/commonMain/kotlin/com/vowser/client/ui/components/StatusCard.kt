@@ -4,7 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -87,8 +87,8 @@ private fun ScrollableDetailView(
     modifier: Modifier = Modifier
 ) {
     Card(
-        elevation = AppTheme.Dimensions.cardElevationLow,
-        backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.3f),
+        elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationLow),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)),
         modifier = modifier
     ) {
         LazyColumn(
@@ -103,7 +103,7 @@ private fun ScrollableDetailView(
                         text = details,
                         fontSize = AppTheme.Typography.overline,
                         fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         lineHeight = AppTheme.Typography.bodyMedium
                     )
                 }
@@ -117,7 +117,7 @@ private fun getStatusTextColor(statusType: StatusType): Color {
     return when (statusType) {
         StatusType.SUCCESS -> AppTheme.Colors.Success.copy(alpha = 0.8f)
         StatusType.ERROR -> AppTheme.Colors.Error.copy(alpha = 0.8f)
-        StatusType.PROCESSING -> MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
-        StatusType.INFO -> MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
+        StatusType.PROCESSING -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        StatusType.INFO -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     }
 }

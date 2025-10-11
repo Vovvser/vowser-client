@@ -1,7 +1,7 @@
 package com.vowser.client.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +24,7 @@ fun StatusBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(AppTheme.Dimensions.paddingLarge),
-        elevation = AppTheme.Dimensions.cardElevation
+        elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevation)
     ) {
         Row(
             modifier = Modifier.padding(AppTheme.Dimensions.paddingLarge),
@@ -46,7 +46,7 @@ fun StatusBar(
                 Button(
                     onClick = onTestCommand,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = if (currentVoiceTest != null) 
+                        containerColor = if (currentVoiceTest != null)
                             AppTheme.Colors.Contribution else AppTheme.Colors.Success,
                         contentColor = Color.White
                     )

@@ -19,6 +19,10 @@ fun App(viewModel: AppViewModel) {
     var isDarkTheme by remember { mutableStateOf(false) }
     var isDeveloperMode by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        viewModel.checkAuthStatus()
+    }
+
     val colors = if (isDarkTheme) {
         AppTheme.DarkTheme
     } else {

@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,7 +26,7 @@ fun ModernLegend(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusLarge),
-        elevation = AppTheme.Dimensions.cardElevation
+        elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevation)
     ) {
         Column(
             modifier = Modifier.padding(AppTheme.Dimensions.spacingMedium),
@@ -34,7 +34,7 @@ fun ModernLegend(
         ) {
             Text(
                 text = "범례",
-                color = MaterialTheme.colors.onSurface,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = AppTheme.Typography.bodyMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -56,7 +56,7 @@ fun ModernLegend(
                             NodeType.WEBSITE -> "웹사이트"
                             NodeType.ACTION -> "액션"
                         },
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                         fontSize = 11.sp
                     )
                 }

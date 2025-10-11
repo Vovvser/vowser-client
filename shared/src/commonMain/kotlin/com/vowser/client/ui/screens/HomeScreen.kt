@@ -88,6 +88,7 @@ fun HomeScreen(
                     shape = RoundedCornerShape(48.dp),
                     singleLine = true,
                     colors = TextFieldDefaults.textFieldColors(
+                        containerColor = Color.White,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
                         disabledIndicatorColor = Color.Transparent,

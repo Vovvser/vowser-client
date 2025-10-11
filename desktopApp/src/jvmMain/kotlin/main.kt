@@ -3,7 +3,6 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.vowser.client.rememberAppViewModel
 import com.vowser.client.browserautomation.BrowserAutomationService
-import com.vowser.client.auth.AuthManagerDesktop
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import kotlinx.coroutines.runBlocking
@@ -12,10 +11,8 @@ fun main() = application {
     Window(onCloseRequest = ::exitApplication) {
         val coroutineScope = rememberCoroutineScope()
         val viewModel = rememberAppViewModel(coroutineScope)
-        val authManager = AuthManagerDesktop()
-        authManager.startCallbackServer { accessToken, refreshToken ->
-            viewModel.handleLoginSuccess(accessToken, refreshToken)
-        }
+        viewModel.startAuthCallbackServer()
+
         App(viewModel)
     }
 
