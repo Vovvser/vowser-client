@@ -27,7 +27,7 @@ kotlin {
             dependencies {
                 implementation(compose.runtime)
                 implementation(compose.foundation)
-                implementation(compose.material)
+                implementation(compose.material3)
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.components.resources)
 
@@ -38,6 +38,7 @@ kotlin {
                 implementation("io.ktor:ktor-client-content-negotiation:2.3.6")
                 implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.6")
                 implementation("io.ktor:ktor-client-websockets:2.3.6")
+                implementation("io.ktor:ktor-client-auth:2.3.6")
                 // Napier
                 implementation("io.github.aakira:napier:2.6.1")
                 // KoalaPlot for graph visualization
@@ -53,6 +54,7 @@ kotlin {
             }
         }
         val desktopMain by getting {
+            dependsOn(commonMain)
             dependencies {
                 implementation(compose.desktop.common)
 

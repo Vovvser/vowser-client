@@ -3,7 +3,7 @@ package com.vowser.client.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.Composable
@@ -70,7 +70,7 @@ private fun ErrorDialogContent(
             .fillMaxWidth(0.85f)
             .wrapContentHeight(),
         shape = RoundedCornerShape(16.dp),
-        elevation = 8.dp
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
             modifier = Modifier
@@ -91,7 +91,7 @@ private fun ErrorDialogContent(
             // 제목
             Text(
                 text = title,
-                style = MaterialTheme.typography.h6.copy(
+                style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 ),
@@ -103,7 +103,7 @@ private fun ErrorDialogContent(
             // 메시지
             Text(
                 text = message,
-                style = MaterialTheme.typography.body1.copy(
+                style = MaterialTheme.typography.bodyLarge.copy(
                     color = Color.Gray,
                     lineHeight = 20.sp
                 ),
@@ -128,7 +128,7 @@ private fun ErrorDialogContent(
                             onNegativeClick?.invoke()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color.LightGray,
+                            containerColor =Color.LightGray,
                             contentColor = Color.DarkGray
                         ),
                         modifier = Modifier
@@ -138,7 +138,7 @@ private fun ErrorDialogContent(
                     ) {
                         Text(
                             text = buttonText,
-                            style = MaterialTheme.typography.button.copy(
+                            style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Medium
                             )
                         )
@@ -153,7 +153,7 @@ private fun ErrorDialogContent(
                 Button(
                     onClick = onPositiveClick,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = type.color,
+                        containerColor = type.color,
                         contentColor = Color.White
                     ),
                     modifier = Modifier
@@ -163,7 +163,7 @@ private fun ErrorDialogContent(
                 ) {
                     Text(
                         text = positiveButtonText,
-                        style = MaterialTheme.typography.button.copy(
+                        style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Medium
                         )
                     )

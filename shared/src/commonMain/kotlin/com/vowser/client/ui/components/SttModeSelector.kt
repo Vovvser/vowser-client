@@ -3,9 +3,7 @@ package com.vowser.client.ui.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,7 +26,6 @@ data class SttMode(
 /**
  * STT 모드 선택 UI 컴포넌트
  */
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun SttModeSelector(
     selectedModes: Set<String>,
@@ -67,8 +64,8 @@ fun SttModeSelector(
     if (isVisible) {
         Card(
             modifier = modifier.fillMaxWidth(),
-            elevation = AppTheme.Dimensions.cardElevationLow,
-            backgroundColor = MaterialTheme.colors.surface,
+            elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationLow),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(8.dp)
         ) {
             Row(
@@ -80,11 +77,11 @@ fun SttModeSelector(
             ) {
                 Text(
                     text = "STT:",
-                    style = MaterialTheme.typography.body2.copy(
+                    style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp
                     ),
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
 
                 Row(
@@ -107,7 +104,6 @@ fun SttModeSelector(
 /**
  * STT 모드 선택 칩
  */
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 private fun SttModeChip(
     mode: SttMode,
@@ -115,9 +111,9 @@ private fun SttModeChip(
     onToggle: () -> Unit
 ) {
     val contentColor = if (isSelected) {
-        MaterialTheme.colors.primary
+        MaterialTheme.colorScheme.primary
     } else {
-        MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
     }
 
     Row(
@@ -135,7 +131,7 @@ private fun SttModeChip(
 
         Text(
             text = mode.name,
-            style = MaterialTheme.typography.caption.copy(
+            style = MaterialTheme.typography.bodySmall.copy(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 fontSize = 13.sp
             ),

@@ -1,17 +1,17 @@
 package com.vowser.client.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.vowser.client.ui.components.GenericAppBar
 import com.vowser.client.ui.theme.AppTheme
 
 /**
  * 설정 화면 컴포넌트
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     isDarkTheme: Boolean,
@@ -22,21 +22,8 @@ fun SettingsScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("설정") },
-                navigationIcon = {
-                    IconButton(onClick = onBackPress) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                backgroundColor = MaterialTheme.colors.surface,
-                elevation = AppTheme.Dimensions.cardElevation
-            )
-        },
-        backgroundColor = MaterialTheme.colors.background
+            GenericAppBar(title = "Settings", onBackPress = onBackPress)
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -48,7 +35,6 @@ fun SettingsScreen(
             // 테마 설정 카드
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = AppTheme.Dimensions.cardElevationLow
             ) {
                 Column(
                     modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
@@ -56,7 +42,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text = "디스플레이",
-                        style = MaterialTheme.typography.h6
+                        style = MaterialTheme.typography.headlineSmall
                     )
                     SettingItemSwitch(
                         label = "다크 모드",
@@ -74,7 +60,6 @@ fun SettingsScreen(
             // 접근성 설정 카드
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = AppTheme.Dimensions.cardElevationLow
             ) {
                 Column(
                     modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
@@ -82,7 +67,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text = "접근성 설정",
-                        style = MaterialTheme.typography.h6
+                        style = MaterialTheme.typography.headlineSmall
                     )
                     SettingItem("음성 속도", "1.0x")
                     SettingItem("자동 하이라이트", "켜짐")
@@ -110,15 +95,11 @@ private fun SettingItemSwitch(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.body1
+            style = MaterialTheme.typography.bodyLarge
         )
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colors.primary,
-                uncheckedThumbColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled)
-            )
         )
     }
 }
@@ -135,12 +116,12 @@ private fun SettingItem(label: String, value: String) {
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.body1
+            style = MaterialTheme.typography.bodyLarge
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.body2,
-            color = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.medium)
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
+
