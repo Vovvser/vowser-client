@@ -83,6 +83,13 @@ class PathExecutor {
                     onStepComplete?.invoke(i + 1, path.steps.size, step.description)
                     Napier.i("✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
 
+                    // 카카오톡 인증 완료 스텝 후 추가 딜레이
+                    if (isKakaoAuthCompleteStep(step)) {
+                        Napier.i("⏱카카오톡 인증 완료 후 5초 추가 대기...", tag = Tags.BROWSER_AUTOMATION)
+                        currentOnLog?.invoke("⏱카카오톡 인증 완료 - 5초 대기 중...")
+                        delay(5000)
+                    }
+
                     // 단계 간 대기
                     delay(500)
                 } catch (e: Exception) {
@@ -482,5 +489,31 @@ class PathExecutor {
             currentOnLog?.invoke("⚠️ 대기 콜백 없음 - 10초 자동 대기")
             delay(10000)
         }
+    }
+
+    /**
+     * 카카오톡 인증 완료 스텝인지 확인
+     * - description에 "카카오톡" + "인증" + "완료" 포함
+     * - textLabels에 "인증 완료" 포함
+     * - selectors에 "인증 완료" 버튼 포함
+     */
+    private fun isKakaoAuthCompleteStep(step: PathStepDetail): Boolean {
+        val description = step.description.lowercase()
+        val textLabels = step.text_labels.map { it.lowercase() }
+        val selectors = step.selectors.map { it.lowercase() }
+
+        val hasKakaoAuthComplete = description.contains("카카오톡") &&
+                                   description.contains("인증") &&
+                                   description.contains("완료")
+
+        val hasAuthCompleteLabel = textLabels.any {
+            it.contains("인증") && it.contains("완료")
+        }
+
+        val hasAuthCompleteSelector = selectors.any {
+            it.contains("인증") && it.contains("완료")
+        }
+
+        return hasKakaoAuthComplete || hasAuthCompleteLabel || hasAuthCompleteSelector
     }
 }
