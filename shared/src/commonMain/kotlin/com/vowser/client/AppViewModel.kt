@@ -139,12 +139,22 @@ class AppViewModel(
     }
 
     fun login() {
+        startAuthCallbackServer()
         authManager.login()
     }
 
     fun handleLoginSuccess(accessToken: String, refreshToken: String) {
-        tokenStorage.saveTokens(accessToken, refreshToken)
-        checkAuthStatus()
+        coroutineScope.launch {
+            Napier.i("Saving tokens after login success", tag = Tags.AUTH)
+            tokenStorage.saveTokens(accessToken, refreshToken)
+
+            // 토큰 저장 확인
+            val savedToken = tokenStorage.getAccessToken()
+            Napier.i("Token saved successfully: ${savedToken != null}", tag = Tags.AUTH)
+            kotlinx.coroutines.delay(150)
+
+            checkAuthStatus()
+        }
     }
 
     fun logout() {

@@ -20,7 +20,7 @@ fun rememberAppViewModel(
         val tokenStorage = DesktopTokenStorage()
         val httpClient = createHttpClient(tokenStorage, config.backendUrl)
         val authRepository = AuthRepository(httpClient, config.backendUrl)
-        val authManager = AuthManagerDesktop(config.backendUrl)
+        val authManager = AuthManagerDesktop(config.backendUrl, authRepository)
 
         AppViewModel(
             coroutineScope = coroutineScope,
