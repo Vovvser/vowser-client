@@ -98,22 +98,6 @@ class AuthRepository(
     }
 
     /**
-     * 브라우저에서 복사한 쿠키를 수동으로 설정 (테스트용)
-     * @param accessToken AccessToken 쿠키 값
-     * @param refreshToken RefreshToken 쿠키 값 (옵션)
-     */
-    suspend fun setManualCookies(accessToken: String, refreshToken: String? = null): Result<String> {
-        return try {
-            Napier.i("수동으로 쿠키 설정 중...")
-            AuthenticatedHttpClient.setManualCookies(accessToken, refreshToken)
-            Result.success("쿠키 설정 완료")
-        } catch (e: Exception) {
-            Napier.e("쿠키 설정 실패: ${e.message}", e)
-            Result.failure(e)
-        }
-    }
-
-    /**
      * 리소스 정리
      */
     fun close() {

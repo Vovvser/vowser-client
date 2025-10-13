@@ -1,6 +1,5 @@
 package com.vowser.client
 
-import androidx.compose.ui.geometry.Size
 import kotlinx.coroutines.flow.update
 import com.vowser.client.websocket.BrowserControlWebSocketClient
 import com.vowser.client.websocket.ConnectionStatus
@@ -33,7 +32,6 @@ import com.vowser.client.logging.LogUtils
 import com.vowser.client.model.AuthState
 import com.vowser.client.ui.graph.GraphEdge
 import com.vowser.client.ui.graph.GraphNode
-import com.vowser.client.ui.graph.layoutNodesWithPhysics
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
@@ -732,8 +730,8 @@ class AppViewModel(
         query: String? = null,
         searchTimeMs: Long? = null
     ): GraphVisualizationData {
-        val nodes = mutableListOf<com.vowser.client.ui.graph.GraphNode>()
-        val edges = mutableListOf<com.vowser.client.ui.graph.GraphEdge>()
+        val nodes = mutableListOf<GraphNode>()
+        val edges = mutableListOf<GraphEdge>()
 
         paths.forEachIndexed { pathIndex, path ->
             path.steps.forEachIndexed { stepIndex, step ->
@@ -749,7 +747,7 @@ class AppViewModel(
                 }
 
                 nodes.add(
-                    com.vowser.client.ui.graph.GraphNode(
+                    GraphNode(
                         id = nodeId,
                         label = step.description,
                         type = nodeType
@@ -758,7 +756,7 @@ class AppViewModel(
 
                 if (stepIndex > 0) {
                     edges.add(
-                        com.vowser.client.ui.graph.GraphEdge(
+                        GraphEdge(
                             from = "path${pathIndex}_step${stepIndex - 1}",
                             to = nodeId
                         )
@@ -834,30 +832,6 @@ class AppViewModel(
      */
     fun handleOAuthCallback() {
         checkAuthStatus()
-    }
-
-    /**
-     * 브라우저에서 복사한 쿠키를 수동으로 설정 (테스트용)
-     * @param accessToken AccessToken 쿠키 값
-     * @param refreshToken RefreshToken 쿠키 값 (옵션)
-     */
-    fun setManualCookies(accessToken: String, refreshToken: String? = null) {
-        coroutineScope.launch {
-            addStatusLog("쿠키 수동 설정 중...", StatusLogType.INFO)
-
-            val result = authRepository.setManualCookies(accessToken, refreshToken)
-            result.fold(
-                onSuccess = { message ->
-                    addStatusLog(message, StatusLogType.SUCCESS)
-                    // 쿠키 설정 후 바로 사용자 정보 확인
-                    checkAuthStatus()
-                },
-                onFailure = { error ->
-                    addStatusLog("쿠키 설정 실패: ${error.message}", StatusLogType.ERROR)
-                    Napier.e("Failed to set manual cookies: ${error.message}", error)
-                }
-            )
-        }
     }
 
     /**

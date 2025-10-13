@@ -17,7 +17,6 @@ object AuthenticatedHttpClient {
 
     private const val backendUrl = "http://localhost:8080"
     var onTokenRefreshFailed: (() -> Unit)? = null
-    private val cookieStorage = AcceptAllCookiesStorage()
 
     val client = HttpClient {
         install(ContentNegotiation) {
@@ -27,51 +26,13 @@ object AuthenticatedHttpClient {
             })
         }
         install(HttpCookies) {
-            storage = cookieStorage
+            // 쿠키 자동 관리
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 30000
         }
         defaultRequest {
             contentType(ContentType.Application.Json)
-        }
-    }
-
-    /**
-     * 브라우저에서 복사한 쿠키를 수동으로 설정
-     * @param accessToken AccessToken 쿠키 값
-     * @param refreshToken RefreshToken 쿠키 값 (옵션)
-     */
-    suspend fun setManualCookies(accessToken: String, refreshToken: String? = null) {
-        try {
-            val url = Url(backendUrl)
-
-            // AccessToken 쿠키 추가
-            val accessCookie = Cookie(
-                name = "AccessToken",
-                value = accessToken,
-                domain = url.host,
-                path = "/"
-            )
-            cookieStorage.addCookie(url, accessCookie)
-            Napier.i("AccessToken 쿠키 수동 설정 완료")
-
-            // RefreshToken 쿠키 추가 (있는 경우)
-            if (!refreshToken.isNullOrBlank()) {
-                val refreshCookie = Cookie(
-                    name = "RefreshToken",
-                    value = refreshToken,
-                    domain = url.host,
-                    path = "/"
-                )
-                cookieStorage.addCookie(url, refreshCookie)
-                Napier.i("RefreshToken 쿠키 수동 설정 완료")
-            }
-
-            Napier.i("쿠키 수동 설정 완료")
-        } catch (e: Exception) {
-            Napier.e("쿠키 설정 실패: ${e.message}", e)
-            throw e
         }
     }
 
