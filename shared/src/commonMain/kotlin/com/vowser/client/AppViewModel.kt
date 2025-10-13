@@ -1,5 +1,7 @@
 package com.vowser.client
 
+import androidx.compose.ui.geometry.Size
+import kotlinx.coroutines.flow.update
 import com.vowser.client.websocket.BrowserControlWebSocketClient
 import com.vowser.client.websocket.ConnectionStatus
 import com.vowser.client.websocket.dto.CallToolRequest
@@ -29,6 +31,9 @@ import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import com.vowser.client.logging.LogUtils
 import com.vowser.client.model.AuthState
+import com.vowser.client.ui.graph.GraphEdge
+import com.vowser.client.ui.graph.GraphNode
+import com.vowser.client.ui.graph.layoutNodesWithPhysics
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
@@ -129,6 +134,14 @@ class AppViewModel(
 
     private val _executionProgress = MutableStateFlow("")
     val executionProgress: StateFlow<String> = _executionProgress.asStateFlow()
+
+    // 현재 실행 중인 경로
+    private val _currentExecutingPath = MutableStateFlow<MatchedPathDetail?>(null)
+    val currentExecutingPath: StateFlow<MatchedPathDetail?> = _currentExecutingPath.asStateFlow()
+
+    // 현재 실행 중인 스텝 인덱스
+    private val _currentStepIndex = MutableStateFlow(-1)
+    val currentStepIndex: StateFlow<Int> = _currentStepIndex.asStateFlow()
 
     // 사용자 대기 상태
     private val _isWaitingForUser = MutableStateFlow(false)
@@ -571,7 +584,11 @@ class AppViewModel(
                     Napier.i("Found ${paths.size} paths for query: $transcript", tag = Tags.APP_VIEWMODEL)
 
                     // 그래프 시각화
-                    val visualizationData = convertToGraph(paths)
+                    val visualizationData = convertToGraph(
+                        paths = paths,
+                        query = transcript,
+                        searchTimeMs = response.data.performance.search_time
+                    )
                     _currentGraphData.value = visualizationData
                     _graphLoading.value = false
 
@@ -609,6 +626,8 @@ class AppViewModel(
             }
 
             _isExecutingPath.value = true
+            _currentExecutingPath.value = path
+            _currentStepIndex.value = -1
             _executionProgress.value = "0/${path.steps.size}"
 
             // 사용자 정보 가져오기 (자동 입력용)
@@ -622,8 +641,11 @@ class AppViewModel(
                 userInfo = userInfo,
                 onStepComplete = { current, total, description ->
                     _executionProgress.value = "$current/$total"
+                    // 🔥 전체 실행도 동일하게 0번 경로 기준으로 업데이트
+                    updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
+
                 getUserInput = null,
                 onLog = { message ->
                     addStatusLog(message, StatusLogType.INFO)
@@ -647,6 +669,10 @@ class AppViewModel(
         } finally {
             _isExecutingPath.value = false
             _executionProgress.value = ""
+            _currentExecutingPath.value = null
+            _currentStepIndex.value = -1
+            // 🔧 activeNode 초기화(선택): 필요 없다면 지워도 됨
+            _currentGraphData.update { it?.copy(activeNodeId = null) }
         }
     }
 
@@ -670,7 +696,10 @@ class AppViewModel(
                 path = pathDetail,
                 userInfo = userInfo,
                 onStepComplete = { current, total, description ->
+                    _currentStepIndex.value = current - 1 // 0-based
                     _executionProgress.value = "$current/$total"
+                    // 🔥 실행 중 노드 반영 (음성 실행은 first path = 0 가정)
+                    updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
                 getUserInput = null,
@@ -698,17 +727,32 @@ class AppViewModel(
     /**
      * 그래프 변환
      */
-    private fun convertToGraph(paths: List<MatchedPathDetail>): GraphVisualizationData {
+    private fun convertToGraph(
+        paths: List<MatchedPathDetail>,
+        query: String? = null,
+        searchTimeMs: Long? = null
+    ): GraphVisualizationData {
         val nodes = mutableListOf<com.vowser.client.ui.graph.GraphNode>()
         val edges = mutableListOf<com.vowser.client.ui.graph.GraphEdge>()
 
         paths.forEachIndexed { pathIndex, path ->
             path.steps.forEachIndexed { stepIndex, step ->
                 val nodeId = "path${pathIndex}_step${stepIndex}"
+
+                // 액션 타입에 따라 NodeType 결정
+                val nodeType = when (step.action.lowercase()) {
+                    "navigate" -> com.vowser.client.ui.graph.NodeType.NAVIGATE
+                    "click" -> com.vowser.client.ui.graph.NodeType.CLICK
+                    "input", "type" -> com.vowser.client.ui.graph.NodeType.INPUT
+                    "wait" -> com.vowser.client.ui.graph.NodeType.WAIT
+                    else -> com.vowser.client.ui.graph.NodeType.ACTION // fallback
+                }
+
                 nodes.add(
                     com.vowser.client.ui.graph.GraphNode(
                         id = nodeId,
-                        label = step.description
+                        label = step.description,
+                        type = nodeType
                     )
                 )
 
@@ -723,7 +767,17 @@ class AppViewModel(
             }
         }
 
-        return GraphVisualizationData(nodes, edges)
+        // 검색 정보 생성
+        val searchInfo = if (query != null && searchTimeMs != null && paths.isNotEmpty()) {
+            com.vowser.client.visualization.SearchInfo(
+                query = query,
+                totalPaths = paths.size,
+                searchTimeMs = searchTimeMs,
+                topRelevance = paths.firstOrNull()?.relevance_score?.toFloat()
+            )
+        } else null
+
+        return GraphVisualizationData(nodes, edges, searchInfo = searchInfo)
     }
 
 
@@ -833,6 +887,19 @@ class AppViewModel(
                 _waitMessage.value = ""
                 waitContinuation = null
             }
+        }
+    }
+
+    private fun nodeIdFor(pathIndex: Int, stepIndex: Int) = "path${pathIndex}_step${stepIndex}"
+
+    private fun updateActiveNode(pathIndex: Int, stepIndex: Int) {
+        val id = nodeIdFor(pathIndex, stepIndex)
+        val highlighted = (0..stepIndex).map { idx -> nodeIdFor(pathIndex, idx) }
+        _currentGraphData.update { curr ->
+            curr?.copy(
+                activeNodeId = id,
+                highlightedPath = highlighted
+            )
         }
     }
 

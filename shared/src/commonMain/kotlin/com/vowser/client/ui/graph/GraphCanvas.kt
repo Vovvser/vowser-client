@@ -43,12 +43,6 @@ fun GraphCanvas(
     onCanvasSizeChanged: (Size) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val positionedNodes = remember(nodes, edges, canvasSize) {
-        if (canvasSize.width > 0 && canvasSize.height > 0) {
-            layoutNodesWithPhysics(nodes, edges, canvasSize)
-        } else nodes
-    }
-
     val textMeasurer = rememberTextMeasurer()
     val pulseAnimation = rememberInfiniteTransition()
     val pulseScale by pulseAnimation.animateFloat(
@@ -72,11 +66,11 @@ fun GraphCanvas(
     ) {
         onCanvasSizeChanged(size)
 
-        if (positionedNodes.isNotEmpty()) {
+        if (nodes.isNotEmpty()) {
             drawUltraModernGrid(onSurfaceColor.copy(alpha = 0.05f))
 
             drawUltraModernEdges(
-                nodes = positionedNodes,
+                nodes = nodes,
                 edges = edges,
                 highlightedPath = highlightedPath,
                 scale = scale,
@@ -88,7 +82,7 @@ fun GraphCanvas(
             )
 
             drawUltraModernNodes(
-                nodes = positionedNodes,
+                nodes = nodes,
                 highlightedPath = highlightedPath,
                 activeNodeId = activeNodeId,
                 selectedNodeId = selectedNode?.id,
@@ -255,6 +249,39 @@ private fun DrawScope.drawUltraModernNodes(
 
 private fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float, iconColor: Color) {
     when (nodeType) {
+        NodeType.NAVIGATE -> {
+            // 화살표 (이동)
+            drawPath(path = Path().apply {
+                moveTo(center.x - size * 0.3f, center.y)
+                lineTo(center.x + size * 0.3f, center.y)
+                moveTo(center.x + size * 0.1f, center.y - size * 0.2f)
+                lineTo(center.x + size * 0.3f, center.y)
+                lineTo(center.x + size * 0.1f, center.y + size * 0.2f)
+            }, color = iconColor, style = Stroke(width = 2f, cap = StrokeCap.Round))
+        }
+        NodeType.CLICK -> {
+            // 손가락/클릭 아이콘
+            drawCircle(color = iconColor, radius = size * 0.3f, center = center, style = Stroke(width = 2f))
+            drawCircle(color = iconColor, radius = size * 0.1f, center = center)
+        }
+        NodeType.INPUT -> {
+            // 키보드/입력 아이콘
+            val rectSize = size * 0.6f
+            drawRoundRect(
+                color = iconColor,
+                topLeft = Offset(center.x - rectSize / 2, center.y - rectSize / 3),
+                size = Size(rectSize, rectSize * 0.6f),
+                style = Stroke(width = 2f),
+                cornerRadius = CornerRadius(2f)
+            )
+            drawLine(color = iconColor, start = Offset(center.x - rectSize * 0.2f, center.y), end = Offset(center.x + rectSize * 0.2f, center.y), strokeWidth = 2f)
+        }
+        NodeType.WAIT -> {
+            // 시계 아이콘
+            drawCircle(color = iconColor, radius = size * 0.4f, center = center, style = Stroke(width = 2f))
+            drawLine(color = iconColor, start = center, end = Offset(center.x, center.y - size * 0.3f), strokeWidth = 2f)
+            drawLine(color = iconColor, start = center, end = Offset(center.x + size * 0.2f, center.y), strokeWidth = 2f)
+        }
         NodeType.START -> {
             val triangleSize = size * 0.6f
             drawPath(path = Path().apply {

@@ -87,7 +87,7 @@ fun main() = application {
             // 3. 아래 주석 해제하고 쿠키 값 붙여넣기
 
 //            viewModel.setManualCookies(
-//                accessToken = "임시용입니다. 토큰 입력해주세요"
+//                accessToken = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyMCIsImVtYWlsIjoib2szNzM3MzdAbmF2ZXIuY29tIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc2MDI1NzIxOCwiZXhwIjoxNzYwMjc1MjE4fQ.Q5gV49YeGrdrkCBO8Ehhbzlekh7Q1plssxZOLKAXR3s"
 //            )
         }
     }

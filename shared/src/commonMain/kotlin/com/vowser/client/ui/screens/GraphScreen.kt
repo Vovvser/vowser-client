@@ -18,7 +18,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.vowser.client.ui.graph.ModernNetworkGraph
-import com.vowser.client.ui.graph.GraphInteractionType
 import com.vowser.client.ui.error.ErrorBoundary
 import com.vowser.client.ui.error.LoadingState
 import com.vowser.client.ui.error.ErrorState
@@ -111,24 +110,8 @@ fun GraphScreen(
                     highlightedPath = highlightedPath,
                     activeNodeId = realTimeActiveNodeId ?: activeNodeId,
                     isContributionMode = isContributionMode,
-                    isLoading = isLoading,
-                onGraphInteraction = { interactionType ->
-                    when (interactionType) {
-                        GraphInteractionType.ToggleMode -> onModeToggle()
-                        GraphInteractionType.CenterView -> {
-                            selectedPath = emptyList()
-                            activeNodeId = null
-                        }
-                        GraphInteractionType.Reset -> {
-                            selectedPath = emptyList()
-                            activeNodeId = null
-                            // 그래프 새로고침 요청
-                            onRefreshGraph()
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+                    searchInfo = currentGraphData.searchInfo
+                )
             } else {
                 // 통합 상태 UI
                 EmptyStateUI(
