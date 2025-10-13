@@ -83,10 +83,10 @@ private fun ErrorDialogContent(
                 imageVector = type.icon,
                 contentDescription = null,
                 tint = type.color,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(44.dp)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 제목
             Text(
@@ -98,7 +98,7 @@ private fun ErrorDialogContent(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 메시지
             Text(
@@ -110,7 +110,7 @@ private fun ErrorDialogContent(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // 버튼들
             Row(
@@ -133,7 +133,7 @@ private fun ErrorDialogContent(
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                     ) {
                         Text(
@@ -145,7 +145,7 @@ private fun ErrorDialogContent(
                     }
 
                     if (negativeButtonText != null) {
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
                 }
 
@@ -158,7 +158,7 @@ private fun ErrorDialogContent(
                     ),
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
+                        .height(44.dp)
                         .clip(RoundedCornerShape(8.dp))
                 ) {
                     Text(

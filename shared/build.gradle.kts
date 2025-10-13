@@ -60,6 +60,10 @@ kotlin {
 
                 // Playwright
                 implementation("com.microsoft.playwright:playwright:1.52.0")
+
+                // Ktor Server for OAuth callback
+                implementation("io.ktor:ktor-server-core:2.3.6")
+                implementation("io.ktor:ktor-server-netty:2.3.6")
             }
         }
         getByName("desktopTest") {

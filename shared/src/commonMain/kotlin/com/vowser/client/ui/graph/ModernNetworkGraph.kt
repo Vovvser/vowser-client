@@ -89,7 +89,7 @@ fun ModernNetworkGraph(
                         offset = Offset.Zero
                     },
                     onCenterView = { onGraphInteraction(GraphInteractionType.CenterView) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp) // Specific padding for UI layout
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 76.dp) // Specific padding for UI layout
                 )
             }
 

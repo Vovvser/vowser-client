@@ -45,7 +45,9 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                     }
 
                     try {
-                        val response: ApiResponse<Map<String, String>> = client.post("$baseUrl/api/auth/refresh") {
+                        Napier.i("Attempting token refresh...", tag = Tags.API)
+
+                        val response: ApiResponse<com.vowser.client.model.TokenResponse> = client.post("$baseUrl/api/auth/refresh") {
                             contentType(ContentType.Application.Json)
                             header("Authorization", "Bearer $refreshToken")
                         }.body()
@@ -56,10 +58,11 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                             return@refreshTokens null
                         }
 
-                        val accessToken = response.data["accessToken"]
-                        val newRefreshToken = response.data["refreshToken"]
+                        val tokenResponse = response.data
+                        val accessToken = tokenResponse.accessToken
+                        val newRefreshToken = tokenResponse.refreshToken
 
-                        if (accessToken == null || newRefreshToken == null) {
+                        if (accessToken.isBlank() || newRefreshToken.isBlank()) {
                             Napier.w("Token refresh failed - missing tokens in response", tag = Tags.API)
                             tokenStorage.clearTokens()
                             return@refreshTokens null
