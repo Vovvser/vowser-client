@@ -35,7 +35,7 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
                     .padding(maxWidth * 0.04f, maxHeight * 0.02f),
-                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
             ) {
                 // 테마 설정 카드
                 Card(

@@ -22,8 +22,6 @@ object AppTheme {
 
         val GraphControl = Color(0xFF66A8C6)
         val StatusBackground = Color(0xFF1A1A1A)
-        val OverlayBackground = Color(0x80000000)
-        val DisabledBackground = Color(0xFF2A2A2A)
     }
     
     // 크기 체계
@@ -54,6 +52,7 @@ object AppTheme {
         val cardElevationMax = 16.dp
         
         // 테두리 radius
+        val borderRadiusSmall = 4.dp
         val borderRadius = 8.dp
         val borderRadiusLarge = 12.dp
         val borderRadiusXLarge = 16.dp
@@ -65,7 +64,6 @@ object AppTheme {
         val spacingSmall = 8.dp
         val spacingMedium = 12.dp
         val spacingLarge = 16.dp
-        val spacingXLarge = 32.dp
     }
 
     // 타이포그래피 체계
@@ -73,7 +71,6 @@ object AppTheme {
         // 제목 크기들
         val titleLarge = 24.sp
         val titleMedium = 20.sp
-        val titleSmall = 18.sp
         
         // 본문 크기들
         val bodyLarge = 16.sp

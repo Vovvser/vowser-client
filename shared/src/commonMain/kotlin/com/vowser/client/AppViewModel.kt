@@ -12,6 +12,7 @@ import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.logging.LogUtils
 import com.vowser.client.logging.Tags
 import com.vowser.client.model.AuthState
+import com.vowser.client.model.MemberResponse
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.websocket.BrowserControlWebSocketClient
 import com.vowser.client.websocket.ConnectionStatus
@@ -41,6 +42,13 @@ class AppViewModel(
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    // 유저 상세 정보
+    private val _userInfo = MutableStateFlow<MemberResponse?>(null)
+    val userInfo: StateFlow<MemberResponse?> = _userInfo.asStateFlow()
+
+    private val _userInfoLoading = MutableStateFlow(false)
+    val userInfoLoading: StateFlow<Boolean> = _userInfoLoading.asStateFlow()
 
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.Disconnected)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
@@ -123,10 +131,12 @@ class AppViewModel(
             }
 
             val result = authRepository.getMe()
-            result.onSuccess {
-                _authState.value = AuthState.Authenticated(it.name, it.email)
+            result.onSuccess { memberResponse ->
+                _authState.value = AuthState.Authenticated(memberResponse.name, memberResponse.email)
+                _userInfo.value = memberResponse
             }.onFailure {
                 _authState.value = AuthState.NotAuthenticated
+                _userInfo.value = null
                 tokenStorage.clearTokens()
             }
         }
@@ -162,6 +172,29 @@ class AppViewModel(
             authRepository.logout()
             tokenStorage.clearTokens()
             _authState.value = AuthState.NotAuthenticated
+            _userInfo.value = null
+        }
+    }
+
+    fun refreshUserInfo() {
+        coroutineScope.launch {
+            _userInfoLoading.value = true
+            try {
+                val result = authRepository.getMe()
+                result.onSuccess { memberResponse ->
+                    _userInfo.value = memberResponse
+                    addStatusLog("유저 정보 조회 완료", StatusLogType.SUCCESS)
+                    Napier.i("User info refreshed: ${memberResponse.email}", tag = Tags.AUTH)
+                }.onFailure { error ->
+                    addStatusLog("유저 정보 조회 실패: ${error.message}", StatusLogType.ERROR)
+                    Napier.e("Failed to refresh user info: ${error.message}", error, tag = Tags.AUTH)
+                    exceptionHandler.handleException(error, "User info refresh") {
+                        refreshUserInfo()
+                    }
+                }
+            } finally {
+                _userInfoLoading.value = false
+            }
         }
     }
 
