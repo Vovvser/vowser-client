@@ -25,7 +25,7 @@ fun UserScreen(
         topBar = {
             GenericAppBar(title = "User Profile", onBackPress = onBackPress)
         }
-    ) { paddingValues ->
+    ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -35,10 +35,10 @@ fun UserScreen(
             ) {
                 if (authState is AuthState.Authenticated) {
                     Text("유저 프로필", style = MaterialTheme.typography.headlineMedium)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text("성함 : ${(authState as AuthState.Authenticated).name}")
                     Text("이메일 : ${(authState as AuthState.Authenticated).email}")
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(28.dp))
                     Button(
                         onClick = onLogout,
                         colors = ButtonDefaults.buttonColors(containerColor = AppTheme.Colors.Error)

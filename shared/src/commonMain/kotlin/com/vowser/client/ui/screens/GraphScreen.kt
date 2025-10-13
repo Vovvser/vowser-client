@@ -365,7 +365,7 @@ private fun EmptyStateUI(
             Button(
                 onClick = onReconnect,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.Colors.ButtonSecondary,
+                    containerColor = AppTheme.Colors.Info,
                     contentColor = Color.White
                 )
             ) {

@@ -12,18 +12,18 @@ import androidx.compose.ui.unit.sp
 object AppTheme {
 
     object Colors {
-        val Contribution = Color(0xFF41B59B)
+        val Green = Color(79, 197, 96)
+
+        val Contribution = Color(79, 197, 96)
         val Warning = Color(0xFFC77A7A)
         val Info = Color(0xFF69A19D)
         val Success = Color(0xFF3C7F59)
         val Error = Color(0xFFC44040)
 
-        val ButtonSecondary = Color(0xFF8576A2)
         val GraphControl = Color(0xFF66A8C6)
         val StatusBackground = Color(0xFF1A1A1A)
         val OverlayBackground = Color(0x80000000)
         val DisabledBackground = Color(0xFF2A2A2A)
-        
     }
     
     // 크기 체계
@@ -36,15 +36,15 @@ object AppTheme {
         val paddingXLarge = 32.dp
         
         // 컴포넌트 크기
-        val buttonHeight = 48.dp
-        val buttonHeightSmall = 32.dp
-        val buttonHeightLarge = 48.dp
-        
+        val buttonHeight = 44.dp
+        val buttonHeightSmall = 28.dp
+        val buttonHeightLarge = 44.dp
+
         // 아이콘 크기
-        val iconSizeSmall = 16.dp
-        val iconSizeMedium = 24.dp
-        val iconSizeLarge = 48.dp
-        val iconSizeXLarge = 80.dp
+        val iconSizeSmall = 12.dp
+        val iconSizeMedium = 20.dp
+        val iconSizeLarge = 44.dp
+        val iconSizeXLarge = 76.dp
         
         // 카드 elevation
         val cardElevationLow = 2.dp
@@ -88,31 +88,25 @@ object AppTheme {
      * 다크 테마
      */
     val DarkTheme = darkColorScheme(
-        primary = Color(0xFF3C7F9B),
-        secondary = Color(0xFF3C7F59),
-        background = Color(0xFF161B22),
-        surface = Color(0xFF21262D),
-        error = Color(0xFFC44040),
-        onPrimary = Color.White,
-        onSecondary = Color.White,
-        onBackground = Color(0xFFE6E6E6),
-        onSurface = Color(0xFFE6E6E6),
-        onError = Color.White
+        background = Color(10, 10, 10),
+        onBackground = Color(255, 255, 255),
+        surface = Color(18, 18, 18),
+        onSurface = Color(134, 134, 134),
+        error = Color(76, 24, 23),
+        onError = Color(255, 255, 255),
+        outline = Color(38, 38, 38),
     )
 
     /**
      * 라이트 테마
      */
     val LightTheme = lightColorScheme(
-        primary = Color(0xFF3C7F9B),
-        secondary = Color(0xFF3C7F59),
-        background = Color(234, 234, 234),
-        surface = Color.White,
-        error = Color(0xFFC44040),
-        onPrimary = Color.White,
-        onSecondary = Color.White,
-        onBackground = Color(30, 30, 30),
-        onSurface = Color(30, 30, 30),
-        onError = Color.White
+        background = Color(255, 255, 255),
+        onBackground = Color(10, 10, 10),
+        surface = Color(243, 243, 243),
+        onSurface = Color(112, 112, 128),
+        error = Color(194, 49, 66),
+        onError = Color(255, 255, 255),
+        outline = Color(226, 226, 226)
     )
 }
