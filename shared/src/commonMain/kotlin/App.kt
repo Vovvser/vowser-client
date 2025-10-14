@@ -23,6 +23,11 @@ fun App(viewModel: AppViewModel) {
         viewModel.checkAuthStatus()
     }
 
+    // 사용자 대기 상태 구독 (HEAD 브랜치 기능)
+    val isWaitingForUser by viewModel.isWaitingForUser.collectAsState()
+    val waitMessage by viewModel.waitMessage.collectAsState()
+
+    // 테마 적용
     val colors = if (isDarkTheme) {
         AppTheme.DarkTheme
     } else {
@@ -54,6 +59,8 @@ fun App(viewModel: AppViewModel) {
                     contributionStepCount = viewModel.contributionStepCount.value,
                     contributionTask = viewModel.contributionTask.value,
                     selectedSttModes = viewModel.selectedSttModes.value,
+                    isWaitingForUser = isWaitingForUser,
+                    waitMessage = waitMessage,
                     onModeToggle = {
                         isContributionMode = !isContributionMode
                         if (isContributionMode) {
@@ -71,7 +78,8 @@ fun App(viewModel: AppViewModel) {
                     onToggleRecording = { viewModel.toggleRecording() },
                     onRefreshGraph = { viewModel.refreshGraph() },
                     onClearStatusHistory = { viewModel.clearStatusHistory() },
-                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) }
+                    onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) },
+                    onConfirmUserWait = { viewModel.confirmUserWait() }
                 )
             }
             AppScreen.SETTINGS -> {

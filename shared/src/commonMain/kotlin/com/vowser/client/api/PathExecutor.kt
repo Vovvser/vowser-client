@@ -3,6 +3,7 @@ package com.vowser.client.api
 import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.api.dto.PathStepDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.model.MemberResponse
 import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.websocket.dto.NavigationStep
 import io.github.aakira.napier.Napier
@@ -28,17 +29,26 @@ class PathExecutor {
     private var currentStepIndex = 0
     private var currentPath: MatchedPathDetail? = null
     private var isExecuting = false
+    private var currentUserInfo: MemberResponse? = null
+    private var currentOnLog: ((String) -> Unit)? = null
+    private var currentOnWaitForUser: (suspend (String) -> Unit)? = null
 
     /**
-     * 경로 실행
+     * 경로 실행 (사용자 정보를 통한 자동 입력 지원)
      * @param path 실행할 경로
+     * @param userInfo 자동 입력에 사용할 사용자 정보 (옵션)
      * @param onStepComplete 각 단계 완료 시 호출되는 콜백 (stepIndex, totalSteps, description)
-     * @param getUserInput Input 액션 시 사용자 입력을 받는 함수
+     * @param getUserInput Input 액션 시 사용자 입력을 받는 함수 (자동 입력 실패 시 fallback)
+     * @param onLog UI 로그 출력 콜백 (message: String)
+     * @param onWaitForUser Wait 액션 시 사용자 확인을 기다리는 함수 (waitMessage: String)
      */
     suspend fun executePath(
         path: MatchedPathDetail,
+        userInfo: MemberResponse? = null,
         onStepComplete: ((Int, Int, String) -> Unit)? = null,
-        getUserInput: (suspend (PathStepDetail) -> String)? = null
+        getUserInput: (suspend (PathStepDetail) -> String)? = null,
+        onLog: ((String) -> Unit)? = null,
+        onWaitForUser: (suspend (String) -> Unit)? = null
     ): PathExecutionResult {
         if (isExecuting) {
             return PathExecutionResult(
@@ -52,8 +62,15 @@ class PathExecutor {
         isExecuting = true
         currentPath = path
         currentStepIndex = 0
+        currentUserInfo = userInfo
+        currentOnLog = onLog
+        currentOnWaitForUser = onWaitForUser
 
-        Napier.i("🚀 Executing path: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+        if (userInfo != null) {
+            Napier.i("🚀 Executing path with auto-fill: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+        } else {
+            Napier.i("🚀 Executing path: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+        }
 
         try {
             // 단계별 실행
@@ -65,6 +82,13 @@ class PathExecutor {
                     executeStep(step, getUserInput)
                     onStepComplete?.invoke(i + 1, path.steps.size, step.description)
                     Napier.i("✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+
+                    // 카카오톡 인증 완료 스텝 후 추가 딜레이
+                    if (isKakaoAuthCompleteStep(step)) {
+                        Napier.i("⏱카카오톡 인증 완료 후 5초 추가 대기...", tag = Tags.BROWSER_AUTOMATION)
+                        currentOnLog?.invoke("⏱카카오톡 인증 완료 - 5초 대기 중...")
+                        delay(5000)
+                    }
 
                     // 단계 간 대기
                     delay(500)
@@ -89,6 +113,9 @@ class PathExecutor {
         } finally {
             isExecuting = false
             currentPath = null
+            currentUserInfo = null
+            currentOnLog = null
+            currentOnWaitForUser = null
         }
     }
 
@@ -381,14 +408,29 @@ class PathExecutor {
         step: PathStepDetail,
         getUserInput: (suspend (PathStepDetail) -> String)?
     ) {
-        // Input 액션은 자동 실행 모드에서 스킵
-        if (getUserInput == null) {
-            Napier.w("Skipping input step (auto-execution mode): ${step.description}", tag = Tags.BROWSER_AUTOMATION)
-            return
+        Napier.d("📝 Input step detected: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+
+        var inputValue: String? = null
+
+        if (currentUserInfo != null && step.is_input) {
+            inputValue = UserInputMatcher.getAutoFillValue(step, currentUserInfo!!)
+            if (inputValue != null) {
+                Napier.i("✅ Auto-filled: ${step.description} → $inputValue", tag = Tags.BROWSER_AUTOMATION)
+                currentOnLog?.invoke("✅ 자동 입력: ${step.description} → $inputValue")
+            } else {
+                Napier.w("⚠️ Auto-fill failed for: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+            }
         }
 
-        // 사용자 입력 받기
-        val inputValue = getUserInput.invoke(step)
+        // 2. 자동 입력 실패 시, getUserInput 콜백 사용
+        if (inputValue == null) {
+            if (getUserInput == null) {
+                Napier.w("❌ Skipping input step: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+                return
+            }
+            Napier.d("Waiting for user input", tag = Tags.BROWSER_AUTOMATION)
+            inputValue = getUserInput.invoke(step)
+        }
 
         if (inputValue.isEmpty()) {
             Napier.w("Empty input value provided for step: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
@@ -429,10 +471,49 @@ class PathExecutor {
      */
     private suspend fun executeWaitStep(step: PathStepDetail) {
         val message = step.wait_message ?: "작업을 완료한 후 계속하세요"
-        Napier.i("⏸️ Waiting for user action: $message", tag = Tags.BROWSER_AUTOMATION)
+        Napier.i("⏸️  Waiting for user action: $message", tag = Tags.BROWSER_AUTOMATION)
 
-        // TODO: UI에 대기 메시지 표시 및 사용자 확인 대기
-        // 현재는 5초 자동 대기
-        delay(5000)
+        currentOnLog?.invoke("⏸️ 사용자 작업 대기 중: $message")
+
+        if (currentOnWaitForUser != null) {
+            try {
+                currentOnWaitForUser?.invoke(message)
+                Napier.i("✅ User confirmed completion of: $message", tag = Tags.BROWSER_AUTOMATION)
+                currentOnLog?.invoke("✅ 사용자 확인 완료")
+            } catch (e: Exception) {
+                Napier.e("User wait step failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            }
+        } else {
+            Napier.w("No onWaitForUser callback provided, using default 10s wait", tag = Tags.BROWSER_AUTOMATION)
+            currentOnLog?.invoke("⚠️ 대기 콜백 없음 - 10초 자동 대기")
+            delay(10000)
+        }
+    }
+
+    /**
+     * 카카오톡 인증 완료 스텝인지 확인
+     * - description에 "카카오톡" + "인증" + "완료" 포함
+     * - textLabels에 "인증 완료" 포함
+     * - selectors에 "인증 완료" 버튼 포함
+     */
+    private fun isKakaoAuthCompleteStep(step: PathStepDetail): Boolean {
+        val description = step.description.lowercase()
+        val textLabels = step.text_labels.map { it.lowercase() }
+        val selectors = step.selectors.map { it.lowercase() }
+
+        val hasKakaoAuthComplete = description.contains("카카오톡") &&
+                                   description.contains("인증") &&
+                                   description.contains("완료")
+
+        val hasAuthCompleteLabel = textLabels.any {
+            it.contains("인증") && it.contains("완료")
+        }
+
+        val hasAuthCompleteSelector = selectors.any {
+            it.contains("인증") && it.contains("완료")
+        }
+
+        return hasKakaoAuthComplete || hasAuthCompleteLabel || hasAuthCompleteSelector
     }
 }

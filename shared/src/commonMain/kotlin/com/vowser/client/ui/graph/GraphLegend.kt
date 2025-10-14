@@ -52,6 +52,10 @@ fun ModernLegend(
                     )
                     Text(
                         text = when (nodeType) {
+                            NodeType.NAVIGATE -> "이동"
+                            NodeType.CLICK -> "클릭"
+                            NodeType.INPUT -> "입력"
+                            NodeType.WAIT -> "대기"
                             NodeType.START -> "시작점"
                             NodeType.WEBSITE -> "웹사이트"
                             NodeType.ACTION -> "액션"

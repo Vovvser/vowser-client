@@ -1,5 +1,6 @@
 package com.vowser.client
 
+import kotlinx.coroutines.flow.update
 import com.vowser.client.auth.AuthManager
 import com.vowser.client.auth.TokenStorage
 import com.vowser.client.data.AuthRepository
@@ -27,10 +28,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.vowser.client.ui.graph.GraphEdge
+import com.vowser.client.ui.graph.GraphNode
+import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 class AppViewModel(
     private val coroutineScope: CoroutineScope,
@@ -94,6 +100,24 @@ class AppViewModel(
 
     private val _executionProgress = MutableStateFlow("")
     val executionProgress: StateFlow<String> = _executionProgress.asStateFlow()
+
+    // 현재 실행 중인 경로
+    private val _currentExecutingPath = MutableStateFlow<MatchedPathDetail?>(null)
+    val currentExecutingPath: StateFlow<MatchedPathDetail?> = _currentExecutingPath.asStateFlow()
+
+    // 현재 실행 중인 스텝 인덱스
+    private val _currentStepIndex = MutableStateFlow(-1)
+    val currentStepIndex: StateFlow<Int> = _currentStepIndex.asStateFlow()
+
+    // 사용자 대기 상태
+    private val _isWaitingForUser = MutableStateFlow(false)
+    val isWaitingForUser: StateFlow<Boolean> = _isWaitingForUser.asStateFlow()
+
+    private val _waitMessage = MutableStateFlow("")
+    val waitMessage: StateFlow<String> = _waitMessage.asStateFlow()
+
+    // 사용자 확인 대기를 위한 continuation 저장
+    private var waitContinuation: kotlin.coroutines.Continuation<Unit>? = null
 
     // STT modes
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
@@ -622,7 +646,11 @@ class AppViewModel(
                     )
                     Napier.i("Found ${paths.size} paths for query: $transcript", tag = Tags.APP_VIEWMODEL)
 
-                    val visualizationData = convertToGraph(paths)
+                    val visualizationData = convertToGraph(
+                        paths = paths,
+                        query = transcript,
+                        searchTimeMs = response.data.performance.search_time
+                    )
                     _currentGraphData.value = visualizationData
                     _graphLoading.value = false
 
@@ -664,15 +692,32 @@ class AppViewModel(
             }
 
             _isExecutingPath.value = true
+            _currentExecutingPath.value = path
+            _currentStepIndex.value = -1
             _executionProgress.value = "0/${path.steps.size}"
+
+            // 사용자 정보 가져오기 (자동 입력용)
+            val userInfo = authRepository.getMe().getOrNull()
+            if (userInfo != null) {
+                addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
+            }
 
             val result = pathExecutor.executePath(
                 path = path,
+                userInfo = userInfo,
                 onStepComplete = { current, total, description ->
                     _executionProgress.value = "$current/$total"
+                    updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
-                getUserInput = null
+
+                getUserInput = null,
+                onLog = { message ->
+                    addStatusLog(message, StatusLogType.INFO)
+                },
+                onWaitForUser = { message ->
+                    waitForUserConfirmation(message)
+                }
             )
 
             if (result.success) {
@@ -692,6 +737,10 @@ class AppViewModel(
         } finally {
             _isExecutingPath.value = false
             _executionProgress.value = ""
+            _currentExecutingPath.value = null
+            _currentStepIndex.value = -1
+            // 🔧 activeNode 초기화(선택): 필요 없다면 지워도 됨
+            _currentGraphData.update { it?.copy(activeNodeId = null) }
         }
     }
 
@@ -703,16 +752,30 @@ class AppViewModel(
             _isExecutingPath.value = true
             _executionProgress.value = "0/${path.steps.size}"
 
-            // MatchedPath → MatchedPathDetail 변환
             val pathDetail = path.toMatchedPathDetail()
+
+            val userInfo = authRepository.getMe().getOrNull()
+            if (userInfo != null) {
+                addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
+            }
 
             val result = pathExecutor.executePath(
                 path = pathDetail,
+                userInfo = userInfo,
                 onStepComplete = { current, total, description ->
+                    _currentStepIndex.value = current - 1 // 0-based
                     _executionProgress.value = "$current/$total"
+                    // 🔥 실행 중 노드 반영 (음성 실행은 first path = 0 가정)
+                    updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
-                getUserInput = null  // 자동 실행 (input 스킵)
+                getUserInput = null,
+                onLog = { message ->
+                    addStatusLog(message, StatusLogType.INFO)
+                },
+                onWaitForUser = { message ->
+                    waitForUserConfirmation(message)
+                }
             )
 
             if (result.success) {
@@ -734,23 +797,38 @@ class AppViewModel(
     /**
      * 그래프 변환
      */
-    private fun convertToGraph(paths: List<MatchedPathDetail>): GraphVisualizationData {
-        val nodes = mutableListOf<com.vowser.client.ui.graph.GraphNode>()
-        val edges = mutableListOf<com.vowser.client.ui.graph.GraphEdge>()
+    private fun convertToGraph(
+        paths: List<MatchedPathDetail>,
+        query: String? = null,
+        searchTimeMs: Long? = null
+    ): GraphVisualizationData {
+        val nodes = mutableListOf<GraphNode>()
+        val edges = mutableListOf<GraphEdge>()
 
         paths.forEachIndexed { pathIndex, path ->
             path.steps.forEachIndexed { stepIndex, step ->
                 val nodeId = "path${pathIndex}_step${stepIndex}"
+
+                // 액션 타입에 따라 NodeType 결정
+                val nodeType = when (step.action.lowercase()) {
+                    "navigate" -> com.vowser.client.ui.graph.NodeType.NAVIGATE
+                    "click" -> com.vowser.client.ui.graph.NodeType.CLICK
+                    "input", "type" -> com.vowser.client.ui.graph.NodeType.INPUT
+                    "wait" -> com.vowser.client.ui.graph.NodeType.WAIT
+                    else -> com.vowser.client.ui.graph.NodeType.ACTION // fallback
+                }
+
                 nodes.add(
-                    com.vowser.client.ui.graph.GraphNode(
+                    GraphNode(
                         id = nodeId,
-                        label = step.description
+                        label = step.description,
+                        type = nodeType
                     )
                 )
 
                 if (stepIndex > 0) {
                     edges.add(
-                        com.vowser.client.ui.graph.GraphEdge(
+                        GraphEdge(
                             from = "path${pathIndex}_step${stepIndex - 1}",
                             to = nodeId
                         )
@@ -759,7 +837,61 @@ class AppViewModel(
             }
         }
 
-        return GraphVisualizationData(nodes, edges)
+        // 검색 정보 생성
+        val searchInfo = if (query != null && searchTimeMs != null && paths.isNotEmpty()) {
+            com.vowser.client.visualization.SearchInfo(
+                query = query,
+                totalPaths = paths.size,
+                searchTimeMs = searchTimeMs,
+                topRelevance = paths.firstOrNull()?.relevance_score?.toFloat()
+            )
+        } else null
+
+        return GraphVisualizationData(nodes, edges, searchInfo = searchInfo)
+    }
+
+    /**
+     * 사용자 확인을 기다리는 suspend 함수
+     * - PathExecutor의 onWaitForUser 콜백에 전달됩니다
+     * - UI에서 사용자가 확인 버튼을 누를 때까지 대기합니다
+     */
+    private suspend fun waitForUserConfirmation(message: String) {
+        suspendCancellableCoroutine { continuation ->
+            _isWaitingForUser.value = true
+            _waitMessage.value = message
+            waitContinuation = continuation
+
+            continuation.invokeOnCancellation {
+                _isWaitingForUser.value = false
+                _waitMessage.value = ""
+                waitContinuation = null
+            }
+        }
+    }
+
+    private fun nodeIdFor(pathIndex: Int, stepIndex: Int) = "path${pathIndex}_step${stepIndex}"
+
+    private fun updateActiveNode(pathIndex: Int, stepIndex: Int) {
+        val id = nodeIdFor(pathIndex, stepIndex)
+        val highlighted = (0..stepIndex).map { idx -> nodeIdFor(pathIndex, idx) }
+        _currentGraphData.update { curr ->
+            curr?.copy(
+                activeNodeId = id,
+                highlightedPath = highlighted
+            )
+        }
+    }
+
+    /**
+     * 사용자가 확인 버튼을 누를 때 호출되는 함수
+     * - UI에서 호출합니다
+     */
+    fun confirmUserWait() {
+        waitContinuation?.resume(Unit)
+        waitContinuation = null
+        _isWaitingForUser.value = false
+        _waitMessage.value = ""
+        addStatusLog("✅ 사용자 확인 완료 - 다음 단계 진행", StatusLogType.SUCCESS)
     }
 }
 
