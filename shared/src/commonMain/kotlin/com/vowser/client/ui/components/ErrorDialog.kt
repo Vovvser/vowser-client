@@ -3,7 +3,7 @@ package com.vowser.client.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.Composable
@@ -70,7 +70,7 @@ private fun ErrorDialogContent(
             .fillMaxWidth(0.85f)
             .wrapContentHeight(),
         shape = RoundedCornerShape(16.dp),
-        elevation = 8.dp
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
             modifier = Modifier
@@ -83,34 +83,34 @@ private fun ErrorDialogContent(
                 imageVector = type.icon,
                 contentDescription = null,
                 tint = type.color,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(44.dp)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 제목
             Text(
                 text = title,
-                style = MaterialTheme.typography.h6.copy(
+                style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 ),
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 메시지
             Text(
                 text = message,
-                style = MaterialTheme.typography.body1.copy(
+                style = MaterialTheme.typography.bodyLarge.copy(
                     color = Color.Gray,
                     lineHeight = 20.sp
                 ),
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // 버튼들
             Row(
@@ -128,24 +128,24 @@ private fun ErrorDialogContent(
                             onNegativeClick?.invoke()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color.LightGray,
+                            containerColor =Color.LightGray,
                             contentColor = Color.DarkGray
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                     ) {
                         Text(
                             text = buttonText,
-                            style = MaterialTheme.typography.button.copy(
+                            style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Medium
                             )
                         )
                     }
 
                     if (negativeButtonText != null) {
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
                 }
 
@@ -153,17 +153,17 @@ private fun ErrorDialogContent(
                 Button(
                     onClick = onPositiveClick,
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = type.color,
+                        containerColor = type.color,
                         contentColor = Color.White
                     ),
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
+                        .height(44.dp)
                         .clip(RoundedCornerShape(8.dp))
                 ) {
                     Text(
                         text = positiveButtonText,
-                        style = MaterialTheme.typography.button.copy(
+                        style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Medium
                         )
                     )

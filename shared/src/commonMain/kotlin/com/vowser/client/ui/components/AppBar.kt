@@ -1,7 +1,7 @@
 package com.vowser.client.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
@@ -45,8 +45,8 @@ fun AppBar(
         // 앱 제목
         Text(
             text = "Vowser",
-            style = MaterialTheme.typography.h6,
-            color = MaterialTheme.colors.onSurface
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface
         )
         
         Spacer(modifier = Modifier.weight(1f))
@@ -57,7 +57,7 @@ fun AppBar(
                 Icon(
                     Icons.Default.Home,
                     contentDescription = "Home",
-                    tint = MaterialTheme.colors.onSurface
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -67,7 +67,7 @@ fun AppBar(
             Icon(
                 Icons.Default.Info,
                 contentDescription = "Statistics",
-                tint = MaterialTheme.colors.onSurface
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
         
@@ -76,7 +76,7 @@ fun AppBar(
             Icon(
                 Icons.Default.Settings,
                 contentDescription = "Settings",
-                tint = MaterialTheme.colors.onSurface
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
     }

@@ -57,4 +57,6 @@ object Tags {
 
     // Auth related
     const val AUTH = "Vowser.Auth"
+
+    const val CONFIG = "Vowser.Config"
 }

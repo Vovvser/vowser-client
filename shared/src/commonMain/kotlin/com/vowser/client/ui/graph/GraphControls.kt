@@ -2,7 +2,7 @@ package com.vowser.client.ui.graph
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
@@ -31,8 +31,8 @@ fun FloatingControlPanel(
         modifier = modifier
             .padding(AppTheme.Dimensions.paddingMedium),
         shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusLarge),
-        elevation = AppTheme.Dimensions.cardElevationHigh,
-        backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.7f)
+        elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationHigh),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
     ) {
         Row(
             modifier = Modifier.padding(AppTheme.Dimensions.spacingMedium),
@@ -42,7 +42,7 @@ fun FloatingControlPanel(
             FloatingActionButton(
                 onClick = onZoomIn,
                 modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
-                backgroundColor = AppTheme.Colors.Success,
+                containerColor =AppTheme.Colors.Success,
                 contentColor = Color.White
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Zoom In", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
@@ -52,7 +52,7 @@ fun FloatingControlPanel(
             FloatingActionButton(
                 onClick = onZoomOut,
                 modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
-                backgroundColor = AppTheme.Colors.Success,
+                containerColor =AppTheme.Colors.Success,
                 contentColor = Color.White
             ) {
                 Icon(painter = painterResource("drawable/subtract.png"), contentDescription = "Zoom Out", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
@@ -62,7 +62,7 @@ fun FloatingControlPanel(
             FloatingActionButton(
                 onClick = onReset,
                 modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
-                backgroundColor = AppTheme.Colors.GraphControl,
+                containerColor =AppTheme.Colors.GraphControl,
                 contentColor = Color.White
             ) {
                 Icon(Icons.Default.Home, contentDescription = "Reset", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
@@ -72,7 +72,7 @@ fun FloatingControlPanel(
             FloatingActionButton(
                 onClick = onCenterView,
                 modifier = Modifier.size(AppTheme.Dimensions.buttonHeightSmall),
-                backgroundColor = AppTheme.Colors.GraphControl,
+                containerColor =AppTheme.Colors.GraphControl,
                 contentColor = Color.White
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = "Center", modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium - 4.dp))
@@ -81,7 +81,7 @@ fun FloatingControlPanel(
             // 확대/축소 레벨 표시
             Text(
                 text = "${(scale * 100).toInt()}%",
-                color = MaterialTheme.colors.onSurface,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = AppTheme.Typography.overline,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()

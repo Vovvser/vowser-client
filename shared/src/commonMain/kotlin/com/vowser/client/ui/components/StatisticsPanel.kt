@@ -1,14 +1,15 @@
 package com.vowser.client.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.vowser.client.ui.theme.AppTheme
+
 /**
  * 그래프 통계 패널 컴포넌트
  */
@@ -24,12 +25,12 @@ fun StatisticsPanel(
         val avgPathLength: Double = 0.0
     )
     val stats = GraphStats()
-    
+
     Card(
         modifier = modifier
             .width(300.dp)
             .padding(AppTheme.Dimensions.paddingMedium),
-        elevation = AppTheme.Dimensions.cardElevationXHigh
+        elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationXHigh)
     ) {
         Column(
             modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
@@ -43,7 +44,7 @@ fun StatisticsPanel(
             ) {
                 Text(
                     text = "그래프 통계",
-                    style = MaterialTheme.typography.h6
+                    style = MaterialTheme.typography.headlineSmall
                 )
                 IconButton(onClick = onClose) {
                     Icon(
@@ -52,9 +53,8 @@ fun StatisticsPanel(
                     )
                 }
             }
-            
-            Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f))
-            
+
+            Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             // 통계 항목들
             StatItem("총 경로", "${stats.totalPaths}개")
             StatItem("평균 경로 길이", "${stats.avgPathLength}")
@@ -73,12 +73,12 @@ private fun StatItem(label: String, value: String) {
     ) {
         Text(
             text = label,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
-            style = MaterialTheme.typography.body2
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.bodyMedium
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.body2
+            style = MaterialTheme.typography.bodyMedium
         )
     }
 }

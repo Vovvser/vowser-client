@@ -3,7 +3,7 @@ package com.vowser.client.ui.graph
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,14 +76,14 @@ fun LoadingGraphAnimation(
             
             Text(
                 text = if (isContributionMode) "경로를 기록하고 있습니다..." else "그래프를 로드하고 있습니다...",
-                color = MaterialTheme.colors.onSurface,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = AppTheme.Typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
             
             Text(
                 text = "잠시만 기다려 주세요",
-                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 fontSize = AppTheme.Typography.bodyMedium
             )
         }
