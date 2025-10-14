@@ -1,60 +1,60 @@
 package com.vowser.client
 
 import kotlinx.coroutines.flow.update
+import com.vowser.client.auth.AuthManager
+import com.vowser.client.auth.TokenStorage
+import com.vowser.client.data.AuthRepository
+import com.vowser.client.data.SpeechRepository
+import com.vowser.client.data.createHttpClient
+import com.vowser.client.exception.ExceptionHandler
+import com.vowser.client.api.PathApiClient
+import com.vowser.client.api.PathExecutor
+import com.vowser.client.api.dto.MatchedPathDetail
+import com.vowser.client.logging.LogUtils
+import com.vowser.client.logging.Tags
+import com.vowser.client.model.AuthState
+import com.vowser.client.model.MemberResponse
+import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.websocket.BrowserControlWebSocketClient
 import com.vowser.client.websocket.ConnectionStatus
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
-import com.vowser.client.data.SpeechRepository
-import com.vowser.client.contribution.ContributionModeService
-import com.vowser.client.contribution.ContributionMessage
-import com.vowser.client.contribution.ContributionConstants
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
+import com.vowser.client.websocket.dto.toMatchedPathDetail
+import com.vowser.client.browserautomation.BrowserAutomationBridge
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.benasher44.uuid.uuid4
-import com.vowser.client.api.PathApiClient
-import com.vowser.client.api.PathExecutor
-import com.vowser.client.api.dto.MatchedPathDetail
-import com.vowser.client.visualization.GraphVisualizationData
-import com.vowser.client.browserautomation.BrowserAutomationBridge
-import com.vowser.client.data.AuthRepository
-import com.vowser.client.exception.ExceptionHandler
-import io.github.aakira.napier.Napier
-import com.vowser.client.logging.Tags
-import com.vowser.client.logging.LogUtils
-import com.vowser.client.model.AuthState
 import com.vowser.client.ui.graph.GraphEdge
 import com.vowser.client.ui.graph.GraphNode
-import com.vowser.client.websocket.dto.toMatchedPathDetail
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-
-data class StatusLogEntry(
-    val timestamp: String,
-    val message: String,
-    val type: StatusLogType = StatusLogType.INFO
-)
-
-enum class StatusLogType {
-    INFO, SUCCESS, WARNING, ERROR
-}
-
 class AppViewModel(
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val coroutineScope: CoroutineScope,
+    private val tokenStorage: TokenStorage,
+    private val authRepository: AuthRepository,
+    private val authManager: AuthManager,
     val exceptionHandler: ExceptionHandler = ExceptionHandler(coroutineScope)
 ) {
+
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
+    val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    // 유저 상세 정보
+    private val _userInfo = MutableStateFlow<MemberResponse?>(null)
+    val userInfo: StateFlow<MemberResponse?> = _userInfo.asStateFlow()
+
+    private val _userInfoLoading = MutableStateFlow(false)
+    val userInfoLoading: StateFlow<Boolean> = _userInfoLoading.asStateFlow()
 
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.Disconnected)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
@@ -86,74 +86,148 @@ class AppViewModel(
     private val _statusHistory = MutableStateFlow<List<StatusLogEntry>>(emptyList())
     val statusHistory: StateFlow<List<StatusLogEntry>> = _statusHistory.asStateFlow()
 
-    // 기여 모드 관리
-    private val contributionModeService = ContributionModeService(
-        coroutineScope = coroutineScope,
-        onSendMessage = { message -> sendContributionMessage(message) },
-        onUILog = { stepNumber, action, elementName, url -> 
-            addContributionLog(stepNumber, action, elementName, url) 
-        }
-    )
-    val contributionStatus = contributionModeService.status
-    val contributionStepCount = contributionModeService.currentStepCount
-    val contributionTask = contributionModeService.currentTask
-
-    private val speechRepository = SpeechRepository(HttpClient(CIO))
-    private val authRepository = AuthRepository().apply {
-        // 토큰 갱신 실패 시 로그아웃 처리
-        setTokenRefreshFailedCallback {
-            coroutineScope.launch {
-                handleTokenRefreshFailed()
-            }
-        }
-    }
-
-    val sessionId = uuid4().toString()
-
     // REST API 클라이언트 (경로 저장/검색)
     private val backendUrl = "http://localhost:8080"
-    private val pathApiClient = PathApiClient(HttpClient(CIO), backendUrl)
+    private val pathApiClient = PathApiClient(createHttpClient(tokenStorage), backendUrl)
     private val pathExecutor = PathExecutor()
 
-    private val _selectedSttModes = MutableStateFlow(setOf("general"))
-    val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
-
-    // 로그인 상태 관리
-    private val _authState = MutableStateFlow<AuthState>(AuthState.NotAuthenticated)
-    val authState: StateFlow<AuthState> = _authState.asStateFlow()
-
-    // 경로 검색 결과
+    // 경로 검색 및 실행 상태
     private val _searchedPaths = MutableStateFlow<List<MatchedPathDetail>>(emptyList())
     val searchedPaths: StateFlow<List<MatchedPathDetail>> = _searchedPaths.asStateFlow()
 
-    // 경로 실행 상태
     private val _isExecutingPath = MutableStateFlow(false)
     val isExecutingPath: StateFlow<Boolean> = _isExecutingPath.asStateFlow()
 
     private val _executionProgress = MutableStateFlow("")
     val executionProgress: StateFlow<String> = _executionProgress.asStateFlow()
 
-    // 현재 실행 중인 경로
+    // 현재 실행 중인 경로 (HEAD 브랜치 기능)
     private val _currentExecutingPath = MutableStateFlow<MatchedPathDetail?>(null)
     val currentExecutingPath: StateFlow<MatchedPathDetail?> = _currentExecutingPath.asStateFlow()
 
-    // 현재 실행 중인 스텝 인덱스
+    // 현재 실행 중인 스텝 인덱스 (HEAD 브랜치 기능)
     private val _currentStepIndex = MutableStateFlow(-1)
     val currentStepIndex: StateFlow<Int> = _currentStepIndex.asStateFlow()
 
-    // 사용자 대기 상태
+    // 사용자 대기 상태 (HEAD 브랜치 기능)
     private val _isWaitingForUser = MutableStateFlow(false)
     val isWaitingForUser: StateFlow<Boolean> = _isWaitingForUser.asStateFlow()
 
     private val _waitMessage = MutableStateFlow("")
     val waitMessage: StateFlow<String> = _waitMessage.asStateFlow()
 
-    // 사용자 확인 대기를 위한 continuation 저장
+    // 사용자 확인 대기를 위한 continuation 저장 (HEAD 브랜치 기능)
     private var waitContinuation: kotlin.coroutines.Continuation<Unit>? = null
 
-    /**
-     * STT 모드 토글
-     */
+    // STT modes (main 브랜치)
+    private val _selectedSttModes = MutableStateFlow(setOf("general"))
+    val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
+
+    private val speechRepository = SpeechRepository(createHttpClient(tokenStorage))
+    val sessionId = com.benasher44.uuid.uuid4().toString()
+
+    private val contributionModeService = com.vowser.client.contribution.ContributionModeService(
+        coroutineScope = coroutineScope,
+        onSendMessage = { message -> sendContributionMessage(message) },
+        onUILog = { stepNumber, action, elementName, url ->
+            addContributionLog(stepNumber, action, elementName, url)
+        }
+    )
+    val contributionStatus = contributionModeService.status
+    val contributionStepCount = contributionModeService.currentStepCount
+    val contributionTask = contributionModeService.currentTask
+
+    init {
+        checkAuthStatus()
+        setupWebSocketCallbacks()
+        connectWebSocket()
+        setupContributionMode()
+        addStatusLog("시스템 시작", StatusLogType.INFO)
+    }
+
+    fun checkAuthStatus() {
+        coroutineScope.launch {
+            _authState.value = AuthState.Loading
+            val accessToken = tokenStorage.getAccessToken()
+            if (accessToken == null) {
+                _authState.value = AuthState.NotAuthenticated
+                return@launch
+            }
+
+            val result = authRepository.getMe()
+            result.onSuccess { memberResponse ->
+                _authState.value = AuthState.Authenticated(memberResponse.name, memberResponse.email)
+                _userInfo.value = memberResponse
+            }.onFailure {
+                _authState.value = AuthState.NotAuthenticated
+                _userInfo.value = null
+                tokenStorage.clearTokens()
+            }
+        }
+    }
+
+    fun startAuthCallbackServer() {
+        authManager.startCallbackServer { accessToken, refreshToken ->
+            handleLoginSuccess(accessToken, refreshToken)
+        }
+    }
+
+    fun login() {
+        startAuthCallbackServer()
+        authManager.login()
+    }
+
+    fun handleLoginSuccess(accessToken: String, refreshToken: String) {
+        coroutineScope.launch {
+            Napier.i("Saving tokens after login success", tag = Tags.AUTH)
+            tokenStorage.saveTokens(accessToken, refreshToken)
+
+            // 토큰 저장 확인
+            val savedToken = tokenStorage.getAccessToken()
+            Napier.i("Token saved successfully: ${savedToken != null}", tag = Tags.AUTH)
+            kotlinx.coroutines.delay(150)
+
+            checkAuthStatus()
+        }
+    }
+
+    fun logout() {
+        coroutineScope.launch {
+            authRepository.logout()
+            tokenStorage.clearTokens()
+            _authState.value = AuthState.NotAuthenticated
+            _userInfo.value = null
+        }
+    }
+
+    fun refreshUserInfo() {
+        coroutineScope.launch {
+            _userInfoLoading.value = true
+            try {
+                val result = authRepository.getMe()
+                result.onSuccess { memberResponse ->
+                    _userInfo.value = memberResponse
+                    addStatusLog("유저 정보 조회 완료", StatusLogType.SUCCESS)
+                    Napier.i("User info refreshed: ${memberResponse.email}", tag = Tags.AUTH)
+                }.onFailure { error ->
+                    addStatusLog("유저 정보 조회 실패: ${error.message}", StatusLogType.ERROR)
+                    Napier.e("Failed to refresh user info: ${error.message}", error, tag = Tags.AUTH)
+                    exceptionHandler.handleException(error, "User info refresh") {
+                        refreshUserInfo()
+                    }
+                }
+            } finally {
+                _userInfoLoading.value = false
+            }
+        }
+    }
+
+    fun executeQuery(query: String) {
+        coroutineScope.launch {
+            handleVoiceCommand(query)
+        }
+    }
+
     fun toggleSttMode(modeId: String) {
         val currentModes = _selectedSttModes.value.toMutableSet()
 
@@ -180,42 +254,29 @@ class AppViewModel(
         }
     }
 
-    init {
-        setupWebSocketCallbacks()
-        connectWebSocket()
-        setupContributionMode()
-        addStatusLog("시스템 시작", StatusLogType.INFO)
-        checkAuthStatus()
-    }
-
-    /**
-     * 상태 로그 추가
-     */
     private fun addStatusLog(message: String, type: StatusLogType = StatusLogType.INFO) {
         val timestamp = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            .let { "${it.hour.toString().padStart(2, '0')}:${it.minute.toString().padStart(2, '0')}:${it.second.toString().padStart(2, '0')}" }
-        
+            .let {
+                "${it.hour.toString().padStart(2, '0')}:${
+                    it.minute.toString().padStart(2, '0')
+                }:${it.second.toString().padStart(2, '0')}"
+            }
+
         val newEntry = StatusLogEntry(timestamp, message, type)
         val currentList = _statusHistory.value.toMutableList()
-        
+
         currentList.add(newEntry)
         if (currentList.size > 100) {
             currentList.removeAt(0)
         }
-        
+
         _statusHistory.value = currentList
     }
 
-    /**
-     * 상태 히스토리 클리어
-     */
     fun clearStatusHistory() {
         _statusHistory.value = emptyList()
     }
-    
-    /**
-     * 기여모드 전용 로그
-     */
+
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
@@ -223,7 +284,7 @@ class AppViewModel(
                 "[$stepNumber]스텝 $element 를 클릭했습니다."
             }
             "navigate" -> {
-                val destination = url?.let { 
+                val destination = url?.let {
                     when {
                         it.startsWith("about:blank") -> "빈 페이지"
                         it.startsWith("http") -> it.substringAfter("://").substringBefore("/").take(25)
@@ -243,7 +304,7 @@ class AppViewModel(
                 "[$stepNumber]스텝 $action 작업을 수행했습니다."
             }
         }
-        
+
         addStatusLog(message, StatusLogType.INFO)
     }
 
@@ -269,7 +330,7 @@ class AppViewModel(
     fun sendToolCall(toolName: String, args: Map<String, String>) {
         coroutineScope.launch {
             /**
-             * ToDO - 새로 바뀐 구조로 추가 예정
+             * TODO - 새로 바뀐 구조로 추가 예정
              */
             webSocketClient.sendToolCall(CallToolRequest(toolName, args))
         }
@@ -313,7 +374,7 @@ class AppViewModel(
         _recordingStatus.value = "Stopping recording..."
         addStatusLog("음성 녹음 중지 중...", StatusLogType.INFO)
         _isRecording.value = false
-        
+
         val audioBytes = stopPlatformRecording()
         if (audioBytes != null) {
             _recordingStatus.value = "Uploading audio..."
@@ -324,7 +385,11 @@ class AppViewModel(
                     onSuccess = { response ->
                         _recordingStatus.value = "Audio processed successfully"
                         addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
-                        Napier.i("Audio transcription result: ${LogUtils.filterSensitive(response)}", tag = Tags.MEDIA_SPEECH)                    },
+                        Napier.i(
+                            "Audio transcription result: ${LogUtils.filterSensitive(response)}",
+                            tag = Tags.MEDIA_SPEECH
+                        )
+                    },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
                         exceptionHandler.handleException(
@@ -354,7 +419,7 @@ class AppViewModel(
             addStatusLog("녹음된 음성 데이터 없음", StatusLogType.WARNING)
         }
 
-        delay(ContributionConstants.RECORDING_STATUS_RESET_DELAY_MS)
+        kotlinx.coroutines.delay(com.vowser.client.contribution.ContributionConstants.RECORDING_STATUS_RESET_DELAY_MS)
         _recordingStatus.value = "Ready to record"
         addStatusLog("녹음 준비 완료", StatusLogType.INFO)
     }
@@ -385,12 +450,10 @@ class AppViewModel(
                 }
             }
         }
-
         webSocketClient.onVoiceProcessingResultReceived = { voiceResult ->
             coroutineScope.launch {
                 Napier.i("Received voice processing result: ${voiceResult.transcript ?: ""}", tag = Tags.MEDIA_SPEECH)
                 _lastVoiceResult.value = voiceResult
-
                 if (voiceResult.success) {
                     _recordingStatus.value = "Voice processed: ${voiceResult.transcript}"
                     addStatusLog("음성 인식됨: ${voiceResult.transcript}", StatusLogType.SUCCESS)
@@ -409,16 +472,17 @@ class AppViewModel(
         Napier.i("WebSocket callbacks setup completed", tag = Tags.APP_VIEWMODEL)
     }
 
-    /**
-     * 그래프 새로고침 요청
-     */
     fun refreshGraph() {
         coroutineScope.launch {
             _graphLoading.value = true
             try {
-                webSocketClient.sendToolCall(CallToolRequest("refresh_graph", mapOf(
-                    "sessionId" to sessionId
-                )))
+                webSocketClient.sendToolCall(
+                    CallToolRequest(
+                        "refresh_graph", mapOf(
+                            "sessionId" to sessionId
+                        )
+                    )
+                )
                 Napier.i("Graph refresh requested", tag = Tags.UI_GRAPH)
             } catch (e: Exception) {
                 Napier.e("Failed to request graph refresh: ${e.message}", e, tag = Tags.UI_GRAPH)
@@ -427,7 +491,6 @@ class AppViewModel(
         }
     }
 
-    // 기여 모드 관련 함수들
     private fun setupContributionMode() {
         BrowserAutomationBridge.setContributionRecordingCallback { step ->
             contributionModeService.recordStep(step)
@@ -438,25 +501,21 @@ class AppViewModel(
         coroutineScope.launch {
             try {
                 addStatusLog("기여 모드 초기화 중...", StatusLogType.INFO)
-                
-                // 기여모드 시작
+
                 BrowserAutomationBridge.startContributionRecording()
-                
-                // 세션 시작
+
                 contributionModeService.startSession(task)
-                
-                // 브라우저 창이 뜨는지 확인 후 네비게이션
-                delay(ContributionConstants.BROWSER_INIT_WAIT_MS) // 브라우저 초기화 대기
+
+                kotlinx.coroutines.delay(com.vowser.client.contribution.ContributionConstants.BROWSER_INIT_WAIT_MS) // 브라우저 초기화 대기
                 BrowserAutomationBridge.navigate("about:blank")
-                
-                addStatusLog("🤝 기여 모드 시작됨", StatusLogType.SUCCESS)
-                
+
+                addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
+
             } catch (e: Exception) {
                 exceptionHandler.handleException(e, "Contribution mode initialization") {
                     startContribution(task)
                 }
 
-                // 실패 시
                 try {
                     BrowserAutomationBridge.stopContributionRecording()
                     contributionModeService.resetSession()
@@ -529,7 +588,10 @@ class AppViewModel(
                 onSuccess = { response ->
                     val savedSteps = response.data.result.steps_saved
                     addStatusLog("경로 저장 완료: $taskIntent ($savedSteps 단계)", StatusLogType.SUCCESS)
-                    Napier.i("Path saved via REST API: $savedSteps steps for task '$taskIntent'", tag = Tags.CONTRIBUTION_MODE)
+                    Napier.i(
+                        "Path saved via REST API: $savedSteps steps for task '$taskIntent'",
+                        tag = Tags.CONTRIBUTION_MODE
+                    )
                 },
                 onFailure = { error ->
                     addStatusLog("경로 저장 실패: ${error.message}", StatusLogType.WARNING)
@@ -542,7 +604,7 @@ class AppViewModel(
         }
     }
 
-    private suspend fun sendContributionMessage(message: ContributionMessage) {
+    private suspend fun sendContributionMessage(message: com.vowser.client.contribution.ContributionMessage) {
         try {
             webSocketClient.sendContributionMessage(message)
             addStatusLog("기여 데이터 전송 완료 (${message.steps.size}개 단계)", StatusLogType.SUCCESS)
@@ -553,8 +615,7 @@ class AppViewModel(
         }
     }
 
-
-    // ===== 경로 검색 및 실행 기능 =====
+// ===== 경로 검색 및 실행 기능 =====
 
     /**
      * 음성 명령 처리 (REST API 기반)
@@ -564,8 +625,9 @@ class AppViewModel(
             _graphLoading.value = true
             addStatusLog("경로 검색 중: $transcript", StatusLogType.INFO)
 
-            // REST API로 경로 검색
-            val result = pathApiClient.searchPaths(transcript, limit = 5)
+            val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                pathApiClient.searchPaths(transcript, limit = 5)
+            }
 
             result.fold(
                 onSuccess = { response ->
@@ -578,10 +640,12 @@ class AppViewModel(
                         return
                     }
 
-                    addStatusLog("${paths.size}개 경로 검색됨 (${response.data.performance.search_time}ms)", StatusLogType.SUCCESS)
+                    addStatusLog(
+                        "${paths.size}개 경로 검색됨 (${response.data.performance.search_time}ms)",
+                        StatusLogType.SUCCESS
+                    )
                     Napier.i("Found ${paths.size} paths for query: $transcript", tag = Tags.APP_VIEWMODEL)
 
-                    // 그래프 시각화
                     val visualizationData = convertToGraph(
                         paths = paths,
                         query = transcript,
@@ -590,12 +654,16 @@ class AppViewModel(
                     _currentGraphData.value = visualizationData
                     _graphLoading.value = false
 
-                    // 첫 번째 경로 자동 실행
                     val firstPath = paths.firstOrNull()
                     if (firstPath != null) {
-                        addStatusLog("최적 경로 실행 중: ${firstPath.task_intent} (관련도: ${(firstPath.relevance_score * 100).toInt()}%)", StatusLogType.INFO)
+                        addStatusLog(
+                            "최적 경로 실행 중: ${firstPath.task_intent} (관련도: ${(firstPath.relevance_score * 100).toInt()}%)",
+                            StatusLogType.INFO
+                        )
 
-                        executePathFromVoice(firstPath)
+                        coroutineScope.launch {
+                            executePathFromVoice(firstPath)
+                        }
                     }
                 },
                 onFailure = { error ->
@@ -629,7 +697,7 @@ class AppViewModel(
             _executionProgress.value = "0/${path.steps.size}"
 
             // 사용자 정보 가져오기 (자동 입력용)
-            val userInfo = authRepository.getCurrentUser().getOrNull()
+            val userInfo = authRepository.getMe().getOrNull()
             if (userInfo != null) {
                 addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
             }
@@ -639,7 +707,6 @@ class AppViewModel(
                 userInfo = userInfo,
                 onStepComplete = { current, total, description ->
                     _executionProgress.value = "$current/$total"
-                    // 🔥 전체 실행도 동일하게 0번 경로 기준으로 업데이트
                     updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
@@ -659,7 +726,10 @@ class AppViewModel(
             } else {
                 val failedStep = result.failedAt?.let { "${it + 1}/${result.totalSteps}" } ?: "Unknown"
                 addStatusLog("경로 실행 실패 (단계 $failedStep): ${result.error}", StatusLogType.ERROR)
-                Napier.e("Voice command path execution failed at step $failedStep: ${result.error}", tag = Tags.BROWSER_AUTOMATION)
+                Napier.e(
+                    "Voice command path execution failed at step $failedStep: ${result.error}",
+                    tag = Tags.BROWSER_AUTOMATION
+                )
             }
         } catch (e: Exception) {
             addStatusLog("경로 실행 오류: ${e.message}", StatusLogType.ERROR)
@@ -682,10 +752,9 @@ class AppViewModel(
             _isExecutingPath.value = true
             _executionProgress.value = "0/${path.steps.size}"
 
-            // MatchedPath → MatchedPathDetail 변환
             val pathDetail = path.toMatchedPathDetail()
 
-            val userInfo = authRepository.getCurrentUser().getOrNull()
+            val userInfo = authRepository.getMe().getOrNull()
             if (userInfo != null) {
                 addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
             }
@@ -710,7 +779,10 @@ class AppViewModel(
             )
 
             if (result.success) {
-                addStatusLog("전체 경로 완료: ${path.taskIntent} (${result.stepsCompleted}/${result.totalSteps})", StatusLogType.SUCCESS)
+                addStatusLog(
+                    "전체 경로 완료: ${path.taskIntent} (${result.stepsCompleted}/${result.totalSteps})",
+                    StatusLogType.SUCCESS
+                )
             } else {
                 addStatusLog("실패 (${result.failedAt}/${result.totalSteps}): ${result.error}", StatusLogType.ERROR)
             }
@@ -777,73 +849,6 @@ class AppViewModel(
 
         return GraphVisualizationData(nodes, edges, searchInfo = searchInfo)
     }
-
-
-    /**
-     * 로그인 상태 확인
-     */
-    fun checkAuthStatus() {
-        coroutineScope.launch {
-            _authState.value = AuthState.Loading
-            val result = authRepository.getCurrentUser()
-            result.fold(
-                onSuccess = { user ->
-                    _authState.value = AuthState.Authenticated(user)
-                    addStatusLog("${user.name}님 로그인되었습니다.", StatusLogType.SUCCESS)
-                },
-                onFailure = { error ->
-                    _authState.value = AuthState.NotAuthenticated
-                    Napier.d("Not authenticated: ${error.message}")
-                }
-            )
-        }
-    }
-
-    /**
-     * 로그인
-     */
-    fun login() {
-        val oauthUrl = authRepository.getOAuthLoginUrl()
-        openUrlInBrowser(oauthUrl)
-    }
-
-    /**
-     * 로그아웃
-     */
-    fun logout() {
-        coroutineScope.launch {
-            _authState.value = AuthState.Loading
-            val result = authRepository.logout()
-            result.fold(
-                onSuccess = {
-                    _authState.value = AuthState.NotAuthenticated
-                    addStatusLog("로그아웃되었습니다.", StatusLogType.SUCCESS)
-                },
-                onFailure = { error ->
-                    _authState.value = AuthState.Error(error.message ?: "Logout failed")
-                    addStatusLog("로그아웃에 실패했습니다. : ${error.message}", StatusLogType.ERROR)
-                }
-            )
-        }
-    }
-
-    /**
-     * OAuth 성공 후 콜백 처리
-     */
-    fun handleOAuthCallback() {
-        checkAuthStatus()
-    }
-
-    /**
-     * RefreshToken 만료 시 토큰 갱신 실패 처리
-     */
-    private fun handleTokenRefreshFailed() {
-        _authState.value = AuthState.NotAuthenticated
-        addStatusLog("세션이 만료되었습니다. 다시 로그인해주세요.", StatusLogType.WARNING)
-        Napier.w("Token refresh failed - user logged out")
-    }
-
-    // ===== 사용자 대기 관련 기능 =====
 
     /**
      * 사용자 확인을 기다리는 suspend 함수

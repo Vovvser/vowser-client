@@ -131,7 +131,7 @@ fun ModernNetworkGraph(
                         )
                     }
 
-                    // 진행률 바
+                    // 진행률 바 (HEAD 디자인)
                     LinearProgressIndicator(
                         progress = progress,
                         modifier = Modifier
