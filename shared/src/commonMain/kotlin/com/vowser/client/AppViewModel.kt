@@ -101,25 +101,25 @@ class AppViewModel(
     private val _executionProgress = MutableStateFlow("")
     val executionProgress: StateFlow<String> = _executionProgress.asStateFlow()
 
-    // 현재 실행 중인 경로 (HEAD 브랜치 기능)
+    // 현재 실행 중인 경로
     private val _currentExecutingPath = MutableStateFlow<MatchedPathDetail?>(null)
     val currentExecutingPath: StateFlow<MatchedPathDetail?> = _currentExecutingPath.asStateFlow()
 
-    // 현재 실행 중인 스텝 인덱스 (HEAD 브랜치 기능)
+    // 현재 실행 중인 스텝 인덱스
     private val _currentStepIndex = MutableStateFlow(-1)
     val currentStepIndex: StateFlow<Int> = _currentStepIndex.asStateFlow()
 
-    // 사용자 대기 상태 (HEAD 브랜치 기능)
+    // 사용자 대기 상태
     private val _isWaitingForUser = MutableStateFlow(false)
     val isWaitingForUser: StateFlow<Boolean> = _isWaitingForUser.asStateFlow()
 
     private val _waitMessage = MutableStateFlow("")
     val waitMessage: StateFlow<String> = _waitMessage.asStateFlow()
 
-    // 사용자 확인 대기를 위한 continuation 저장 (HEAD 브랜치 기능)
+    // 사용자 확인 대기를 위한 continuation 저장
     private var waitContinuation: kotlin.coroutines.Continuation<Unit>? = null
 
-    // STT modes (main 브랜치)
+    // STT modes
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
     val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
 
@@ -283,6 +283,7 @@ class AppViewModel(
                 val element = elementName?.let { "\"$it\"" } ?: "요소"
                 "[$stepNumber]스텝 $element 를 클릭했습니다."
             }
+
             "navigate" -> {
                 val destination = url?.let {
                     when {
@@ -293,13 +294,16 @@ class AppViewModel(
                 } ?: "페이지"
                 "[$stepNumber]스텝 $destination 로 이동했습니다."
             }
+
             "type" -> {
                 val input = elementName?.let { "\"$it\"" } ?: "텍스트"
                 "[$stepNumber]스텝 $input 를 입력했습니다."
             }
+
             "new_tab" -> {
                 "[$stepNumber]스텝 새 탭이 열렸습니다."
             }
+
             else -> {
                 "[$stepNumber]스텝 $action 작업을 수행했습니다."
             }
@@ -424,12 +428,8 @@ class AppViewModel(
         addStatusLog("녹음 준비 완료", StatusLogType.INFO)
     }
 
-    /**
-     * WebSocket 콜백 설정
-     */
     private fun setupWebSocketCallbacks() {
         Napier.i("Setting up WebSocket callbacks", tag = Tags.APP_VIEWMODEL)
-
         // 검색 결과 콜백
         webSocketClient.onSearchResultReceived = { matchedPaths, query ->
             coroutineScope.launch {
