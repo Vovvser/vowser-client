@@ -21,7 +21,8 @@ object AppTheme {
         val Warning = Color(0xFFC77A7A)
         val Info = Color(0xFF69A19D)
         val Success = Color(0xFF3C7F59)
-        val Error = Color(0xFFC44040)
+        val Loading = Color(243, 217, 137)
+        val Error = Color(231, 67, 65)
 
         val GraphControl = Color(0xFF66A8C6)
         val StatusBackground = Color(0xFF1A1A1A)
