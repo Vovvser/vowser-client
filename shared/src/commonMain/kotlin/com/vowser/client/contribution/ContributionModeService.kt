@@ -354,6 +354,14 @@ class ContributionModeService(
 
     fun getCurrentSession(): ContributionSession? = currentSession
 
+    /**
+     * 외부에서 호출 가능한 타이핑 스텝 플러시 메서드
+     * 세션 저장 전에 대기 중인 타이핑 스텝을 완료시키기 위해 사용
+     */
+    fun flushPendingTypingStepForSave() {
+        flushPendingTypingStep()
+    }
+
     fun resetSession() {
         timeoutJob?.cancel()
         timeoutJob = null

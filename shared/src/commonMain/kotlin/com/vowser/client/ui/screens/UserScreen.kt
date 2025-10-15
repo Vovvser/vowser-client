@@ -31,15 +31,15 @@ import androidx.compose.ui.window.Dialog
 import com.vowser.client.AppViewModel
 import com.vowser.client.model.AuthState
 import com.vowser.client.ui.components.GenericAppBar
+import com.vowser.client.ui.navigation.LocalScreenNavigator
 import com.vowser.client.ui.theme.AppTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserScreen(
-    viewModel: AppViewModel,
-    onBackPress: () -> Unit,
-    onLogout: () -> Unit
+    viewModel: AppViewModel
 ) {
+    val navigator = LocalScreenNavigator.current
     val authState by viewModel.authState.collectAsState()
     val userInfo by viewModel.userInfo.collectAsState()
     val userInfoLoading by viewModel.userInfoLoading.collectAsState()
@@ -53,7 +53,7 @@ fun UserScreen(
 
     Scaffold(
         topBar = {
-            GenericAppBar(title = "User", onBackPress = onBackPress)
+            GenericAppBar(title = "User")
         }
     ) { inner ->
         BoxWithConstraints(
@@ -126,7 +126,10 @@ fun UserScreen(
                                     )
                                 }
                                 Button(
-                                    onClick = onLogout,
+                                    onClick = {
+                                        viewModel.logout()
+                                        navigator.replaceAll(AppScreen.HOME)
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(AppTheme.Dimensions.buttonHeight),
@@ -271,7 +274,7 @@ private fun QuickVerifyDialog(
                                     .clip(RoundedCornerShape(AppTheme.Dimensions.borderRadius))
                                     .background(MaterialTheme.colorScheme.background),
                             ) {
-                                val items = listOf("지문 인증", "얼굴 인증", "PIN 인증", "패턴 인증")
+                                val items = listOf("네이버", "카카오", "토스")
 
                                 items.forEach { label ->
                                     val interaction = remember { MutableInteractionSource() }

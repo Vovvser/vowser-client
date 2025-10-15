@@ -7,5 +7,6 @@ enum class AppScreen {
     HOME,
     GRAPH,
     SETTINGS,
-    USER
+    USER,
+    CONTRIBUTION
 }

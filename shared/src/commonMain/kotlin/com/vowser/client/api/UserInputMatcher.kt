@@ -17,13 +17,13 @@ object UserInputMatcher {
      * @return 자동으로 채울 값, 없으면 null
      */
     fun getAutoFillValue(step: PathStepDetail, userInfo: MemberResponse): String? {
-        if (!step.is_input) {
+        if (step.is_input == false) {
             return null
         }
 
         // textLabels를 소문자로 변환하여 키워드 매칭
-        val labels = step.text_labels.map { it.lowercase() }
-        val combinedLabels = labels.joinToString(" ")
+        val labels = step.text_labels?.map { it.lowercase() }
+        val combinedLabels = labels?.joinToString(" ")
 
         Napier.d("Matching input field: $combinedLabels", tag = Tags.BROWSER_AUTOMATION)
 
@@ -58,31 +58,31 @@ object UserInputMatcher {
     /**
      * 이름 필드 매칭
      */
-    private fun matchesName(labels: String): Boolean {
+    private fun matchesName(labels: String?): Boolean {
         val nameKeywords = listOf(
             "이름", "name", "성명", "full name", "fullname"
         )
-        return nameKeywords.any { labels.contains(it) }
+        return nameKeywords.any { labels?.contains(it) == true }
     }
 
     /**
      * 생년월일 필드 매칭
      */
-    private fun matchesBirthDate(labels: String): Boolean {
+    private fun matchesBirthDate(labels: String?): Boolean {
         val birthKeywords = listOf(
             "생년월일", "생일", "birth", "birthday", "date of birth", "dob"
         )
-        return birthKeywords.any { labels.contains(it) }
+        return birthKeywords.any { labels?.contains(it) == true }
     }
 
     /**
      * 전화번호 필드 매칭
      */
-    private fun matchesPhone(labels: String): Boolean {
+    private fun matchesPhone(labels: String?): Boolean {
         val phoneKeywords = listOf(
             "전화", "휴대폰", "핸드폰", "연락처", "phone", "mobile", "tel", "contact"
         )
-        return phoneKeywords.any { labels.contains(it) }
+        return phoneKeywords.any { labels?.contains(it) == true }
     }
 
     /**
@@ -91,7 +91,7 @@ object UserInputMatcher {
      * @param phoneNumber 전체 전화번호 (예: "010-1234-5678" 또는 "01012345678")
      * @return 추출된 전화번호 (레이블에 맞는 형식)
      */
-    private fun extractPhoneNumber(labels: String, phoneNumber: String): String? {
+    private fun extractPhoneNumber(labels: String?, phoneNumber: String): String? {
         // 하이픈 제거
         val digitsOnly = phoneNumber.replace("-", "").replace(" ", "")
 
@@ -103,11 +103,11 @@ object UserInputMatcher {
 
         return when {
             // "뒤 4자리" 또는 "뒷 번호"
-            labels.contains("뒤") || labels.contains("뒷") || labels.contains("last") -> {
+            labels?.contains("뒤") == true || labels?.contains("뒷") == true || labels?.contains("last") == true -> {
                 digitsOnly.takeLast(8)
             }
             // "중간 번호"
-            labels.contains("중간") || labels.contains("middle") -> {
+            labels?.contains("중간") == true || labels?.contains("middle") == true -> {
                 when (digitsOnly.length) {
                     10 -> digitsOnly.substring(3, 6) // 010-123-4567 → 123
                     11 -> digitsOnly.substring(3, 7) // 010-1234-5678 → 1234
@@ -115,13 +115,13 @@ object UserInputMatcher {
                 }
             }
             // "첫 번호" 또는 "앞 번호"
-            labels.contains("첫") || labels.contains("앞") || labels.contains("first") -> {
+            labels?.contains("첫") == true || labels?.contains("앞") == true || labels?.contains("first") == true -> {
                 digitsOnly.take(3) // 010
             }
             // 전체 번호
             else -> {
                 // 하이픈 포함 여부 판단
-                if (labels.contains("하이픈") || labels.contains("hyphen") || labels.contains("-")) {
+                if (labels?.contains("하이픈") == true || labels?.contains("hyphen") == true || labels?.contains("-") == true) {
                     formatPhoneWithHyphen(digitsOnly)
                 } else {
                     digitsOnly

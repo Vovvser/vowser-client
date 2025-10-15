@@ -19,12 +19,11 @@ fun SettingsScreen(
     isDarkTheme: Boolean,
     isDeveloperMode: Boolean,
     onThemeToggle: (Boolean) -> Unit,
-    onDeveloperModeToggle: (Boolean) -> Unit,
-    onBackPress: () -> Unit
+    onDeveloperModeToggle: (Boolean) -> Unit
 ) {
     Scaffold(
         topBar = {
-            GenericAppBar(title = "Setting", onBackPress = onBackPress)
+            GenericAppBar(title = "Setting")
         }
     ) { paddingValues ->
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -161,5 +160,4 @@ private fun SwitchRow(
         )
     }
 }
-
 

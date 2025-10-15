@@ -12,15 +12,21 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 
+@OptIn(ExperimentalSerializationApi::class)
 fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://localhost:8080"): HttpClient {
     return HttpClient {
+        followRedirects = false // 리다이렉트 자동 추적 방지
+        expectSuccess = false
+
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
                 prettyPrint = true
                 isLenient = true
+                explicitNulls = false
             })
         }
         install(Auth) {
