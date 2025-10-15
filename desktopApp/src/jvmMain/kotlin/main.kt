@@ -5,14 +5,15 @@ import com.vowser.client.rememberAppViewModel
 import com.vowser.client.browserautomation.BrowserAutomationService
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import io.github.aakira.napier.DebugAntilog
 import kotlinx.coroutines.runBlocking
 
 fun main() = application {
+
+    Napier.base(DebugAntilog())
     Window(onCloseRequest = ::exitApplication) {
         val coroutineScope = rememberCoroutineScope()
         val viewModel = rememberAppViewModel(coroutineScope)
-        viewModel.startAuthCallbackServer()
-
         App(viewModel)
     }
 

@@ -1,12 +1,12 @@
 package com.vowser.client.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,14 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.vowser.client.AppViewModel
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
-import com.vowser.client.contribution.ContributionStatus
 import com.vowser.client.exception.DialogState
-import com.vowser.client.model.AuthState
+import com.vowser.client.ui.components.GenericAppBar
 import com.vowser.client.ui.components.StatisticsPanel
 import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.components.StandardDialogs
@@ -31,7 +31,7 @@ import com.vowser.client.ui.error.LoadingState
 import com.vowser.client.ui.error.SmartLoadingIndicator
 import com.vowser.client.ui.graph.ModernNetworkGraph
 import com.vowser.client.ui.theme.AppTheme
-import com.vowser.client.visualization.GraphVisualizationData
+import com.vowser.client.websocket.ConnectionStatus
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -39,20 +39,7 @@ import com.vowser.client.visualization.GraphVisualizationData
 @Composable
 fun GraphScreen(
     appViewModel: AppViewModel,
-    isContributionMode: Boolean,
-    receivedMessage: String,
-    isRecording: Boolean,
-    currentGraphData: GraphVisualizationData?,
     isDeveloperMode: Boolean,
-    statusHistory: List<StatusLogEntry>,
-    contributionStatus: ContributionStatus,
-    contributionStepCount: Int,
-    contributionTask: String,
-    selectedSttModes: Set<String>,
-    isWaitingForUser: Boolean,
-    waitMessage: String,
-    onModeToggle: () -> Unit,
-    onScreenChange: (AppScreen) -> Unit,
     onReconnect: () -> Unit,
     onSendToolCall: (String, Map<String, String>) -> Unit,
     onToggleRecording: () -> Unit,
@@ -61,7 +48,15 @@ fun GraphScreen(
     onConfirmUserWait: () -> Unit,
 ) {
     val dialogState by appViewModel.dialogState.collectAsState()
-    val authState by appViewModel.authState.collectAsState()
+    val connectionStatus by appViewModel.connectionStatus.collectAsState()
+    val receivedMessage by appViewModel.receivedMessage.collectAsState()
+    val isRecording by appViewModel.isRecording.collectAsState()
+    val currentGraphDataState by appViewModel.currentGraphData.collectAsState()
+    val statusHistory by appViewModel.statusHistory.collectAsState()
+    val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
+    val isWaitingForUser by appViewModel.isWaitingForUser.collectAsState()
+    val waitMessage by appViewModel.waitMessage.collectAsState()
+    val graphLoading by appViewModel.graphLoading.collectAsState()
 
     // 그래프 상태
     var selectedPath by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -75,66 +70,78 @@ fun GraphScreen(
     var loadingState by remember { mutableStateOf<LoadingState>(LoadingState.Idle) }
     var errorState by remember { mutableStateOf<ErrorState>(ErrorState.None) }
 
+    val pendingCommand by appViewModel.pendingCommand.collectAsState()
+    LaunchedEffect(pendingCommand) {
+        pendingCommand?.let { command ->
+            val trimmed = command.trim()
+            if (trimmed.isNotEmpty()) {
+                appViewModel.executeQuery(trimmed)
+                appViewModel.clearPendingCommand()
+            }
+        }
+    }
+
     // 현재 그래프 데이터에서 하이라이트된 경로 추출 (실시간 데이터 우선)
-    val highlightedPath = currentGraphData?.highlightedPath?.takeIf { it.isNotEmpty() }
+    val graphData = currentGraphDataState
+    val highlightedPath = graphData?.highlightedPath?.takeIf { it.isNotEmpty() }
         ?: selectedPath.takeIf { it.isNotEmpty() }
         ?: listOf("voice_start", "naver_main")
 
     // 실시간 데이터에서 활성 노드 가져오기
-    val realTimeActiveNodeId = currentGraphData?.activeNodeId
+    val realTimeActiveNodeId = graphData?.activeNodeId
+
+    // 그래프 로딩 상태 반영
+    LaunchedEffect(graphLoading) {
+        if (graphLoading) {
+            loadingState = LoadingState.Loading
+        }
+    }
 
     // 로딩 상태 자동 해제
-    LaunchedEffect(loadingState) {
-        if (loadingState is LoadingState.Loading) {
+    LaunchedEffect(loadingState, graphLoading) {
+        if (loadingState is LoadingState.Loading && !graphLoading) {
             delay(2000)
             loadingState = LoadingState.Success("경로 탐색 완료")
             delay(1000)
             loadingState = LoadingState.Idle
         }
     }
-    
+
     ErrorBoundary(
         errorState = errorState,
-        onRetry = { 
+        onRetry = {
             loadingState = LoadingState.Loading
         }
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             // 상단 앱바
-            GraphAppBar(
-                onBackPress = { onScreenChange(AppScreen.HOME) },
-                modifier = Modifier.align(Alignment.TopStart)
-            )
+            GraphAppBar(modifier = Modifier.align(Alignment.TopStart))
 
-            if (isDeveloperMode && showGraphView && currentGraphData != null) {
-                //  그래프 화면
+            val shouldShowGraph = isDeveloperMode && showGraphView && graphData != null
+
+            if (shouldShowGraph && graphData != null) {
                 ModernNetworkGraph(
-                    nodes = currentGraphData.nodes,
-                    edges = currentGraphData.edges,
+                    nodes = graphData.nodes,
+                    edges = graphData.edges,
                     highlightedPath = highlightedPath,
                     activeNodeId = realTimeActiveNodeId ?: activeNodeId,
-                    isContributionMode = isContributionMode,
-                    searchInfo = currentGraphData.searchInfo,
+                    isContributionMode = false,
+                    searchInfo = graphData.searchInfo,
                 )
             } else {
                 // 통합 상태 UI
                 EmptyStateUI(
                     isRecording = isRecording,
-                    isContributionMode = isContributionMode,
-                    contributionStatus = contributionStatus,
-                    contributionStepCount = contributionStepCount,
-                    contributionTask = contributionTask,
+                    connectionStatus = connectionStatus,
                     statusHistory = statusHistory,
                     isDeveloperMode = isDeveloperMode,
                     receivedMessage = receivedMessage,
                     selectedSttModes = selectedSttModes,
-                    authState = authState,
                     onToggleRecording = onToggleRecording,
-                    onModeToggle = onModeToggle,
                     onReconnect = onReconnect,
                     onClearStatusHistory = onClearStatusHistory,
                     onToggleSttMode = onToggleSttMode,
-                    onShowGraph = { if (currentGraphData != null) showGraphView = true },
+                    onShowGraph = { if (graphData != null) showGraphView = true },
                     modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
                 )
             }
@@ -151,7 +158,7 @@ fun GraphScreen(
             SmartLoadingIndicator(
                 loadingState = loadingState,
                 loadingMessage = "그래프를 업데이트하는 중...",
-                onRetry = { 
+                onRetry = {
                     loadingState = LoadingState.Loading
                 },
                 onDismiss = {
@@ -223,26 +230,20 @@ fun GraphScreen(
 @Composable
 private fun EmptyStateUI(
     isRecording: Boolean,
-    isContributionMode: Boolean,
-    contributionStatus: ContributionStatus,
-    contributionStepCount: Int,
-    contributionTask: String,
+    connectionStatus: ConnectionStatus,
     statusHistory: List<StatusLogEntry>,
     isDeveloperMode: Boolean,
     receivedMessage: String,
     selectedSttModes: Set<String>,
     onToggleRecording: () -> Unit,
-    authState: AuthState,
-    onModeToggle: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
     onShowGraph: () -> Unit,
     onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLoggedIn = authState is AuthState.Authenticated
     val listState = rememberLazyListState()
-    
+
     // 새 로그가 추가될 때 자동 스크롤
     LaunchedEffect(statusHistory.size) {
         if (statusHistory.isNotEmpty()) {
@@ -260,19 +261,6 @@ private fun EmptyStateUI(
             horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 기여 모드 토글 (로그인 시에만 표시)
-            if (isLoggedIn) {
-                Button(
-                    onClick = onModeToggle,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isContributionMode) AppTheme.Colors.Contribution else MaterialTheme.colorScheme.secondary,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(if (isContributionMode) "기여모드 완료" else "기여모드 시작")
-                }
-            }
-
             // 재연결 버튼
             Button(
                 onClick = onReconnect,
@@ -319,6 +307,22 @@ private fun EmptyStateUI(
             }
         }
 
+        // 연결 상태 표시
+        Row (
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
+        )
+        {
+            Canvas(modifier = Modifier.size(12.dp)) {
+                drawCircle(color = connectionStatus.displayColor)
+            }
+            Text(
+                text = connectionStatus.displayText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+
         // STT 모드 선택기
         SttModeSelector(
             selectedModes = selectedSttModes,
@@ -326,29 +330,6 @@ private fun EmptyStateUI(
             isVisible = !isRecording,
             modifier = Modifier.fillMaxWidth()
         )
-
-        // 기여 모드 UI
-        if (isContributionMode) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = AppTheme.Colors.Contribution.copy(alpha = 0.1f)),
-            ) {
-                Column(
-                    modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium)
-                ) {
-                    Text(
-                        text = "🤝 기여 모드 활성화됨",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = AppTheme.Colors.Contribution
-                    )
-                    Text(
-                        text = "$contributionTask 패턴을 기록하고 있는 중입니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                }
-            }
-        }
 
         // 상태 로그 영역
         Card(
@@ -370,7 +351,7 @@ private fun EmptyStateUI(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울  알려줘\"",
+                                    text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
                                     textAlign = TextAlign.Center,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
@@ -382,7 +363,7 @@ private fun EmptyStateUI(
                             StatusLogItem(logEntry)
                         }
                     }
-                    
+
                     // 개발자 모드에서만 receivedMessage 표시
                     if (isDeveloperMode && receivedMessage != "No message") {
                         item {
@@ -501,26 +482,12 @@ private fun UserWaitDialog(
 /**
  * GraphScreen 상단 앱바
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GraphAppBar(
-    onBackPress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    TopAppBar(
-        title = { Text("Vowser", style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = {
-            IconButton(onClick = onBackPress) {
-                Icon(
-                    Icons.Default.ArrowBack,
-                    contentDescription = "Back to Home",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-        ),
+    GenericAppBar(
+        title = "Vowser",
         modifier = modifier
     )
 }

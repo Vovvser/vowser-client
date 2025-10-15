@@ -3,25 +3,17 @@ package com.vowser.client.data
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import io.ktor.client.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import kotlinx.serialization.json.Json
 
-class SpeechRepository(private val httpClient: HttpClient? = null) {
+class SpeechRepository(
+    private val httpClient: HttpClient,
+    backendUrl: String
+) {
 
-    private val client = httpClient ?: HttpClient {
-        install(ContentNegotiation) {
-            json(Json {
-                prettyPrint = true
-                isLenient = true
-                ignoreUnknownKeys = true
-            })
-        }
-    }
+    private val baseUrl = backendUrl.trimEnd('/')
 
     suspend fun transcribeAudio(
         audioFileBytes: ByteArray,
@@ -29,11 +21,11 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
         selectedModes: Set<String> = setOf("general")
     ): Result<String> {
         return try {
-            val backendUrl = "http://localhost:8080/api/v1/speech/transcribe"
+            val endpoint = "$baseUrl/api/v1/speech/transcribe"
 
             Napier.i("Sending audio file to backend. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId, Modes: $selectedModes", tag = Tags.NETWORK)
 
-            val response: HttpResponse = client.post(backendUrl) {
+            val response: HttpResponse = httpClient.post(endpoint) {
                 setBody(MultiPartFormDataContent(
                     formData {
                         append("audioFile", audioFileBytes, Headers.build {
@@ -70,10 +62,10 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
 
     suspend fun uploadAudioForProcessing(audioFileBytes: ByteArray, sessionId: String): Result<String> {
         return try {
-            val backendUrl = "http://localhost:8080/api/v1/speech/process"
+            val endpoint = "$baseUrl/api/v1/speech/process"
             Napier.i("Uploading audio for processing. Size: ${audioFileBytes.size} bytes, SessionId: $sessionId", tag = Tags.NETWORK)
 
-            val response: HttpResponse = client.post(backendUrl) {
+            val response: HttpResponse = httpClient.post(endpoint) {
                 setBody(MultiPartFormDataContent(
                     formData {
                         append("audioFile", audioFileBytes, Headers.build {
@@ -105,6 +97,6 @@ class SpeechRepository(private val httpClient: HttpClient? = null) {
     }
 
     fun close() {
-        client.close()
+        // HttpClient는 외부에서 관리합니다.
     }
 }

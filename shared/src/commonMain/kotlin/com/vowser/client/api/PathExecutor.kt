@@ -469,7 +469,7 @@ class PathExecutor {
 
         var inputValue: String? = null
 
-        if (currentUserInfo != null && step.is_input) {
+        if (currentUserInfo != null && step.is_input == true) {
             inputValue = UserInputMatcher.getAutoFillValue(step, currentUserInfo!!)
             if (inputValue != null) {
                 Napier.i("✅ Auto-filled: ${step.description} → $inputValue", tag = Tags.BROWSER_AUTOMATION)
@@ -555,14 +555,14 @@ class PathExecutor {
      */
     private fun isKakaoAuthCompleteStep(step: PathStepDetail): Boolean {
         val description = step.description.lowercase()
-        val textLabels = step.text_labels.map { it.lowercase() }
+        val textLabels = step.text_labels?.map { it.lowercase() }
         val selectors = step.selectors.map { it.lowercase() }
 
         val hasKakaoAuthComplete = description.contains("카카오톡") &&
                                    description.contains("인증") &&
                                    description.contains("완료")
 
-        val hasAuthCompleteLabel = textLabels.any {
+        val hasAuthCompleteLabel = textLabels?.any {
             it.contains("인증") && it.contains("완료")
         }
 
@@ -570,6 +570,6 @@ class PathExecutor {
             it.contains("인증") && it.contains("완료")
         }
 
-        return hasKakaoAuthComplete || hasAuthCompleteLabel || hasAuthCompleteSelector
+        return hasKakaoAuthComplete || hasAuthCompleteLabel == true || hasAuthCompleteSelector
     }
 }

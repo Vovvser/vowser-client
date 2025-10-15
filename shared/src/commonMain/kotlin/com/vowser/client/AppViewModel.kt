@@ -5,7 +5,6 @@ import com.vowser.client.auth.AuthManager
 import com.vowser.client.auth.TokenStorage
 import com.vowser.client.data.AuthRepository
 import com.vowser.client.data.SpeechRepository
-import com.vowser.client.data.createHttpClient
 import com.vowser.client.exception.ExceptionHandler
 import com.vowser.client.api.PathApiClient
 import com.vowser.client.api.PathExecutor
@@ -30,7 +29,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.vowser.client.ui.graph.GraphEdge
 import com.vowser.client.ui.graph.GraphNode
-import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -43,7 +41,10 @@ class AppViewModel(
     private val tokenStorage: TokenStorage,
     private val authRepository: AuthRepository,
     private val authManager: AuthManager,
-    val exceptionHandler: ExceptionHandler = ExceptionHandler(coroutineScope)
+    private val pathApiClient: PathApiClient,
+    private val speechRepository: SpeechRepository,
+    private val webSocketClient: BrowserControlWebSocketClient,
+    val exceptionHandler: ExceptionHandler
 ) {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -61,8 +62,6 @@ class AppViewModel(
 
     private val _receivedMessage = MutableStateFlow("No message")
     val receivedMessage: StateFlow<String> = _receivedMessage.asStateFlow()
-
-    private val webSocketClient = BrowserControlWebSocketClient(exceptionHandler)
 
     val dialogState = exceptionHandler.dialogState
 
@@ -87,8 +86,6 @@ class AppViewModel(
     val statusHistory: StateFlow<List<StatusLogEntry>> = _statusHistory.asStateFlow()
 
     // REST API 클라이언트 (경로 저장/검색)
-    private val backendUrl = "http://localhost:8080"
-    private val pathApiClient = PathApiClient(createHttpClient(tokenStorage), backendUrl)
     private val pathExecutor = PathExecutor()
 
     // 경로 검색 및 실행 상태
@@ -123,8 +120,10 @@ class AppViewModel(
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
     val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
 
-    private val speechRepository = SpeechRepository(createHttpClient(tokenStorage))
     val sessionId = com.benasher44.uuid.uuid4().toString()
+
+    private val _pendingCommand = MutableStateFlow<String?>(null)
+    val pendingCommand: StateFlow<String?> = _pendingCommand.asStateFlow()
 
     private val contributionModeService = com.vowser.client.contribution.ContributionModeService(
         coroutineScope = coroutineScope,
@@ -137,12 +136,17 @@ class AppViewModel(
     val contributionStepCount = contributionModeService.currentStepCount
     val contributionTask = contributionModeService.currentTask
 
+    private val _awaitingContributionTask = MutableStateFlow(false)
+    val awaitingContributionTask: StateFlow<Boolean> = _awaitingContributionTask.asStateFlow()
+
+    private val _pendingContributionTask = MutableStateFlow<String?>(null)
+    val pendingContributionTask: StateFlow<String?> = _pendingContributionTask.asStateFlow()
+
     init {
         checkAuthStatus()
         setupWebSocketCallbacks()
         connectWebSocket()
         setupContributionMode()
-        addStatusLog("시스템 시작", StatusLogType.INFO)
     }
 
     fun checkAuthStatus() {
@@ -277,6 +281,25 @@ class AppViewModel(
         _statusHistory.value = emptyList()
     }
 
+    fun requestContributionTaskInput() {
+        _awaitingContributionTask.value = true
+        _pendingContributionTask.value = null
+    }
+
+    fun clearPendingContributionTask() {
+        _pendingContributionTask.value = null
+    }
+
+    fun setPendingCommand(command: String) {
+        _pendingCommand.value = command
+        Napier.i("Pending command set: $command", tag = Tags.APP_VIEWMODEL)
+    }
+
+    fun clearPendingCommand() {
+        _pendingCommand.value = null
+        Napier.d("Pending command cleared", tag = Tags.APP_VIEWMODEL)
+    }
+
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
@@ -318,9 +341,6 @@ class AppViewModel(
             addStatusLog("서버 연결 중...", StatusLogType.INFO)
             try {
                 webSocketClient.connect()
-                _connectionStatus.value = ConnectionStatus.Connected
-                addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
-                addStatusLog("음성으로 명령해보세요! (예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\")", StatusLogType.INFO)
             } catch (e: Exception) {
                 Napier.e("ViewModel: Failed to connect WebSocket: ${e.message}", e, tag = Tags.APP_VIEWMODEL)
                 _connectionStatus.value = ConnectionStatus.Error
@@ -393,6 +413,15 @@ class AppViewModel(
                             "Audio transcription result: ${LogUtils.filterSensitive(response)}",
                             tag = Tags.MEDIA_SPEECH
                         )
+
+                        if (response.substringAfter("\"transcript\":\"")
+                                .substringBefore("\"")
+                            .isNotEmpty()) {
+                            _receivedMessage.value = response.substringAfter("\"transcript\":\"")
+                                .substringBefore("\"")
+                            setPendingCommand(response.substringAfter("\"transcript\":\"")
+                                .substringBefore("\""))
+                        }
                     },
                     onFailure = { error ->
                         _recordingStatus.value = "Failed to process audio: ${error.message}"
@@ -454,14 +483,19 @@ class AppViewModel(
             coroutineScope.launch {
                 Napier.i("Received voice processing result: ${voiceResult.transcript ?: ""}", tag = Tags.MEDIA_SPEECH)
                 _lastVoiceResult.value = voiceResult
+
                 if (voiceResult.success) {
                     _recordingStatus.value = "Voice processed: ${voiceResult.transcript}"
                     addStatusLog("음성 인식됨: ${voiceResult.transcript}", StatusLogType.SUCCESS)
 
-                    // 새로운 REST API로 경로 검색 및 실행
-                    val transcript = voiceResult.transcript
+                    val transcript = voiceResult.transcript?.trim()
                     if (!transcript.isNullOrBlank()) {
-                        handleVoiceCommand(transcript)
+                        if (_awaitingContributionTask.value) {
+                            _pendingContributionTask.value = transcript
+                        } else {
+                            _receivedMessage.value = transcript
+                            setPendingCommand(transcript)
+                        }
                     }
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
@@ -500,7 +534,8 @@ class AppViewModel(
     fun startContribution(task: String) {
         coroutineScope.launch {
             try {
-                addStatusLog("기여 모드 초기화 중...", StatusLogType.INFO)
+                _awaitingContributionTask.value = false
+                _pendingContributionTask.value = null
 
                 BrowserAutomationBridge.startContributionRecording()
 
@@ -509,9 +544,10 @@ class AppViewModel(
                 kotlinx.coroutines.delay(com.vowser.client.contribution.ContributionConstants.BROWSER_INIT_WAIT_MS) // 브라우저 초기화 대기
                 BrowserAutomationBridge.navigate("about:blank")
 
-                addStatusLog("🚀 기여 모드 시작됨 - 작업: \"$task\"", StatusLogType.SUCCESS)
+                addStatusLog("$task 기여가 시작되었습니다.", StatusLogType.SUCCESS)
 
             } catch (e: Exception) {
+                _awaitingContributionTask.value = true
                 exceptionHandler.handleException(e, "Contribution mode initialization") {
                     startContribution(task)
                 }
@@ -549,6 +585,9 @@ class AppViewModel(
             } catch (e: Exception) {
                 Napier.e("Failed to stop contribution: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
                 addStatusLog("기여 모드 종료 실패: ${e.message}", StatusLogType.ERROR)
+            } finally {
+                _awaitingContributionTask.value = true
+                _pendingContributionTask.value = null
             }
         }
     }

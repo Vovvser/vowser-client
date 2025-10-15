@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.vowser.client.AppViewModel
 import com.vowser.client.ui.components.HomeAppBar
 import com.vowser.client.ui.theme.AppTheme
+import com.vowser.client.ui.navigation.LocalScreenNavigator
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
 
@@ -39,36 +40,46 @@ enum class SearchMode {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalResourceApi::class)
 @Composable
 fun HomeScreen(
-    viewModel: AppViewModel,
-    onScreenChange: (AppScreen) -> Unit
+    viewModel: AppViewModel
 ) {
+    val navigator = LocalScreenNavigator.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf(SearchMode.EXECUTE) }
     val authState by viewModel.authState.collectAsState()
     val isRecording by viewModel.isRecording.collectAsState()
     val receivedMessage by viewModel.receivedMessage.collectAsState()
+    val pendingCommand by viewModel.pendingCommand.collectAsState()
 
     // 음성 인식 결과 처리
-    LaunchedEffect(receivedMessage, isRecording) {
-        if (!isRecording && receivedMessage != "No message" && receivedMessage.isNotBlank()) {
+    LaunchedEffect(receivedMessage, isRecording, pendingCommand) {
+        val command = pendingCommand
+        if (!isRecording &&
+            !command.isNullOrBlank() &&
+            receivedMessage != "No message" &&
+            receivedMessage.isNotBlank()
+        ) {
             when (selectedMode) {
-                SearchMode.SEARCH -> {
-                    // TODO: 검색
-                }
-
+                SearchMode.SEARCH -> { /* TODO : 검색*/ }
                 SearchMode.EXECUTE -> {
-                    searchQuery = receivedMessage
-                    onScreenChange(AppScreen.GRAPH)
+                    viewModel.setPendingCommand(command)
+                    navigator.push(AppScreen.GRAPH)
                 }
             }
         }
     }
-
     Scaffold(
         topBar = {
             HomeAppBar(
                 isLoggedIn = authState is com.vowser.client.model.AuthState.Authenticated,
-                onScreenChange = onScreenChange,
+                onContribution = { navigator.push(AppScreen.CONTRIBUTION) },
+                onOpenSettings = { navigator.push(AppScreen.SETTINGS) },
+                onOpenUser = {
+                    if (authState is com.vowser.client.model.AuthState.Authenticated) {
+                        navigator.push(AppScreen.USER)
+                    } else {
+                        viewModel.login()
+                    }
+                },
                 onLogin = { viewModel.login() }
             )
             Divider(
@@ -236,8 +247,8 @@ fun HomeScreen(
                                                 }
 
                                                 SearchMode.EXECUTE -> {
-                                                    viewModel.executeQuery(searchQuery)
-                                                    onScreenChange(AppScreen.GRAPH)
+                                                    viewModel.setPendingCommand(searchQuery)
+                                                    navigator.push(AppScreen.GRAPH)
                                                 }
                                             }
                                         }
