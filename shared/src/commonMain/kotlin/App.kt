@@ -15,7 +15,6 @@ fun App(viewModel: AppViewModel) {
     val currentScreen = screenStack.last()
 
     var isContributionMode by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
     var isDeveloperMode by remember { mutableStateOf(false) }
 
@@ -48,8 +47,6 @@ fun App(viewModel: AppViewModel) {
                 GraphScreen(
                     appViewModel = viewModel,
                     isContributionMode = isContributionMode,
-                    isLoading = isLoading || viewModel.graphLoading.value,
-                    connectionStatus = viewModel.connectionStatus.value.toString(),
                     receivedMessage = viewModel.receivedMessage.value,
                     isRecording = viewModel.isRecording.value,
                     currentGraphData = viewModel.currentGraphData.value,
@@ -76,7 +73,6 @@ fun App(viewModel: AppViewModel) {
                         viewModel.sendToolCall(toolName, args)
                     },
                     onToggleRecording = { viewModel.toggleRecording() },
-                    onRefreshGraph = { viewModel.refreshGraph() },
                     onClearStatusHistory = { viewModel.clearStatusHistory() },
                     onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) },
                     onConfirmUserWait = { viewModel.confirmUserWait() }
