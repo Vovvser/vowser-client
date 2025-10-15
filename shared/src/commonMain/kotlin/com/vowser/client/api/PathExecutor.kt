@@ -8,8 +8,13 @@ import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.websocket.dto.NavigationStep
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 경로 실행 결과
@@ -19,7 +24,7 @@ data class PathExecutionResult(
     val stepsCompleted: Int,
     val totalSteps: Int,
     val failedAt: Int? = null,
-    val error: String? = null
+    val error: String? = null,
 )
 
 /**
@@ -32,6 +37,26 @@ class PathExecutor {
     private var currentUserInfo: MemberResponse? = null
     private var currentOnLog: ((String) -> Unit)? = null
     private var currentOnWaitForUser: (suspend (String) -> Unit)? = null
+    private var executionJob: Job? = null
+
+    /**
+     * 현재 실행 중인 경로를 취소
+     */
+    suspend fun cancelExecution() {
+        if (isExecuting && executionJob?.isActive == true) {
+            Napier.i("🛑 Cancelling current path execution...", tag = Tags.BROWSER_AUTOMATION)
+            currentOnLog?.invoke("🛑 이전 명령을 중단하고 새 명령을 실행합니다")
+            executionJob?.cancel()
+            executionJob = null
+            isExecuting = false
+            currentPath = null
+            currentUserInfo = null
+            currentOnLog = null
+            currentOnWaitForUser = null
+            delay(300)
+            Napier.i("Path execution cancelled successfully", tag = Tags.BROWSER_AUTOMATION)
+        }
+    }
 
     /**
      * 경로 실행 (사용자 정보를 통한 자동 입력 지원)
@@ -50,13 +75,10 @@ class PathExecutor {
         onLog: ((String) -> Unit)? = null,
         onWaitForUser: (suspend (String) -> Unit)? = null
     ): PathExecutionResult {
+
         if (isExecuting) {
-            return PathExecutionResult(
-                success = false,
-                stepsCompleted = 0,
-                totalSteps = 0,
-                error = "Another path is currently executing"
-            )
+            Napier.w("⚠️ Another path is executing. Cancelling it...", tag = Tags.BROWSER_AUTOMATION)
+            cancelExecution()
         }
 
         isExecuting = true
@@ -72,50 +94,67 @@ class PathExecutor {
             Napier.i("🚀 Executing path: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
         }
 
-        try {
-            // 단계별 실행
-            for (i in path.steps.indices) {
-                currentStepIndex = i
-                val step = path.steps[i]
+        return withContext(Dispatchers.Default) {
+            executionJob = coroutineContext[Job]
 
-                try {
-                    executeStep(step, getUserInput)
-                    onStepComplete?.invoke(i + 1, path.steps.size, step.description)
-                    Napier.i("✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+            try {
+                // 단계별 실행
+                for (i in path.steps.indices) {
+                    ensureActive()
 
-                    // 카카오톡 인증 완료 스텝 후 추가 딜레이
-                    if (isKakaoAuthCompleteStep(step)) {
-                        Napier.i("⏱카카오톡 인증 완료 후 5초 추가 대기...", tag = Tags.BROWSER_AUTOMATION)
-                        currentOnLog?.invoke("⏱카카오톡 인증 완료 - 5초 대기 중...")
-                        delay(5000)
+                    currentStepIndex = i
+                    val step = path.steps[i]
+
+                    try {
+                        executeStep(step, getUserInput)
+                        onStepComplete?.invoke(i + 1, path.steps.size, step.description)
+                        Napier.i("✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+
+                        // 카카오톡 인증 완료 스텝 후 추가 딜레이
+                        if (isKakaoAuthCompleteStep(step)) {
+                            Napier.i("⏱카카오톡 인증 완료 후 5초 추가 대기...", tag = Tags.BROWSER_AUTOMATION)
+                            currentOnLog?.invoke("⏱카카오톡 인증 완료 - 5초 대기 중...")
+                            delay(5000)
+                        }
+
+                        delay(500)
+                    } catch (e: CancellationException) {
+                        Napier.w("🛑 Path execution cancelled at step ${i + 1}", tag = Tags.BROWSER_AUTOMATION)
+                        throw e
+                    } catch (e: Exception) {
+                        Napier.e("❌ Step ${i + 1}/${path.steps.size} failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                        return@withContext PathExecutionResult(
+                            success = false,
+                            stepsCompleted = i,
+                            totalSteps = path.steps.size,
+                            failedAt = i,
+                            error = e.message
+                        )
                     }
-
-                    // 단계 간 대기
-                    delay(500)
-                } catch (e: Exception) {
-                    Napier.e("❌ Step ${i + 1}/${path.steps.size} failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-                    return PathExecutionResult(
-                        success = false,
-                        stepsCompleted = i,
-                        totalSteps = path.steps.size,
-                        failedAt = i,
-                        error = e.message
-                    )
                 }
-            }
 
-            Napier.i("✅ Path execution completed successfully: ${path.task_intent}", tag = Tags.BROWSER_AUTOMATION)
-            return PathExecutionResult(
-                success = true,
-                stepsCompleted = path.steps.size,
-                totalSteps = path.steps.size
-            )
-        } finally {
-            isExecuting = false
-            currentPath = null
-            currentUserInfo = null
-            currentOnLog = null
-            currentOnWaitForUser = null
+                Napier.i("✅ Path execution completed successfully: ${path.task_intent}", tag = Tags.BROWSER_AUTOMATION)
+                PathExecutionResult(
+                    success = true,
+                    stepsCompleted = path.steps.size,
+                    totalSteps = path.steps.size
+                )
+            } catch (e: CancellationException) {
+                Napier.i("🛑 Path execution was cancelled", tag = Tags.BROWSER_AUTOMATION)
+                PathExecutionResult(
+                    success = false,
+                    stepsCompleted = currentStepIndex,
+                    totalSteps = path.steps.size,
+                    error = "Execution cancelled"
+                )
+            } finally {
+                isExecuting = false
+                currentPath = null
+                currentUserInfo = null
+                currentOnLog = null
+                currentOnWaitForUser = null
+                executionJob = null
+            }
         }
     }
 
@@ -132,22 +171,40 @@ class PathExecutor {
         if (needsNavigate) {
             Napier.d("Step requires navigation to different page: ${step.url}", tag = Tags.BROWSER_AUTOMATION)
             executeNavigateStep(step)
-            delay(1000)
+            delay(2000)
         }
 
         when (step.action) {
-            "click" -> executeClickStep(step)
+            "click" -> {
+                executeClickStep(step)
+                if (willNavigateOnClick(step)) {
+                    Napier.d("Click will cause navigation, waiting for page load...", tag = Tags.BROWSER_AUTOMATION)
+                    delay(2000)
+                }
+            }
             "input", "type" -> executeInputStep(step, getUserInput)
             "wait" -> executeWaitStep(step)
             "navigate" -> {
                 if (!needsNavigate) {
                     executeNavigateStep(step)
+                    delay(2000)
                 }
             }
             else -> {
                 Napier.w("Unknown action type: ${step.action}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
+    }
+
+    /**
+     * 클릭 후 페이지 전환이 일어날지 판단
+     * - 다음 스텝의 URL이 현재와 다르면 페이지 전환 예상
+     */
+    private fun willNavigateOnClick(step: PathStepDetail): Boolean {
+        val nextStep = currentPath?.steps?.getOrNull(currentStepIndex + 1) ?: return false
+        val currentBaseUrl = extractBaseUrl(step.url)
+        val nextBaseUrl = extractBaseUrl(nextStep.url)
+        return currentBaseUrl != nextBaseUrl
     }
 
     /**
@@ -462,7 +519,6 @@ class PathExecutor {
             }
         }
 
-        // 모든 셀렉터 실패
         throw Exception("Failed to input text: no selector matched (tried ${step.selectors.size} selectors)")
     }
 

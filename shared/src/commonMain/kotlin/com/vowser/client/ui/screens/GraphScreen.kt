@@ -40,8 +40,6 @@ import com.vowser.client.visualization.GraphVisualizationData
 fun GraphScreen(
     appViewModel: AppViewModel,
     isContributionMode: Boolean,
-    isLoading: Boolean,
-    connectionStatus: String,
     receivedMessage: String,
     isRecording: Boolean,
     currentGraphData: GraphVisualizationData?,
@@ -58,7 +56,6 @@ fun GraphScreen(
     onReconnect: () -> Unit,
     onSendToolCall: (String, Map<String, String>) -> Unit,
     onToggleRecording: () -> Unit,
-    onRefreshGraph: () -> Unit,
     onClearStatusHistory: () -> Unit,
     onToggleSttMode: (String) -> Unit,
     onConfirmUserWait: () -> Unit,
@@ -137,84 +134,6 @@ fun GraphScreen(
                     onReconnect = onReconnect,
                     onClearStatusHistory = onClearStatusHistory,
                     onToggleSttMode = onToggleSttMode,
-                    onTestCommand = {
-                        showGraphView = true  // 테스트 실행 시 그래프 뷰로 전환
-                        // 새로운 날씨 검색 결과 모의 테스트 데이터
-                        val mockData = """
-                        {
-                          "type": "all_navigation_paths",
-                          "data": {
-                            "query": "우리 지역 날씨 알고 싶어",
-                            "paths": [
-                              {
-                                "pathId": "09e2a975413c0e18a7cd9d0f57b15dea",
-                                "score": 0.489,
-                                "total_weight": 73,
-                                "last_used": null,
-                                "estimated_time": null,
-                                "steps": [
-                                  {
-                                    "url": "https://naver.com",
-                                    "title": "naver.com 메인",
-                                    "action": "navigate",
-                                    "selector": "",
-                                    "htmlAttributes": null
-                                  },
-                                  {
-                                    "url": "https://www.naver.com",
-                                    "title": "날씨",
-                                    "action": "click",
-                                    "selector": "a[href*='weather.naver.com']",
-                                    "htmlAttributes": null
-                                  },
-                                  {
-                                    "url": "https://weather.naver.com",
-                                    "title": "지역선택",
-                                    "action": "click",
-                                    "selector": ".region_select .btn_region",
-                                    "htmlAttributes": null
-                                  },
-                                  {
-                                    "url": "https://weather.naver.com/region/list",
-                                    "title": "부산",
-                                    "action": "click",
-                                    "selector": ".region_list .region_item[data-region='busan'] a",
-                                    "htmlAttributes": null
-                                  },
-                                  {
-                                    "url": "https://weather.naver.com/today/09440111",
-                                    "title": "미세먼지",
-                                    "action": "click",
-                                    "selector": ".content_tabmenu .tab_item[data-tab='air'] a",
-                                    "htmlAttributes": null
-                                  },
-                                  {
-                                    "url": "https://weather.naver.com/air/09440111",
-                                    "title": "주간",
-                                    "action": "click",
-                                    "selector": ".air_chart_area .btn_chart_period[data-period='week']",
-                                    "htmlAttributes": null
-                                  },
-                                  {
-                                    "url": "https://weather.naver.com/air/09440111?period=week",
-                                    "title": "지역비교",
-                                    "action": "click",
-                                    "selector": ".compare_area .btn_compare",
-                                    "htmlAttributes": null
-                                  }
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                        """.trimIndent()
-                        
-                        // 서버에 모의 데이터 전송
-                        onSendToolCall("mock_navigation_data", mapOf("data" to mockData))
-                        
-                        // 그래프 표시 위해 로딩 상태로 전환
-                        loadingState = LoadingState.Loading
-                    },
                     onShowGraph = { if (currentGraphData != null) showGraphView = true },
                     modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
                 )
@@ -317,7 +236,6 @@ private fun EmptyStateUI(
     onModeToggle: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
-    onTestCommand: () -> Unit,
     onShowGraph: () -> Unit,
     onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -374,16 +292,6 @@ private fun EmptyStateUI(
 
             // 개발자 모드 전용 버튼들
             if (isDeveloperMode) {
-                Button(
-                    onClick = onTestCommand,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AppTheme.Colors.Success,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("모의 테스트")
-                }
-                
                 // 그래프 보기 버튼
                 if (receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
                     Button(
@@ -462,7 +370,7 @@ private fun EmptyStateUI(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
+                                    text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울  알려줘\"",
                                     textAlign = TextAlign.Center,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)

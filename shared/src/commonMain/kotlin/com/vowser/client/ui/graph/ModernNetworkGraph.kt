@@ -5,10 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Card
-import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,8 +105,8 @@ fun ModernNetworkGraph(
                     .padding(16.dp)
                     .widthIn(min = 250.dp, max = 350.dp),
                 shape = RoundedCornerShape(12.dp),
-                elevation = 4.dp,
-                backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.95f)
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -119,19 +120,18 @@ fun ModernNetworkGraph(
                     ) {
                         Text(
                             text = "경로 진행 상황",
-                            style = MaterialTheme.typography.subtitle2,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colors.onSurface
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "${currentStepIndex + 1} / $totalSteps",
-                            style = MaterialTheme.typography.body2,
-                            color = MaterialTheme.colors.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    // 진행률 바 (HEAD 디자인)
                     LinearProgressIndicator(
                         progress = progress,
                         modifier = Modifier
@@ -139,7 +139,7 @@ fun ModernNetworkGraph(
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
                         color = AppTheme.Colors.Success,
-                        backgroundColor = MaterialTheme.colors.onSurface.copy(alpha = 0.1f)
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                     )
                 }
             }
@@ -152,8 +152,8 @@ fun ModernNetworkGraph(
                     .align(Alignment.TopCenter)
                     .padding(top = 16.dp),
                 shape = RoundedCornerShape(8.dp),
-                elevation = 4.dp,
-                backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.9f)
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -162,14 +162,14 @@ fun ModernNetworkGraph(
                 ) {
                     Text(
                         text = "🔍 '${searchInfo.query}'",
-                        color = MaterialTheme.colors.onSurface,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
                         text = "→",
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         fontSize = 12.sp
                     )
 
@@ -183,7 +183,7 @@ fun ModernNetworkGraph(
                     if (searchInfo.topRelevance != null) {
                         Text(
                             text = "·",
-                            color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                             fontSize = 12.sp
                         )
 
@@ -197,13 +197,13 @@ fun ModernNetworkGraph(
 
                     Text(
                         text = "·",
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.3f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                         fontSize = 12.sp
                     )
 
                     Text(
                         text = "${searchInfo.searchTimeMs}ms",
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         fontSize = 12.sp
                     )
                 }
@@ -218,8 +218,8 @@ fun ModernNetworkGraph(
                     .padding(bottom = 100.dp)
                     .widthIn(max = 600.dp),
                 shape = RoundedCornerShape(12.dp),
-                elevation = 8.dp,
-                backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.95f)
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -246,7 +246,7 @@ fun ModernNetworkGraph(
                     // Description 표시
                     Text(
                         text = activeNode.label,
-                        color = MaterialTheme.colors.onSurface,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -260,8 +260,8 @@ fun ModernNetworkGraph(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 16.dp),
             shape = RoundedCornerShape(12.dp),
-            elevation = 4.dp,
-            backgroundColor = MaterialTheme.colors.surface.copy(alpha = 0.9f)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -295,7 +295,7 @@ private fun LegendItem(color: Color, label: String) {
         Text(
             text = label,
             fontSize = 12.sp,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.8f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             fontWeight = FontWeight.Medium
         )
     }

@@ -5,6 +5,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vowser.client.ui.theme.AppTheme.Colors.GraphControl
+import com.vowser.client.ui.theme.AppTheme.Colors.Green
+import com.vowser.client.ui.theme.AppTheme.Colors.Info
 
 /**
  * Vowser 앱의  테마 시스템
@@ -85,6 +88,12 @@ object AppTheme {
      * 다크 테마
      */
     val DarkTheme = darkColorScheme(
+        primary = Green,
+        onPrimary = Color(255, 255, 255),
+        secondary = GraphControl,
+        onSecondary = Color(255, 255, 255),
+        tertiary = Info,
+        onTertiary = Color(255, 255, 255),
         background = Color(10, 10, 10),
         onBackground = Color(255, 255, 255),
         surface = Color(18, 18, 18),
@@ -98,6 +107,12 @@ object AppTheme {
      * 라이트 테마
      */
     val LightTheme = lightColorScheme(
+        primary = Green,
+        onPrimary = Color(255, 255, 255),
+        secondary = GraphControl,
+        onSecondary = Color(255, 255, 255),
+        tertiary = Info,
+        onTertiary = Color(255, 255, 255),
         background = Color(255, 255, 255),
         onBackground = Color(10, 10, 10),
         surface = Color(243, 243, 243),
