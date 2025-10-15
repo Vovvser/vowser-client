@@ -50,10 +50,6 @@ sealed interface WebSocketMessage {
     data class BrowserCommandWrapper(val data: BrowserCommand) : WebSocketMessage
     
     @Serializable
-    @SerialName("graph_update")
-    data class GraphUpdateWrapper(val data: GraphUpdateData) : WebSocketMessage
-    
-    @Serializable
     @SerialName("voice_processing_result")
     data class VoiceProcessingResultWrapper(val data: VoiceProcessingResult) : WebSocketMessage
     

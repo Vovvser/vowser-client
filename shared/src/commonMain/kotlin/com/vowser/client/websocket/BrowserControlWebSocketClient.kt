@@ -4,7 +4,6 @@ import com.vowser.client.websocket.dto.AllPathsResponse
 import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.BrowserCommand
 import com.vowser.client.websocket.dto.WebSocketMessage
-import com.vowser.client.websocket.dto.GraphUpdateData
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.MatchedPath
 import com.vowser.client.contribution.ContributionMessage
@@ -50,7 +49,6 @@ class BrowserControlWebSocketClient(
                 polymorphic(WebSocketMessage::class) {
                     subclass(WebSocketMessage.AllPathsWrapper::class)
                     subclass(WebSocketMessage.BrowserCommandWrapper::class)
-                    subclass(WebSocketMessage.GraphUpdateWrapper::class)
                     subclass(WebSocketMessage.VoiceProcessingResultWrapper::class)
                     subclass(WebSocketMessage.ErrorWrapper::class)
                     subclass(WebSocketMessage.SearchPathResultWrapper::class)
@@ -65,7 +63,6 @@ class BrowserControlWebSocketClient(
     }
 
     var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
-    var onGraphUpdateReceived: ((GraphUpdateData) -> Unit)? = null
     var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
     var onSearchResultReceived: ((List<MatchedPath>, String) -> Unit)? = null
 
@@ -188,11 +185,6 @@ class BrowserControlWebSocketClient(
                             Napier.i("Browser command: ${message.data::class.simpleName}", tag = Tags.NETWORK_WEBSOCKET)
                         }
 
-                        is WebSocketMessage.GraphUpdateWrapper -> {
-                            Napier.d("Graph update received", tag = Tags.NETWORK_WEBSOCKET)
-                            onGraphUpdateReceived?.invoke(message.data)
-                        }
-
                         is WebSocketMessage.ErrorWrapper -> {
                             Napier.e("WebSocket error: ${message.data.message}", tag = Tags.NETWORK_WEBSOCKET)
                         }
@@ -291,7 +283,6 @@ class BrowserControlWebSocketClient(
             session = null
             isConnecting = false
             onAllPathsReceived = null
-            onGraphUpdateReceived = null
             onVoiceProcessingResultReceived = null
             client.close()
             Napier.i("Connection closed and all resources cleaned up successfully.", tag = Tags.NETWORK_WEBSOCKET)
