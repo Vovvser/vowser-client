@@ -22,7 +22,7 @@ fun App(viewModel: AppViewModel) {
         viewModel.checkAuthStatus()
     }
 
-    // 사용자 대기 상태 구독 (HEAD 브랜치 기능)
+    // 사용자 대기 상태 구독
     val isWaitingForUser by viewModel.isWaitingForUser.collectAsState()
     val waitMessage by viewModel.waitMessage.collectAsState()
 

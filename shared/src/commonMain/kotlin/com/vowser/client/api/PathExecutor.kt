@@ -171,22 +171,40 @@ class PathExecutor {
         if (needsNavigate) {
             Napier.d("Step requires navigation to different page: ${step.url}", tag = Tags.BROWSER_AUTOMATION)
             executeNavigateStep(step)
-            delay(1000)
+            delay(2000)
         }
 
         when (step.action) {
-            "click" -> executeClickStep(step)
+            "click" -> {
+                executeClickStep(step)
+                if (willNavigateOnClick(step)) {
+                    Napier.d("Click will cause navigation, waiting for page load...", tag = Tags.BROWSER_AUTOMATION)
+                    delay(2000)
+                }
+            }
             "input", "type" -> executeInputStep(step, getUserInput)
             "wait" -> executeWaitStep(step)
             "navigate" -> {
                 if (!needsNavigate) {
                     executeNavigateStep(step)
+                    delay(2000)
                 }
             }
             else -> {
                 Napier.w("Unknown action type: ${step.action}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
+    }
+
+    /**
+     * 클릭 후 페이지 전환이 일어날지 판단
+     * - 다음 스텝의 URL이 현재와 다르면 페이지 전환 예상
+     */
+    private fun willNavigateOnClick(step: PathStepDetail): Boolean {
+        val nextStep = currentPath?.steps?.getOrNull(currentStepIndex + 1) ?: return false
+        val currentBaseUrl = extractBaseUrl(step.url)
+        val nextBaseUrl = extractBaseUrl(nextStep.url)
+        return currentBaseUrl != nextBaseUrl
     }
 
     /**
@@ -501,7 +519,6 @@ class PathExecutor {
             }
         }
 
-        // 모든 셀렉터 실패
         throw Exception("Failed to input text: no selector matched (tried ${step.selectors.size} selectors)")
     }
 
