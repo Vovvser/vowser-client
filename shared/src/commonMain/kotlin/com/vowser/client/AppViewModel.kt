@@ -506,25 +506,6 @@ class AppViewModel(
         Napier.i("WebSocket callbacks setup completed", tag = Tags.APP_VIEWMODEL)
     }
 
-    fun refreshGraph() {
-        coroutineScope.launch {
-            _graphLoading.value = true
-            try {
-                webSocketClient.sendToolCall(
-                    CallToolRequest(
-                        "refresh_graph", mapOf(
-                            "sessionId" to sessionId
-                        )
-                    )
-                )
-                Napier.i("Graph refresh requested", tag = Tags.UI_GRAPH)
-            } catch (e: Exception) {
-                Napier.e("Failed to request graph refresh: ${e.message}", e, tag = Tags.UI_GRAPH)
-                _graphLoading.value = false
-            }
-        }
-    }
-
     private fun setupContributionMode() {
         BrowserAutomationBridge.setContributionRecordingCallback { step ->
             contributionModeService.recordStep(step)
@@ -654,8 +635,6 @@ class AppViewModel(
         }
     }
 
-// ===== 경로 검색 및 실행 기능 =====
-
     /**
      * 음성 명령 처리 (REST API 기반)
      */
@@ -778,7 +757,6 @@ class AppViewModel(
             _executionProgress.value = ""
             _currentExecutingPath.value = null
             _currentStepIndex.value = -1
-            // 🔧 activeNode 초기화(선택): 필요 없다면 지워도 됨
             _currentGraphData.update { it?.copy(activeNodeId = null) }
         }
     }
@@ -804,7 +782,6 @@ class AppViewModel(
                 onStepComplete = { current, total, description ->
                     _currentStepIndex.value = current - 1 // 0-based
                     _executionProgress.value = "$current/$total"
-                    // 🔥 실행 중 노드 반영 (음성 실행은 first path = 0 가정)
                     updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
@@ -843,36 +820,35 @@ class AppViewModel(
     ): GraphVisualizationData {
         val nodes = mutableListOf<GraphNode>()
         val edges = mutableListOf<GraphEdge>()
+        val firstPath = paths.firstOrNull()
 
-        paths.forEachIndexed { pathIndex, path ->
-            path.steps.forEachIndexed { stepIndex, step ->
-                val nodeId = "path${pathIndex}_step${stepIndex}"
+        firstPath?.steps?.forEachIndexed { stepIndex, step ->
+            val nodeId = "path0_step${stepIndex}"
 
-                // 액션 타입에 따라 NodeType 결정
-                val nodeType = when (step.action.lowercase()) {
-                    "navigate" -> com.vowser.client.ui.graph.NodeType.NAVIGATE
-                    "click" -> com.vowser.client.ui.graph.NodeType.CLICK
-                    "input", "type" -> com.vowser.client.ui.graph.NodeType.INPUT
-                    "wait" -> com.vowser.client.ui.graph.NodeType.WAIT
-                    else -> com.vowser.client.ui.graph.NodeType.ACTION // fallback
-                }
+            // 액션 타입에 따라 NodeType 결정
+            val nodeType = when (step.action.lowercase()) {
+                "navigate" -> com.vowser.client.ui.graph.NodeType.NAVIGATE
+                "click" -> com.vowser.client.ui.graph.NodeType.CLICK
+                "input", "type" -> com.vowser.client.ui.graph.NodeType.INPUT
+                "wait" -> com.vowser.client.ui.graph.NodeType.WAIT
+                else -> com.vowser.client.ui.graph.NodeType.ACTION
+            }
 
-                nodes.add(
-                    GraphNode(
-                        id = nodeId,
-                        label = step.description,
-                        type = nodeType
+            nodes.add(
+                GraphNode(
+                    id = nodeId,
+                    label = step.description,
+                    type = nodeType
+                )
+            )
+
+            if (stepIndex > 0) {
+                edges.add(
+                    GraphEdge(
+                        from = "path0_step${stepIndex - 1}",
+                        to = nodeId
                     )
                 )
-
-                if (stepIndex > 0) {
-                    edges.add(
-                        GraphEdge(
-                            from = "path${pathIndex}_step${stepIndex - 1}",
-                            to = nodeId
-                        )
-                    )
-                }
             }
         }
 
