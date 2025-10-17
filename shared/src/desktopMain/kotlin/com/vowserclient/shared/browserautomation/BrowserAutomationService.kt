@@ -238,9 +238,6 @@ object BrowserAutomationService {
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
-            } catch (e: Exception) {
-                Napier.e("Unexpected error hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-                return@withContext false
             }
         }
     }

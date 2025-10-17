@@ -10,8 +10,8 @@ import com.vowser.client.api.dto.PathStepDetail
 fun MatchedPath.toMatchedPathDetail(): MatchedPathDetail {
     return MatchedPathDetail(
         domain = this.domain,
-        task_intent = this.taskIntent,
-        relevance_score = this.relevanceScore,
+        taskIntent = this.taskIntent,
+        relevanceScore = this.relevanceScore,
         weight = this.weight,
         steps = this.steps.map { it.toPathStepDetail() }
     )
@@ -27,11 +27,11 @@ fun PathStep.toPathStepDetail(): PathStepDetail {
         action = this.action,
         selectors = this.selectors,
         description = this.description,
-        is_input = this.isInput,
-        should_wait = this.shouldWait,
-        text_labels = this.textLabels,
-        input_type = this.inputType,
-        input_placeholder = this.inputPlaceholder,
-        wait_message = this.waitMessage
+        isInput = this.isInput,
+        shouldWait = this.shouldWait,
+        textLabels = this.textLabels,
+        inputType = this.inputType,
+        inputPlaceholder = this.inputPlaceholder,
+        waitMessage = this.waitMessage
     )
 }
