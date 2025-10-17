@@ -183,15 +183,12 @@ class PathExecutor {
         when (step.action) {
             "click" -> {
                 executeClickStep(step)
-                if (willNavigateOnClick(step)) {
-                    Napier.d("Click is expected to cause navigation, waiting for network to be idle...", tag = Tags.BROWSER_AUTOMATION)
-                    BrowserAutomationBridge.waitForNetworkIdle()
-                }
+                Napier.d("Click succeeded, unconditionally waiting for network to be idle...", tag = Tags.BROWSER_AUTOMATION)
+                BrowserAutomationBridge.waitForNetworkIdle()
             }
             "input", "type" -> executeInputStep(step, getUserInput)
             "wait" -> executeWaitStep(step)
             "navigate" -> {
-                // This case is now handled by shouldNavigateBeforeAction
                 Napier.d("Explicit navigate action, handled by pre-step navigation check.", tag = Tags.BROWSER_AUTOMATION)
             }
             else -> {
@@ -228,10 +225,8 @@ class PathExecutor {
         }
 
         // 첫 스텝이거나, 이전 스텝과 base URL이 다르면 navigate 필요
-        val previousStep = currentPath?.steps?.getOrNull(currentStepIndex - 1)
-        if (previousStep == null) { // 첫 스텝
-            return true
-        }
+        val previousStep = currentPath?.steps?.getOrNull(currentStepIndex - 1) ?: // 첫 스텝
+        return true
 
         val previousBaseUrl = extractBaseUrl(previousStep.url)
         val currentBaseUrl = extractBaseUrl(step.url)
