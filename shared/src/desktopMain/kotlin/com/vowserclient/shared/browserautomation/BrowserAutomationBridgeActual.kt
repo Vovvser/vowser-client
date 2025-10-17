@@ -2,10 +2,8 @@ package com.vowser.client.browserautomation
 
 import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.contribution.ContributionStep
-import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
-import kotlinx.coroutines.delay
 
 actual object BrowserAutomationBridge {
 
@@ -18,127 +16,52 @@ actual object BrowserAutomationBridge {
         "submit" to SubmitActionExecutor()
     )
 
-    actual suspend fun executeNavigationPath(path: NavigationPath) {
-        Napier.i("Executing navigation path: ${path.pathId}", tag = Tags.BROWSER_AUTOMATION)
+    actual suspend fun executeNavigationPath(path: NavigationPath, timeout: Double?): Boolean {
+        Napier.i("Executing single step for path: ${path.pathId}", tag = Tags.BROWSER_AUTOMATION)
 
         BrowserAutomationService.initialize()
-        // 첫 번째 스텝이 navigate인 경우, 항상 해당 URL로 이동 (루트 페이지로 초기화)
-        val firstStep = path.steps.firstOrNull()
-        if (firstStep?.action == "navigate") {
-            Napier.i("Initializing root page: ${firstStep.url}", tag = Tags.BROWSER_AUTOMATION)
-            browserActions.navigate(firstStep.url)
-            delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
-            
-            var currentUrl = firstStep.url
-            var hasNavigatedToFirstWebsite = false
-            
-            for ((index, step) in path.steps.drop(1).withIndex()) {
-                val actualIndex = index + 1
-                Napier.i("Executing step ${actualIndex + 1}/${path.steps.size}: ${step.action} on ${step.url} with selector ${step.selector}", tag = Tags.BROWSER_AUTOMATION)
-                
-                val actionResult = actionExecutors[step.action]?.execute(browserActions, step) ?: false
-                
-                // 클릭 실패 시 첫 번째 웹사이트 전환만 처리
-                if (!actionResult && step.action == "click" && !hasNavigatedToFirstWebsite) {
-                    // 다음 스텝이 다른 도메인인지 확인
-                    val nextStep = if (actualIndex < path.steps.size - 1) path.steps[actualIndex + 1] else null
-                    if (nextStep != null && isDifferentDomain(currentUrl, nextStep.url)) {
-                        Napier.i("Click failed and domain change detected, navigating to first website: ${nextStep.url}", tag = Tags.BROWSER_AUTOMATION)
-                        browserActions.navigate(nextStep.url)
-                        currentUrl = nextStep.url
-                        hasNavigatedToFirstWebsite = true
-                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
-                    }
-                }
-                
-                when (step.action) {
-                    "navigate" -> {
-                        Napier.i("Waiting for page load after navigation...", tag = Tags.BROWSER_AUTOMATION)
-                        currentUrl = step.url
-                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
-                    }
-                    "click" -> {
-                        Napier.i("Waiting after click action...", tag = Tags.BROWSER_AUTOMATION)
-                        delay(ContributionConstants.CLICK_WAIT_MS)
-                    }
-                    "type" -> {
-                        delay(ContributionConstants.TYPE_WAIT_MS)
-                    }
-                    else -> {
-                        delay(ContributionConstants.POLLING_INTERVAL_MS)
-                    }
-                }
-            }
-        } else {
-            // 첫 번째 스텝이 navigate가 아닌 경우 모든 스텝 실행
-            for ((index, step) in path.steps.withIndex()) {
-                Napier.i("Executing step ${index + 1}/${path.steps.size}: ${step.action} on ${step.url} with selector ${step.selector}", tag = Tags.BROWSER_AUTOMATION)
-                
-                actionExecutors[step.action]?.execute(browserActions, step)
-                    ?: Napier.w("Unknown navigation action or no executor found: ${step.action}", tag = Tags.BROWSER_AUTOMATION)
-                
-                when (step.action) {
-                    "navigate" -> {
-                        Napier.i("Waiting for page load after navigation...", tag = Tags.BROWSER_AUTOMATION)
-                        delay(ContributionConstants.PAGE_LOAD_WAIT_MS)
-                    }
-                    "click" -> {
-                        Napier.i("Waiting after click action...", tag = Tags.BROWSER_AUTOMATION)
-                        delay(ContributionConstants.CLICK_WAIT_MS)
-                    }
-                    "type" -> {
-                        delay(ContributionConstants.TYPE_WAIT_MS)
-                    }
-                    else -> {
-                        delay(ContributionConstants.POLLING_INTERVAL_MS)
-                    }
-                }
-            }
+
+        val step = path.steps.firstOrNull()
+        if (step == null) {
+            Napier.e("No step found in NavigationPath", tag = Tags.BROWSER_AUTOMATION)
+            return false
         }
-        Napier.i("Navigation path ${path.pathId} execution completed.", tag = Tags.BROWSER_AUTOMATION)
+
+        Napier.i("Executing step: ${step.action} on ${step.url} with selector ${step.selector}", tag = Tags.BROWSER_AUTOMATION)
+
+        val executor = actionExecutors[step.action]
+        if (executor == null) {
+            Napier.w("Unknown navigation action or no executor found: ${step.action}", tag = Tags.BROWSER_AUTOMATION)
+            return false
+        }
+
+        val success = executor.execute(browserActions, step, timeout)
+
+        if (!success) {
+            Napier.e("Step (${step.action} on ${step.selector}) failed.", tag = Tags.BROWSER_AUTOMATION)
+            return false
+        }
+
+        Napier.i("Single step execution completed successfully.", tag = Tags.BROWSER_AUTOMATION)
+        return true
     }
 
-    /**
-     * 두 URL의 도메인이 다른지 확인
-     */
-    private fun isDifferentDomain(currentUrl: String, nextUrl: String): Boolean {
-        return try {
-            val currentDomain = extractDomain(currentUrl)
-            val nextDomain = extractDomain(nextUrl)
-            currentDomain != nextDomain
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /**
-     * URL에서 도메인 추출
-     */
-    private fun extractDomain(url: String): String {
-        return try {
-            val domain = url.substringAfter("://").substringBefore("/")
-            domain.lowercase()
-        } catch (e: Exception) {
-            url
-        }
-    }
-    
     // 기여 모드 관련 메서드들
     actual suspend fun startContributionRecording() {
         Napier.i("Starting contribution recording", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.startContributionRecording()
     }
-    
+
     actual fun stopContributionRecording() {
         Napier.i("Stopping contribution recording", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.stopContributionRecording()
     }
-    
+
     actual suspend fun navigate(url: String) {
         Napier.i("Navigating to: $url", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.navigate(url)
     }
-    
+
     actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
         Napier.i("Setting contribution recording callback", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.setContributionRecordingCallback(callback)
@@ -152,5 +75,10 @@ actual object BrowserAutomationBridge {
     actual suspend fun cleanupContribution() {
         Napier.i("Cleaning up contribution browser resources", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.cleanup()
+    }
+
+    actual suspend fun waitForNetworkIdle() {
+        Napier.i("Waiting for network idle", tag = Tags.BROWSER_AUTOMATION)
+        BrowserAutomationService.waitForNetworkIdle()
     }
 }
