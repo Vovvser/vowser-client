@@ -9,6 +9,7 @@ import com.vowser.client.exception.ExceptionHandler
 import com.vowser.client.api.PathApiClient
 import com.vowser.client.api.PathExecutor
 import com.vowser.client.api.dto.MatchedPathDetail
+import com.vowser.client.api.dto.PathSearchResponse
 import com.vowser.client.logging.LogUtils
 import com.vowser.client.logging.Tags
 import com.vowser.client.model.AuthState
@@ -20,6 +21,7 @@ import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.stopPlatformRecording
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +38,8 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
+import kotlinx.serialization.json.Json
+
 class AppViewModel(
     private val coroutineScope: CoroutineScope,
     private val tokenStorage: TokenStorage,
@@ -46,6 +50,8 @@ class AppViewModel(
     private val webSocketClient: BrowserControlWebSocketClient,
     val exceptionHandler: ExceptionHandler
 ) {
+
+    private val json = Json { prettyPrint = true; isLenient = true; ignoreUnknownKeys = true }
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -115,6 +121,15 @@ class AppViewModel(
 
     // 사용자 확인 대기를 위한 continuation 저장
     private var waitContinuation: kotlin.coroutines.Continuation<Unit>? = null
+
+    // 사용자 입력 대기 상태
+    private val _isWaitingForUserInput = MutableStateFlow(false)
+    val isWaitingForUserInput: StateFlow<Boolean> = _isWaitingForUserInput.asStateFlow()
+
+    private val _inputRequest = MutableStateFlow<com.vowser.client.api.dto.PathStepDetail?>(null)
+    val inputRequest: StateFlow<com.vowser.client.api.dto.PathStepDetail?> = _inputRequest.asStateFlow()
+
+    private var userInputContinuation: kotlin.coroutines.Continuation<String>? = null
 
     // STT modes
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
@@ -506,25 +521,6 @@ class AppViewModel(
         Napier.i("WebSocket callbacks setup completed", tag = Tags.APP_VIEWMODEL)
     }
 
-    fun refreshGraph() {
-        coroutineScope.launch {
-            _graphLoading.value = true
-            try {
-                webSocketClient.sendToolCall(
-                    CallToolRequest(
-                        "refresh_graph", mapOf(
-                            "sessionId" to sessionId
-                        )
-                    )
-                )
-                Napier.i("Graph refresh requested", tag = Tags.UI_GRAPH)
-            } catch (e: Exception) {
-                Napier.e("Failed to request graph refresh: ${e.message}", e, tag = Tags.UI_GRAPH)
-                _graphLoading.value = false
-            }
-        }
-    }
-
     private fun setupContributionMode() {
         BrowserAutomationBridge.setContributionRecordingCallback { step ->
             contributionModeService.recordStep(step)
@@ -625,7 +621,7 @@ class AppViewModel(
 
             result.fold(
                 onSuccess = { response ->
-                    val savedSteps = response.data.result.steps_saved
+                    val savedSteps = response.data.result.stepsSaved
                     addStatusLog("경로 저장 완료: $taskIntent ($savedSteps 단계)", StatusLogType.SUCCESS)
                     Napier.i(
                         "Path saved via REST API: $savedSteps steps for task '$taskIntent'",
@@ -654,8 +650,6 @@ class AppViewModel(
         }
     }
 
-// ===== 경로 검색 및 실행 기능 =====
-
     /**
      * 음성 명령 처리 (REST API 기반)
      */
@@ -670,17 +664,27 @@ class AppViewModel(
 
             result.fold(
                 onSuccess = { response ->
-                    val paths = response.data.matched_paths
+                    val paths = response.data.matchedPaths ?: emptyList()
                     _searchedPaths.value = paths
+
+                    // --- 백엔드 원본 데이터 로깅 ---
+                    try {
+                        val jsonString = json.encodeToString(PathSearchResponse.serializer(), response)
+                        Napier.d("Backend Original Response:\n$jsonString", tag = Tags.NETWORK)
+                    } catch (e: Exception) {
+                        Napier.e("Failed to serialize backend response: ${e.message}", e, tag = Tags.NETWORK)
+                    }
+                    // ---------------------------
 
                     if (paths.isEmpty()) {
                         addStatusLog("검색 결과 없음: $transcript", StatusLogType.WARNING)
                         _graphLoading.value = false
-                        return
+                        return@fold
                     }
 
+                    val searchTime = response.data.performance.searchTime ?: 0L
                     addStatusLog(
-                        "${paths.size}개 경로 검색됨 (${response.data.performance.search_time}ms)",
+                        "${paths.size}개 경로 검색됨 (${searchTime}ms)",
                         StatusLogType.SUCCESS
                     )
                     Napier.i("Found ${paths.size} paths for query: $transcript", tag = Tags.APP_VIEWMODEL)
@@ -688,7 +692,7 @@ class AppViewModel(
                     val visualizationData = convertToGraph(
                         paths = paths,
                         query = transcript,
-                        searchTimeMs = response.data.performance.search_time
+                        searchTimeMs = searchTime
                     )
                     _currentGraphData.value = visualizationData
                     _graphLoading.value = false
@@ -696,7 +700,7 @@ class AppViewModel(
                     val firstPath = paths.firstOrNull()
                     if (firstPath != null) {
                         addStatusLog(
-                            "최적 경로 실행 중: ${firstPath.task_intent} (관련도: ${(firstPath.relevance_score * 100).toInt()}%)",
+                            "최적 경로 실행 중: ${firstPath.taskIntent} (관련도: ${(firstPath.relevanceScore * 100).toInt()}%)",
                             StatusLogType.INFO
                         )
 
@@ -735,7 +739,6 @@ class AppViewModel(
             _currentStepIndex.value = -1
             _executionProgress.value = "0/${path.steps.size}"
 
-            // 사용자 정보 가져오기 (자동 입력용)
             val userInfo = authRepository.getMe().getOrNull()
             if (userInfo != null) {
                 addStatusLog("사용자 정보 로드 완료 - 자동 입력 활성화", StatusLogType.INFO)
@@ -750,7 +753,7 @@ class AppViewModel(
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
 
-                getUserInput = null,
+                getUserInput = ::requestUserInput,
                 onLog = { message ->
                     addStatusLog(message, StatusLogType.INFO)
                 },
@@ -760,8 +763,8 @@ class AppViewModel(
             )
 
             if (result.success) {
-                addStatusLog("경로 실행 완료: ${path.task_intent}", StatusLogType.SUCCESS)
-                Napier.i("Voice command path execution completed: ${path.task_intent}", tag = Tags.BROWSER_AUTOMATION)
+                addStatusLog("경로 실행 완료: ${path.taskIntent}", StatusLogType.SUCCESS)
+                Napier.i("Voice command path execution completed: ${path.taskIntent}", tag = Tags.BROWSER_AUTOMATION)
             } else {
                 val failedStep = result.failedAt?.let { "${it + 1}/${result.totalSteps}" } ?: "Unknown"
                 addStatusLog("경로 실행 실패 (단계 $failedStep): ${result.error}", StatusLogType.ERROR)
@@ -778,7 +781,6 @@ class AppViewModel(
             _executionProgress.value = ""
             _currentExecutingPath.value = null
             _currentStepIndex.value = -1
-            // 🔧 activeNode 초기화(선택): 필요 없다면 지워도 됨
             _currentGraphData.update { it?.copy(activeNodeId = null) }
         }
     }
@@ -802,19 +804,14 @@ class AppViewModel(
                 path = pathDetail,
                 userInfo = userInfo,
                 onStepComplete = { current, total, description ->
-                    _currentStepIndex.value = current - 1 // 0-based
+                    _currentStepIndex.value = current - 1
                     _executionProgress.value = "$current/$total"
-                    // 🔥 실행 중 노드 반영 (음성 실행은 first path = 0 가정)
                     updateActiveNode(pathIndex = 0, stepIndex = current - 1)
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
-                getUserInput = null,
-                onLog = { message ->
-                    addStatusLog(message, StatusLogType.INFO)
-                },
-                onWaitForUser = { message ->
-                    waitForUserConfirmation(message)
-                }
+                getUserInput = ::requestUserInput,
+                onLog = { message -> addStatusLog(message, StatusLogType.INFO) },
+                onWaitForUser = { message -> waitForUserConfirmation(message) }
             )
 
             if (result.success) {
@@ -837,42 +834,43 @@ class AppViewModel(
      * 그래프 변환
      */
     private fun convertToGraph(
-        paths: List<MatchedPathDetail>,
+        paths: List<MatchedPathDetail>?,
         query: String? = null,
         searchTimeMs: Long? = null
     ): GraphVisualizationData {
+        if (paths.isNullOrEmpty()) {
+            return GraphVisualizationData(emptyList(), emptyList(), null, emptyList())
+        }
         val nodes = mutableListOf<GraphNode>()
         val edges = mutableListOf<GraphEdge>()
+        val firstPath = paths.firstOrNull()
 
-        paths.forEachIndexed { pathIndex, path ->
-            path.steps.forEachIndexed { stepIndex, step ->
-                val nodeId = "path${pathIndex}_step${stepIndex}"
+        firstPath?.steps?.forEachIndexed { stepIndex, step ->
+            val nodeId = "path0_step${stepIndex}"
 
-                // 액션 타입에 따라 NodeType 결정
-                val nodeType = when (step.action.lowercase()) {
-                    "navigate" -> com.vowser.client.ui.graph.NodeType.NAVIGATE
-                    "click" -> com.vowser.client.ui.graph.NodeType.CLICK
-                    "input", "type" -> com.vowser.client.ui.graph.NodeType.INPUT
-                    "wait" -> com.vowser.client.ui.graph.NodeType.WAIT
-                    else -> com.vowser.client.ui.graph.NodeType.ACTION // fallback
-                }
+            val nodeType = when (step.action.lowercase()) {
+                "navigate" -> com.vowser.client.ui.graph.NodeType.NAVIGATE
+                "click" -> com.vowser.client.ui.graph.NodeType.CLICK
+                "input", "type" -> com.vowser.client.ui.graph.NodeType.INPUT
+                "wait" -> com.vowser.client.ui.graph.NodeType.WAIT
+                else -> com.vowser.client.ui.graph.NodeType.ACTION
+            }
 
-                nodes.add(
-                    GraphNode(
-                        id = nodeId,
-                        label = step.description,
-                        type = nodeType
+            nodes.add(
+                GraphNode(
+                    id = nodeId,
+                    label = step.description,
+                    type = nodeType
+                )
+            )
+
+            if (stepIndex > 0) {
+                edges.add(
+                    GraphEdge(
+                        from = "path0_step${stepIndex - 1}",
+                        to = nodeId
                     )
                 )
-
-                if (stepIndex > 0) {
-                    edges.add(
-                        GraphEdge(
-                            from = "path${pathIndex}_step${stepIndex - 1}",
-                            to = nodeId
-                        )
-                    )
-                }
             }
         }
 
@@ -882,11 +880,30 @@ class AppViewModel(
                 query = query,
                 totalPaths = paths.size,
                 searchTimeMs = searchTimeMs,
-                topRelevance = paths.firstOrNull()?.relevance_score?.toFloat()
+                topRelevance = paths.firstOrNull()?.relevanceScore?.toFloat()
             )
         } else null
 
-        return GraphVisualizationData(nodes, edges, searchInfo = searchInfo)
+        return GraphVisualizationData(
+            nodes = nodes,
+            edges = edges,
+            searchInfo = searchInfo,
+            allMatchedPaths = paths
+        )
+    }
+
+    private suspend fun requestUserInput(step: com.vowser.client.api.dto.PathStepDetail): String {
+        return suspendCancellableCoroutine { continuation ->
+            _isWaitingForUserInput.value = true
+            _inputRequest.value = step
+            userInputContinuation = continuation
+
+            continuation.invokeOnCancellation {
+                _isWaitingForUserInput.value = false
+                _inputRequest.value = null
+                userInputContinuation = null
+            }
+        }
     }
 
     /**
@@ -919,6 +936,22 @@ class AppViewModel(
                 highlightedPath = highlighted
             )
         }
+    }
+
+    fun submitUserInput(input: String) {
+        userInputContinuation?.resume(input)
+        userInputContinuation = null
+        _isWaitingForUserInput.value = false
+        _inputRequest.value = null
+        addStatusLog("사용자 입력: $input", StatusLogType.INFO)
+    }
+
+    fun cancelUserInput() {
+        userInputContinuation?.resume("")
+        userInputContinuation = null
+        _isWaitingForUserInput.value = false
+        _inputRequest.value = null
+        addStatusLog("사용자 입력 취소", StatusLogType.WARNING)
     }
 
     /**

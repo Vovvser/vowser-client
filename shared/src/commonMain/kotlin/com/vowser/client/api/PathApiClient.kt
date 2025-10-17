@@ -40,8 +40,8 @@ class PathApiClient(
             }
 
             val submission = PathSubmission(
-                session_id = sessionId,
-                task_intent = taskIntent,
+                sessionId = sessionId,
+                taskIntent = taskIntent,
                 domain = domain,
                 steps = pathSteps
             )
@@ -53,7 +53,7 @@ class PathApiClient(
 
             if (response.status.isSuccess()) {
                 val result = json.decodeFromString<PathSaveResponse>(response.bodyAsText())
-                Napier.i("✅ Path saved successfully: ${result.data.result.steps_saved} steps", tag = Tags.API)
+                Napier.i("✅ Path saved successfully: ${result.data.result.stepsSaved} steps", tag = Tags.API)
                 Result.success(result)
             } else {
                 val errorBody = response.bodyAsText()
@@ -86,7 +86,7 @@ class PathApiClient(
 
             if (response.status.isSuccess()) {
                 val result = json.decodeFromString<PathSearchResponse>(response.bodyAsText())
-                Napier.i("✅ Found ${result.data.total_matched} paths in ${result.data.performance.search_time}ms", tag = Tags.API)
+                Napier.i("✅ Found ${result.data.totalMatched} paths in ${result.data.performance.searchTime}ms", tag = Tags.API)
                 Result.success(result)
             } else {
                 val errorBody = response.bodyAsText()
@@ -131,12 +131,12 @@ class PathApiClient(
             action = action,
             selectors = selectors,
             description = description,
-            text_labels = textLabels,
-            is_input = isInput,
-            should_wait = false,
-            input_type = inputType,
-            input_placeholder = inputPlaceholder,
-            wait_message = null
+            textLabels = textLabels,
+            isInput = isInput,
+            shouldWait = false,
+            inputType = inputType,
+            inputPlaceholder = inputPlaceholder,
+            waitMessage = null
         )
     }
 
@@ -194,13 +194,13 @@ class PathApiClient(
     /**
      * 액션 타입 매핑
      */
-    private fun mapActionType(action: String): String {
-        return when (action.lowercase()) {
-            "type", "input" -> "input"
-            "wait" -> "wait"
-            "click", "navigate", "new_tab" -> "click"
-            else -> "click"
-        }
+    private fun mapActionType(action: String): String = when (action.lowercase()) {
+        "type", "input" -> "input"
+        "wait"          -> "wait"
+        "click"         -> "click"
+        "navigate"      -> "navigate"
+        "new_tab"       -> "new_tab"
+        else            -> "click"
     }
 
     /**

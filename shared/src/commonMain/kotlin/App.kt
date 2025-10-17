@@ -1,5 +1,14 @@
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.vowser.client.AppViewModel
 import com.vowser.client.ui.navigation.LocalScreenNavigator
 import com.vowser.client.ui.navigation.StackScreenNavigator
@@ -28,6 +37,10 @@ fun App(viewModel: AppViewModel) {
     val isWaitingForUser by viewModel.isWaitingForUser.collectAsState()
     val waitMessage by viewModel.waitMessage.collectAsState()
 
+    // 사용자 입력 대기 상태 구독
+    val isWaitingForUserInput by viewModel.isWaitingForUserInput.collectAsState()
+    val inputRequest by viewModel.inputRequest.collectAsState()
+
     // 테마 적용
     val colors = if (isDarkTheme) {
         AppTheme.DarkTheme
@@ -55,7 +68,8 @@ fun App(viewModel: AppViewModel) {
                         onToggleRecording = { viewModel.toggleRecording() },
                         onClearStatusHistory = { viewModel.clearStatusHistory() },
                         onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) },
-                        onConfirmUserWait = { viewModel.confirmUserWait() }
+                        onConfirmUserWait = { viewModel.confirmUserWait() },
+                        onNavigateBack = { navigator.pop() },
                     )
                 }
 
@@ -75,6 +89,35 @@ fun App(viewModel: AppViewModel) {
                     )
                 }
             }
+        }
+
+        if (isWaitingForUserInput) {
+            var inputText by remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelUserInput() },
+                title = { Text("사용자 입력 필요") },
+                text = {
+                    Column {
+                        Text(inputRequest?.description ?: "입력 값이 필요합니다.")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            label = { Text(inputRequest?.textLabels?.joinToString(", ") ?: "입력") }
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { viewModel.submitUserInput(inputText) }) {
+                        Text("확인")
+                    }
+                },
+                dismissButton = {
+                    Button(onClick = { viewModel.cancelUserInput() }) {
+                        Text("취소")
+                    }
+                }
+            )
         }
     }
 }

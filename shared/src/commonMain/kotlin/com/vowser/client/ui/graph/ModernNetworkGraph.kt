@@ -27,6 +27,7 @@ import kotlin.math.max
  * 모던 그래프 시각화 컴포넌트
  */
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ModernNetworkGraph(
     nodes: List<GraphNode>,
@@ -34,10 +35,12 @@ fun ModernNetworkGraph(
     highlightedPath: List<String> = emptyList(),
     activeNodeId: String? = null,
     isContributionMode: Boolean = false,
-    searchInfo: com.vowser.client.visualization.SearchInfo? = null
+    searchInfo: com.vowser.client.visualization.SearchInfo? = null,
+    allMatchedPaths: List<com.vowser.client.api.dto.MatchedPathDetail> = emptyList()
 ) {
     var canvasSize by remember { mutableStateOf(Size.Zero) }
     var selectedNode by remember { mutableStateOf<GraphNode?>(null) }
+    var showDetailDialog by remember { mutableStateOf(false) }
 
     // 레이아웃이 적용된 노드들 계산
     val positionedNodes = remember(nodes, edges, canvasSize) {
@@ -101,7 +104,7 @@ fun ModernNetworkGraph(
 
             Card(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.TopEnd)
                     .padding(16.dp)
                     .widthIn(min = 250.dp, max = 350.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -149,7 +152,7 @@ fun ModernNetworkGraph(
         if (searchInfo != null) {
             Card(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
+                    .align(Alignment.TopStart)
                     .padding(top = 16.dp),
                 shape = RoundedCornerShape(8.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -217,8 +220,8 @@ fun ModernNetworkGraph(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 100.dp)
                     .widthIn(max = 600.dp),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
             ) {
                 Column(
@@ -273,6 +276,46 @@ fun ModernNetworkGraph(
                 LegendItem(color = Color(0xFFFF9800), label = "⌨️ 입력")
                 LegendItem(color = Color(0xFF9C27B0), label = "⏳ 대기")
             }
+        }
+
+        if (searchInfo != null && allMatchedPaths.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ),
+                onClick = { showDetailDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📋",
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "자세히 보기",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+
+        // 자세히 보기 다이얼로그
+        if (showDetailDialog && searchInfo != null) {
+            PathDetailDialog(
+                searchInfo = searchInfo,
+                allMatchedPaths = allMatchedPaths,
+                onDismiss = { showDetailDialog = false }
+            )
         }
     }
 }

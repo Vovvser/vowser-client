@@ -36,6 +36,7 @@ import com.vowser.client.websocket.ConnectionStatus
 /**
  * 그래프 메인 화면 컴포넌트
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GraphScreen(
     appViewModel: AppViewModel,
@@ -46,6 +47,7 @@ fun GraphScreen(
     onClearStatusHistory: () -> Unit,
     onToggleSttMode: (String) -> Unit,
     onConfirmUserWait: () -> Unit,
+    onNavigateBack: () -> Unit,
 ) {
     val dialogState by appViewModel.dialogState.collectAsState()
     val connectionStatus by appViewModel.connectionStatus.collectAsState()
@@ -113,111 +115,118 @@ fun GraphScreen(
             loadingState = LoadingState.Loading
         }
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            // 상단 앱바
-            GraphAppBar(modifier = Modifier.align(Alignment.TopStart))
-
-            val shouldShowGraph = isDeveloperMode && showGraphView && graphData != null
-
-            if (shouldShowGraph && graphData != null) {
-                ModernNetworkGraph(
-                    nodes = graphData.nodes,
-                    edges = graphData.edges,
-                    highlightedPath = highlightedPath,
-                    activeNodeId = realTimeActiveNodeId ?: activeNodeId,
-                    isContributionMode = false,
-                    searchInfo = graphData.searchInfo,
-                )
-            } else {
-                // 통합 상태 UI
-                EmptyStateUI(
-                    isRecording = isRecording,
-                    connectionStatus = connectionStatus,
-                    statusHistory = statusHistory,
-                    isDeveloperMode = isDeveloperMode,
-                    receivedMessage = receivedMessage,
-                    selectedSttModes = selectedSttModes,
-                    onToggleRecording = onToggleRecording,
-                    onReconnect = onReconnect,
-                    onClearStatusHistory = onClearStatusHistory,
-                    onToggleSttMode = onToggleSttMode,
-                    onShowGraph = { if (graphData != null) showGraphView = true },
-                    modifier = Modifier.fillMaxSize().padding(top = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingSmall)
+        Scaffold(
+            topBar = {
+                GenericAppBar(
+                    title = "경로 실행 그래프",
+                    onBackPress = onNavigateBack
                 )
             }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                val shouldShowGraph = isDeveloperMode && showGraphView && graphData != null
 
-            // 통계 패널
-            if (isDeveloperMode && showStats) {
-                StatisticsPanel(
-                    onClose = { showStats = false },
-                    modifier = Modifier.align(Alignment.CenterEnd)
+                if (shouldShowGraph && graphData != null) {
+                    ModernNetworkGraph(
+                        nodes = graphData.nodes,
+                        edges = graphData.edges,
+                        highlightedPath = highlightedPath,
+                        activeNodeId = realTimeActiveNodeId ?: activeNodeId,
+                        isContributionMode = false,
+                        searchInfo = graphData.searchInfo,
+                        allMatchedPaths = graphData.allMatchedPaths
+                    )
+                } else {
+                    EmptyStateUI(
+                        isRecording = isRecording,
+                        connectionStatus = connectionStatus,
+                        statusHistory = statusHistory,
+                        isDeveloperMode = isDeveloperMode,
+                        receivedMessage = receivedMessage,
+                        selectedSttModes = selectedSttModes,
+                        onToggleRecording = onToggleRecording,
+                        onReconnect = onReconnect,
+                        onClearStatusHistory = onClearStatusHistory,
+                        onToggleSttMode = onToggleSttMode,
+                        onShowGraph = { if (graphData != null) showGraphView = true },
+                        modifier = Modifier.fillMaxSize() // 수동 padding 제거
+                    )
+                }
+
+                if (isDeveloperMode && showStats) {
+                    StatisticsPanel(
+                        onClose = { showStats = false },
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
+                }
+
+                SmartLoadingIndicator(
+                    loadingState = loadingState,
+                    loadingMessage = "그래프를 업데이트하는 중...",
+                    onRetry = {
+                        loadingState = LoadingState.Loading
+                    },
+                    onDismiss = {
+                        loadingState = LoadingState.Idle
+                    },
+                    modifier = Modifier.align(Alignment.Center)
                 )
-            }
 
-            // 스마트 로딩 인디케이터
-            SmartLoadingIndicator(
-                loadingState = loadingState,
-                loadingMessage = "그래프를 업데이트하는 중...",
-                onRetry = {
-                    loadingState = LoadingState.Loading
-                },
-                onDismiss = {
-                    loadingState = LoadingState.Idle
-                },
-                modifier = Modifier.align(Alignment.Center)
-            )
+                if (isWaitingForUser) {
+                    UserWaitDialog(
+                        waitMessage = waitMessage,
+                        onConfirm = onConfirmUserWait
+                    )
+                }
 
-            // 사용자 대기 다이얼로그
-            if (isWaitingForUser) {
-                UserWaitDialog(
-                    waitMessage = waitMessage,
-                    onConfirm = onConfirmUserWait
-                )
-            }
-
-            // 에러 다이얼로그
-            when (val currentDialogState = dialogState) {
-                is DialogState.NetworkError -> {
-                    StandardDialogs.NetworkError(
-                        visible = true,
-                        onRetryClick = currentDialogState.onRetry,
-                        onDismiss = { appViewModel.exceptionHandler.hideDialog() }
-                    )
-                }
-                is DialogState.BrowserError -> {
-                    StandardDialogs.BrowserRetryDialog(
-                        visible = true,
-                        onRetryClick = currentDialogState.onRetry,
-                        onAlternativeClick = currentDialogState.onAlternative,
-                        onCancelClick = currentDialogState.onCancel
-                    )
-                }
-                is DialogState.ContributionError -> {
-                    StandardDialogs.ContributionFailureDialog(
-                        visible = true,
-                        onRetryClick = currentDialogState.onRetry,
-                        onLaterClick = currentDialogState.onLater,
-                        onGiveupClick = currentDialogState.onGiveUp
-                    )
-                }
-                is DialogState.PlaywrightRestart -> {
-                    StandardDialogs.PlaywrightRestartDialog(
-                        visible = true,
-                        onRestartClick = currentDialogState.onRestart,
-                        onDismiss = { appViewModel.exceptionHandler.hideDialog() }
-                    )
-                }
-                is DialogState.GenericError -> {
-                    com.vowser.client.ui.components.ErrorDialog(
-                        visible = true,
-                        title = currentDialogState.title,
-                        message = currentDialogState.message,
-                        onPositiveClick = currentDialogState.onConfirm,
-                        onDismiss = { appViewModel.exceptionHandler.hideDialog() }
-                    )
-                }
-                is DialogState.Hidden -> {
-                    // 다이얼로그 없음
+                when (val currentDialogState = dialogState) {
+                    is DialogState.NetworkError -> {
+                        StandardDialogs.NetworkError(
+                            visible = true,
+                            onRetryClick = currentDialogState.onRetry,
+                            onDismiss = { appViewModel.exceptionHandler.hideDialog() }
+                        )
+                    }
+                    is DialogState.BrowserError -> {
+                        StandardDialogs.BrowserRetryDialog(
+                            visible = true,
+                            onRetryClick = currentDialogState.onRetry,
+                            onAlternativeClick = currentDialogState.onAlternative,
+                            onCancelClick = currentDialogState.onCancel
+                        )
+                    }
+                    is DialogState.ContributionError -> {
+                        StandardDialogs.ContributionFailureDialog(
+                            visible = true,
+                            onRetryClick = currentDialogState.onRetry,
+                            onLaterClick = currentDialogState.onLater,
+                            onGiveupClick = currentDialogState.onGiveUp
+                        )
+                    }
+                    is DialogState.PlaywrightRestart -> {
+                        StandardDialogs.PlaywrightRestartDialog(
+                            visible = true,
+                            onRestartClick = currentDialogState.onRestart,
+                            onDismiss = { appViewModel.exceptionHandler.hideDialog() }
+                        )
+                    }
+                    is DialogState.GenericError -> {
+                        com.vowser.client.ui.components.ErrorDialog(
+                            visible = true,
+                            title = currentDialogState.title,
+                            message = currentDialogState.message,
+                            onPositiveClick = currentDialogState.onConfirm,
+                            onDismiss = { appViewModel.exceptionHandler.hideDialog() }
+                        )
+                    }
+                    is DialogState.Hidden -> {
+                        // 다이얼로그 없음
+                    }
                 }
             }
         }
@@ -475,19 +484,5 @@ private fun UserWaitDialog(
                 Text("완료")
             }
         },
-    )
-}
-
-
-/**
- * GraphScreen 상단 앱바
- */
-@Composable
-private fun GraphAppBar(
-    modifier: Modifier = Modifier
-) {
-    GenericAppBar(
-        title = "Vowser",
-        modifier = modifier
     )
 }

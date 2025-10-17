@@ -1,5 +1,6 @@
 package com.vowser.client.visualization
 
+import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.ui.graph.*
 /**
  * 그래프 레이아웃 타입
@@ -17,7 +18,8 @@ data class GraphVisualizationData(
     val activeNodeId: String? = null,
     val highlightedPath: List<String> = emptyList(),
     val layoutType: GraphLayoutType = GraphLayoutType.CIRCULAR,
-    val searchInfo: SearchInfo? = null
+    val searchInfo: SearchInfo? = null,
+    val allMatchedPaths: List<MatchedPathDetail> = emptyList(),
 )
 
 /**
