@@ -39,14 +39,14 @@ fun PathDetailDialog(
                     .fillMaxSize()
                     .padding(24.dp)
             ) {
-                // 헤더
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🔍 검색 결과 상세",
+                        text = "Search Result Details",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -57,12 +57,12 @@ fun PathDetailDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 검색 정보 요약
+                // Search Summary
                 SearchSummaryCard(searchInfo)
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // 경로 목록
+                // Path List
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -75,7 +75,7 @@ fun PathDetailDialog(
                             isTopResult = index == 0
                         )
                         if (index < allMatchedPaths.size - 1) {
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
@@ -89,32 +89,38 @@ private fun SearchSummaryCard(searchInfo: SearchInfo) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("🎯 검색어:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
-                    text = "\"${searchInfo.query}\"",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "Query:",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = searchInfo.query,
+                    fontSize = MaterialTheme.typography.titleMedium.fontSize,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
             ) {
-                InfoChip("📊 총 경로", "${searchInfo.totalPaths}개")
-                InfoChip("⏱️ 검색 시간", "${searchInfo.searchTimeMs}ms")
+                InfoChip("Total Paths", "${searchInfo.totalPaths}")
+                InfoChip("Search Time", "${searchInfo.searchTimeMs}ms")
                 searchInfo.topRelevance?.let {
-                    InfoChip("🎖️ 최고 관련도", "${(it * 100).toInt()}%")
+                    InfoChip("Top Score", "${(it * 100).toInt()}%")
                 }
             }
         }
@@ -123,18 +129,15 @@ private fun SearchSummaryCard(searchInfo: SearchInfo) {
 
 @Composable
 private fun InfoChip(label: String, value: String) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
@@ -147,82 +150,53 @@ private fun PathDetailCard(
     path: MatchedPathDetail,
     isTopResult: Boolean
 ) {
+    val cardColor = if (isTopResult) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isTopResult) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            }
-        ),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 경로 헤더
+            // Path Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isTopResult) {
-                        Text("🏆", fontSize = 16.sp)
-                    }
+                Column {
                     Text(
                         text = "#$index ${path.taskIntent}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = path.domain,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = when {
-                                    path.relevanceScore >= 0.7 -> MaterialTheme.colorScheme.primary
-                                    path.relevanceScore >= 0.4 -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.error
-                                },
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "${(path.relevanceScore * 100).toInt()}%",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                }
+                RelevanceChip(score = path.relevanceScore)
             }
 
-            // 도메인
-            Text(
-                text = "🌐 ${path.domain}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
+            Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-            Divider()
-
-            // 단계 목록
+            // Steps
             Text(
-                text = "📝 실행 단계 (${path.steps.size}개)",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp
+                text = "Execution Steps (${path.steps.size})",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
             )
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 path.steps.take(5).forEachIndexed { stepIndex, step ->
                     StepItem(stepIndex + 1, step)
@@ -230,10 +204,10 @@ private fun PathDetailCard(
 
                 if (path.steps.size > 5) {
                     Text(
-                        text = "... 외 ${path.steps.size - 5}개 단계",
-                        fontSize = 11.sp,
+                        text = "... and ${path.steps.size - 5} more steps",
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(start = 24.dp)
+                        modifier = Modifier.padding(start = 16.dp)
                     )
                 }
             }
@@ -242,46 +216,53 @@ private fun PathDetailCard(
 }
 
 @Composable
+private fun RelevanceChip(score: Double) {
+    val (backgroundColor, textColor) = when {
+        score >= 0.7 -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        score >= 0.4 -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    }
+
+    Box(
+        modifier = Modifier
+            .background(color = backgroundColor, shape = RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = "${(score * 100).toInt()}%",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = textColor
+        )
+    }
+}
+
+@Composable
 private fun StepItem(order: Int, step: com.vowser.client.api.dto.PathStepDetail) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // 순서 번호
+        // Order number
         Text(
             text = "$order.",
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(24.dp)
+            color = MaterialTheme.colorScheme.primary
         )
 
-        // 액션 아이콘
-        Text(
-            text = when (step.action) {
-                "navigate" -> "🧭"
-                "click" -> "👆"
-                "input", "type" -> "⌨️"
-                "wait" -> "⏳"
-                else -> "⚡"
-            },
-            fontSize = 12.sp
-        )
-
-        // 설명
+        // Description and URL
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = step.description,
-                fontSize = 12.sp,
-                lineHeight = 16.sp
+                text = "[${step.action.uppercase()}] ${step.description}",
+                style = MaterialTheme.typography.bodyMedium,
+                lineHeight = 18.sp
             )
-
-            // URL (짧게)
             Text(
-                text = step.url.take(50) + if (step.url.length > 50) "..." else "",
-                fontSize = 10.sp,
+                text = step.url.take(70) + if (step.url.length > 70) "..." else "",
+                style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
         }
     }
