@@ -55,7 +55,8 @@ fun App(viewModel: AppViewModel) {
                         onToggleRecording = { viewModel.toggleRecording() },
                         onClearStatusHistory = { viewModel.clearStatusHistory() },
                         onToggleSttMode = { modeId -> viewModel.toggleSttMode(modeId) },
-                        onConfirmUserWait = { viewModel.confirmUserWait() }
+                        onConfirmUserWait = { viewModel.confirmUserWait() },
+                        onNavigateBack = { navigator.pop() },
                     )
                 }
 
