@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.system.measureTimeMillis
 
 object BrowserAutomationService {
 
@@ -78,12 +79,8 @@ object BrowserAutomationService {
                 } else {
                     try {
                         // 페이지 상태 체크
-                        val isClosed = page.isClosed
-                        if (isClosed) {
+                        if (page.isClosed) {
                             needNewPage = true
-                        } else {
-                            // 페이지가 살아있는지 추가 확인
-                            page.title() // 접근 가능성 테스트
                         }
                     } catch (e: Exception) {
                         needNewPage = true
@@ -352,31 +349,54 @@ object BrowserAutomationService {
         Napier.d("Executing click on final locator: ${locator.toString()}", tag = Tags.BROWSER_AUTOMATION)
         try {
             val element = locator.first()
+            var extractedAttributes: Map<String, String>? = null
 
-            element.scrollIntoViewIfNeeded()
-            element.hover()
+            val preparationTime = measureTimeMillis {
+                element.scrollIntoViewIfNeeded()
+                Napier.d("Scrolled to element", tag = Tags.BROWSER_AUTOMATION)
 
-            // 하이라이트 기능은 querySelector와 Playwright 셀렉터 간의 충돌로 인해 잠시 비활성화합니다.
-            // page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
-            // Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                element.hover()
+                Napier.d("Hovered over element", tag = Tags.BROWSER_AUTOMATION)
 
-            delay(300)
+                val isStandardSelector = !selector.contains(":has-text")
+                if (isStandardSelector) {
+                    try {
+                        page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
+                        Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    } catch (e: Exception) {
+                        Napier.w("Highlight failed: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+                    }
+                } else {
+                    Napier.w("Skipping highlight for non-standard selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                }
 
-            try {
-                // element.evaluate를 사용하여 이미 찾은 요소를 기준으로 target 속성을 제거
-                element.evaluate("el => el.removeAttribute('target')")
-                Napier.i("Removed target attribute for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
-            } catch (jsError: Exception) {
-                Napier.w("Failed to remove target attribute: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
+                delay(300)
+
+                try {
+                    element.evaluate("el => el.removeAttribute('target')")
+                    Napier.i("Removed target attribute for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                } catch (jsError: Exception) {
+                    Napier.w("Failed to remove target attribute: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
+                }
+
+                val extractionTime = measureTimeMillis {
+                    extractedAttributes = extractElementAttributes(element)
+                }
+                Napier.d("Attribute extraction took ${extractionTime}ms", tag = Tags.BROWSER_AUTOMATION)
             }
+            Napier.d("Click preparation took ${preparationTime}ms", tag = Tags.BROWSER_AUTOMATION)
 
-            element.click()
+            val clickTime = measureTimeMillis {
+                element.click()
+            }
+            Napier.d("Click action took ${clickTime}ms", tag = Tags.BROWSER_AUTOMATION)
+
             recordContributionStep(
                 page.url(),
                 page.title(),
                 "click",
                 selector,
-                extractElementAttributes(element)
+                extractedAttributes
             )
             Napier.i("Clicked element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
             Napier.d("--- executeHoverHighlightClick END ---", tag = Tags.BROWSER_AUTOMATION)
