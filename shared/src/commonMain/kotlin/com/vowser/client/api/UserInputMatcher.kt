@@ -17,72 +17,73 @@ object UserInputMatcher {
      * @return 자동으로 채울 값, 없으면 null
      */
     fun getAutoFillValue(step: PathStepDetail, userInfo: MemberResponse): String? {
-        if (step.is_input == false) {
+        if (step.isInput == false) {
             return null
         }
 
-        // textLabels를 소문자로 변환하여 키워드 매칭
-        val labels = step.text_labels?.map { it.lowercase() }
-        val combinedLabels = labels?.joinToString(" ")
-
-        Napier.d("Matching input field: $combinedLabels", tag = Tags.BROWSER_AUTOMATION)
+        val labels = step.textLabels?.map { it.lowercase() }?.joinToString(" ") ?: ""
+        val selectors = step.selectors
 
         // 1. 이름 필드 매칭
-        if (matchesName(combinedLabels)) {
+        val nameKeywords = listOf("이름", "name", "성명", "full name", "fullname")
+        val nameMatchInLabels = labels.containsOneOf(nameKeywords)
+        val nameMatchInSelectors = matchesBySelector(selectors, nameKeywords)
+        Napier.d("[Name Match] in labels: $nameMatchInLabels, in selectors: $nameMatchInSelectors", tag = Tags.BROWSER_AUTOMATION)
+        if (nameMatchInLabels || nameMatchInSelectors) {
             Napier.i("✓ Auto-fill: name → ${userInfo.name}", tag = Tags.BROWSER_AUTOMATION)
+            Napier.d("--- Auto-fill-Debugging --- END", tag = Tags.BROWSER_AUTOMATION)
             return userInfo.name
         }
 
         // 2. 생년월일 필드 매칭
         val birthdate = userInfo.birthdate
-        if (!birthdate.isNullOrBlank() && matchesBirthDate(combinedLabels)) {
-            val formattedBirthdate = formatBirthDate(birthdate)
-            Napier.i("✓ Auto-fill: birthdate → $formattedBirthdate", tag = Tags.BROWSER_AUTOMATION)
-            return formattedBirthdate
+        val birthKeywords = listOf("생년월일", "생일", "birth", "birthday", "date of birth", "dob")
+        if (!birthdate.isNullOrBlank()) {
+            val birthMatchInLabels = labels.containsOneOf(birthKeywords)
+            val birthMatchInSelectors = matchesBySelector(selectors, birthKeywords)
+            Napier.d("[Birth Match] in labels: $birthMatchInLabels, in selectors: $birthMatchInSelectors", tag = Tags.BROWSER_AUTOMATION)
+            if (birthMatchInLabels || birthMatchInSelectors) {
+                val formattedBirthdate = formatBirthDate(birthdate)
+                Napier.i("✓ Auto-fill: birthdate → $formattedBirthdate (original: $birthdate)", tag = Tags.BROWSER_AUTOMATION)
+                Napier.d("--- Auto-fill-Debugging --- END", tag = Tags.BROWSER_AUTOMATION)
+                return formattedBirthdate
+            }
         }
 
         // 3. 전화번호 필드 매칭
         val phoneNumber = userInfo.phoneNumber
-        if (!phoneNumber.isNullOrBlank() && matchesPhone(combinedLabels)) {
-            val extractedPhone = extractPhoneNumber(combinedLabels, phoneNumber)
-            if (extractedPhone != null) {
-                Napier.i("✓ Auto-fill: phone → $extractedPhone", tag = Tags.BROWSER_AUTOMATION)
-                return extractedPhone
+        val phoneKeywords = listOf("전화", "휴대폰", "핸드폰", "연락처", "phone", "mobile", "tel", "contact")
+        if (!phoneNumber.isNullOrBlank()) {
+            val phoneMatchInLabels = labels.containsOneOf(phoneKeywords)
+            val phoneMatchInSelectors = matchesBySelector(selectors, phoneKeywords)
+            Napier.d("[Phone Match] in labels: $phoneMatchInLabels, in selectors: $phoneMatchInSelectors", tag = Tags.BROWSER_AUTOMATION)
+            if (phoneMatchInLabels || phoneMatchInSelectors) {
+                val combinedHints = labels + " " + selectors.joinToString(" ")
+                val extractedPhone = extractPhoneNumber(combinedHints, phoneNumber)
+                if (extractedPhone != null) {
+                    Napier.i("✓ Auto-fill: phone → $extractedPhone (original: $phoneNumber)", tag = Tags.BROWSER_AUTOMATION)
+                    Napier.d("--- Auto-fill-Debugging --- END", tag = Tags.BROWSER_AUTOMATION)
+                    return extractedPhone
+                }
             }
         }
 
-        Napier.d("✗ No auto-fill match found for: $combinedLabels", tag = Tags.BROWSER_AUTOMATION)
+
         return null
     }
 
-    /**
-     * 이름 필드 매칭
-     */
-    private fun matchesName(labels: String?): Boolean {
-        val nameKeywords = listOf(
-            "이름", "name", "성명", "full name", "fullname"
-        )
-        return nameKeywords.any { labels?.contains(it) == true }
+    private fun String.containsOneOf(keywords: List<String>): Boolean {
+        return keywords.any { this.contains(it, ignoreCase = true) }
     }
 
-    /**
-     * 생년월일 필드 매칭
-     */
-    private fun matchesBirthDate(labels: String?): Boolean {
-        val birthKeywords = listOf(
-            "생년월일", "생일", "birth", "birthday", "date of birth", "dob"
-        )
-        return birthKeywords.any { labels?.contains(it) == true }
-    }
-
-    /**
-     * 전화번호 필드 매칭
-     */
-    private fun matchesPhone(labels: String?): Boolean {
-        val phoneKeywords = listOf(
-            "전화", "휴대폰", "핸드폰", "연락처", "phone", "mobile", "tel", "contact"
-        )
-        return phoneKeywords.any { labels?.contains(it) == true }
+    private fun matchesBySelector(selectors: List<String>, keywords: List<String>): Boolean {
+        return selectors.any { selector ->
+            // e.g., #user_name, [name="user_name"], [placeholder~="name"]
+            val selectorLower = selector.lowercase()
+            keywords.any { keyword ->
+                selectorLower.contains(keyword)
+            }
+        }
     }
 
     /**

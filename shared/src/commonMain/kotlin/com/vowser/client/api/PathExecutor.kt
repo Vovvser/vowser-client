@@ -89,9 +89,9 @@ class PathExecutor {
         currentOnWaitForUser = onWaitForUser
 
         if (userInfo != null) {
-            Napier.i("🚀 Executing path with auto-fill: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+            Napier.i("🚀 Executing path with auto-fill: ${path.taskIntent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
         } else {
-            Napier.i("🚀 Executing path: ${path.task_intent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+            Napier.i("🚀 Executing path: ${path.taskIntent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
         }
 
         return withContext(Dispatchers.Default) {
@@ -106,15 +106,17 @@ class PathExecutor {
                     val step = path.steps[i]
 
                     try {
-                        executeStep(step, getUserInput)
                         onStepComplete?.invoke(i + 1, path.steps.size, step.description)
+                        Napier.i("▶️  Step ${i + 1}/${path.steps.size} starting: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+
+                        executeStep(step, getUserInput)
                         Napier.i("✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
 
                         // 카카오톡 인증 완료 스텝 후 추가 딜레이
                         if (isKakaoAuthCompleteStep(step)) {
                             Napier.i("⏱카카오톡 인증 완료 후 5초 추가 대기...", tag = Tags.BROWSER_AUTOMATION)
                             currentOnLog?.invoke("⏱카카오톡 인증 완료 - 5초 대기 중...")
-                            delay(5000)
+//                            delay(5000)
                         }
 
                         delay(500)
@@ -133,7 +135,7 @@ class PathExecutor {
                     }
                 }
 
-                Napier.i("✅ Path execution completed successfully: ${path.task_intent}", tag = Tags.BROWSER_AUTOMATION)
+                Napier.i("✅ Path execution completed successfully: ${path.taskIntent}", tag = Tags.BROWSER_AUTOMATION)
                 PathExecutionResult(
                     success = true,
                     stepsCompleted = path.steps.size,
@@ -469,7 +471,7 @@ class PathExecutor {
 
         var inputValue: String? = null
 
-        if (currentUserInfo != null && step.is_input == true) {
+        if (currentUserInfo != null && step.isInput == true) {
             inputValue = UserInputMatcher.getAutoFillValue(step, currentUserInfo!!)
             if (inputValue != null) {
                 Napier.i("✅ Auto-filled: ${step.description} → $inputValue", tag = Tags.BROWSER_AUTOMATION)
@@ -526,7 +528,7 @@ class PathExecutor {
      * Wait 액션 실행 (사용자 대기)
      */
     private suspend fun executeWaitStep(step: PathStepDetail) {
-        val message = step.wait_message ?: "작업을 완료한 후 계속하세요"
+        val message = step.waitMessage ?: "작업을 완료한 후 계속하세요"
         Napier.i("⏸️  Waiting for user action: $message", tag = Tags.BROWSER_AUTOMATION)
 
         currentOnLog?.invoke("⏸️ 사용자 작업 대기 중: $message")
@@ -555,7 +557,7 @@ class PathExecutor {
      */
     private fun isKakaoAuthCompleteStep(step: PathStepDetail): Boolean {
         val description = step.description.lowercase()
-        val textLabels = step.text_labels?.map { it.lowercase() }
+        val textLabels = step.textLabels?.map { it.lowercase() }
         val selectors = step.selectors.map { it.lowercase() }
 
         val hasKakaoAuthComplete = description.contains("카카오톡") &&
