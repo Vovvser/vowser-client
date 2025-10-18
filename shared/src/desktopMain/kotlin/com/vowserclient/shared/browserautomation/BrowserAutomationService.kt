@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.system.measureTimeMillis
 
 object BrowserAutomationService {
 
@@ -78,12 +79,8 @@ object BrowserAutomationService {
                 } else {
                     try {
                         // 페이지 상태 체크
-                        val isClosed = page.isClosed
-                        if (isClosed) {
+                        if (page.isClosed) {
                             needNewPage = true
-                        } else {
-                            // 페이지가 살아있는지 추가 확인
-                            page.title() // 접근 가능성 테스트
                         }
                     } catch (e: Exception) {
                         needNewPage = true
@@ -205,13 +202,32 @@ object BrowserAutomationService {
         }
     }
 
+    suspend fun waitForNetworkIdle(timeout: Double = 10000.0) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                Napier.e("Cannot waitForNetworkIdle: page not initialized", tag = Tags.BROWSER_AUTOMATION)
+                return@withContext
+            }
+            try {
+                Napier.d("Waiting for network idle state with ${timeout}ms timeout...", tag = Tags.BROWSER_AUTOMATION)
+                page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE, Page.WaitForLoadStateOptions().setTimeout(timeout))
+                Napier.i("Network is idle.", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.w("waitForNetworkIdle failed or timed out: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+            }
+        }
+    }
 
-    suspend fun hoverAndClickElement(selector: String): Boolean = withContext(Dispatchers.IO) {
+
+    suspend fun hoverAndClickElement(selector: String, timeout: Double? = null): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
                 Napier.e("Cannot click element: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
             }
+            Napier.d("--- hoverAndClickElement START ---", tag = Tags.BROWSER_AUTOMATION)
+            Napier.d("Attempting to click selector: '$selector' on page: ${page.title()} (${page.url()})", tag = Tags.BROWSER_AUTOMATION)
+
             try {
                 // 1. 메인 프레임에서 요소 찾기
                 var locator = page.locator(selector)
@@ -222,21 +238,26 @@ object BrowserAutomationService {
                     val iframeLocator = findElementInFrames(selector)
                     if (iframeLocator != null) {
                         locator = iframeLocator
-                        Napier.i("Element found in iframe: $selector", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.i("Element found in iframe. Locator: ${locator.toString()}", tag = Tags.BROWSER_AUTOMATION)
                     } else {
                         Napier.w("Element with selector $selector not found in any frame", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.d("--- hoverAndClickElement END ---", tag = Tags.BROWSER_AUTOMATION)
                         return@withContext false
                     }
                 }
 
-                if (!AdaptiveWaitManager.waitForElement(locator, page, "element with selector: $selector")) {
+                if (!AdaptiveWaitManager.waitForElement(locator, page, "element with selector: $selector", timeout)) {
                     Napier.w("Element with selector $selector not found or not visible after adaptive waiting.", tag = Tags.BROWSER_AUTOMATION)
+                    Napier.d("--- hoverAndClickElement END ---", tag = Tags.BROWSER_AUTOMATION)
                     return@withContext false
                 }
 
-                return@withContext executeHoverHighlightClick(locator, selector)
+                val result = executeHoverHighlightClick(locator, selector)
+                Napier.d("--- hoverAndClickElement END ---", tag = Tags.BROWSER_AUTOMATION)
+                return@withContext result
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                Napier.d("--- hoverAndClickElement END ---", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext false
             }
         }
@@ -249,21 +270,21 @@ object BrowserAutomationService {
         if (!::page.isInitialized) return@withContext null
 
         try {
-            // 현재 페이지의 모든 프레임 탐색
             val frames = page.frames()
-            Napier.d("Searching in ${frames.size} frames for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+            Napier.d("Searching in ${frames.size} frames for selector: '$selector'", tag = Tags.BROWSER_AUTOMATION)
 
-            for (frame in frames) {
+            for ((index, frame) in frames.withIndex()) {
                 try {
                     if (frame == page.mainFrame()) continue
+                    Napier.d("  [Frame $index] Checking frame with name '${frame.name()}' and URL '${frame.url()}'", tag = Tags.BROWSER_AUTOMATION)
 
                     val frameLocator = frame.locator(selector)
                     if (frameLocator.count() > 0) {
-                        Napier.i("Found element in iframe: ${frame.url()}", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.i("Found element in iframe (name: '${frame.name()}', url: '${frame.url()}'). Locator: ${frameLocator.toString()}", tag = Tags.BROWSER_AUTOMATION)
                         return@withContext frameLocator
                     }
                 } catch (e: Exception) {
-                    Napier.d("Failed to access frame ${frame.url()}: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+                    Napier.d("Failed to access or check frame ${frame.name()} (${frame.url()}): ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
 
@@ -287,7 +308,6 @@ object BrowserAutomationService {
         if (!::page.isInitialized) return@withContext null
 
         try {
-            // 정부24의 iframe 구조
             val commonIframeIds = listOf(
                 "#mainFrame",
                 "#contentFrame",
@@ -295,21 +315,25 @@ object BrowserAutomationService {
                 "[name='mainFrame']",
                 "[name='contentFrame']"
             )
+            Napier.d("Gov.kr iframe search: Trying common IDs: ${commonIframeIds.joinToString()}", tag = Tags.BROWSER_AUTOMATION)
 
             for (iframeId in commonIframeIds) {
                 try {
+                    Napier.d("  [Gov.kr] Checking iframe with selector: '$iframeId'", tag = Tags.BROWSER_AUTOMATION)
                     val frameLocator = page.frameLocator(iframeId)
                     val locator = frameLocator.locator(selector)
 
                     try {
-                        locator.first().isVisible()
-                        Napier.i("Found element in gov.kr iframe $iframeId: $selector", tag = Tags.BROWSER_AUTOMATION)
-                        return@withContext locator
+                        if (locator.count() > 0) {
+                            locator.first().waitFor(Locator.WaitForOptions().setState(com.microsoft.playwright.options.WaitForSelectorState.ATTACHED).setTimeout(1000.0)) // 요소가 DOM에 붙을 때까지 잠시 대기
+                            Napier.i("Found element in gov.kr iframe '$iframeId'. Locator: ${locator.toString()}", tag = Tags.BROWSER_AUTOMATION)
+                            return@withContext locator
+                        }
                     } catch (e: Exception) {
-                        // 요소가 없거나 보이지 않음 - 다음 iframe 시도
+                        Napier.d("Element not visible or attached yet in '$iframeId', continuing search.", tag = Tags.BROWSER_AUTOMATION)
                     }
                 } catch (e: Exception) {
-                    // iframe이 존재하지 않음 - 다음 시도
+                    Napier.d("Could not find or access iframe '$iframeId', continuing search.", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
         } catch (e: Exception) {
@@ -321,77 +345,67 @@ object BrowserAutomationService {
 
 
     private suspend fun executeHoverHighlightClick(locator: Locator, selector: String): Boolean = withContext(Dispatchers.IO) {
+        Napier.d("--- executeHoverHighlightClick START ---", tag = Tags.BROWSER_AUTOMATION)
+        Napier.d("Executing click on final locator: ${locator.toString()}", tag = Tags.BROWSER_AUTOMATION)
         try {
             val element = locator.first()
-            
-            element.scrollIntoViewIfNeeded()
-            element.hover()
-            page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
-            Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
-            
-            delay(3000)
+            var extractedAttributes: Map<String, String>? = null
 
-            try {
-                page.evaluate("""
-                    (function() {
-                        const selector = arguments[0];
-                        const element = document.querySelector(selector);
-                        if (element) {
-                            element.removeAttribute('target');
-                            return true;
-                        }
-                        return false;
-                    })
-                """.trimIndent(), selector)
-                Napier.i("Removed target attribute for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
-            } catch (jsError: Exception) {
-                Napier.w("Failed to remove target attribute: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
+            val preparationTime = measureTimeMillis {
+                element.scrollIntoViewIfNeeded()
+                Napier.d("Scrolled to element", tag = Tags.BROWSER_AUTOMATION)
+
+                element.hover()
+                Napier.d("Hovered over element", tag = Tags.BROWSER_AUTOMATION)
+
+                val isStandardSelector = !selector.contains(":has-text")
+                if (isStandardSelector) {
+                    try {
+                        page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
+                        Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    } catch (e: Exception) {
+                        Napier.w("Highlight failed: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+                    }
+                } else {
+                    Napier.w("Skipping highlight for non-standard selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                }
+
+                delay(300)
+
+                try {
+                    element.evaluate("el => el.removeAttribute('target')")
+                    Napier.i("Removed target attribute for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                } catch (jsError: Exception) {
+                    Napier.w("Failed to remove target attribute: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
+                }
+
+                val extractionTime = measureTimeMillis {
+                    extractedAttributes = extractElementAttributes(element)
+                }
+                Napier.d("Attribute extraction took ${extractionTime}ms", tag = Tags.BROWSER_AUTOMATION)
             }
-            
-            element.click()
+            Napier.d("Click preparation took ${preparationTime}ms", tag = Tags.BROWSER_AUTOMATION)
+
+            val clickTime = measureTimeMillis {
+                element.click()
+            }
+            Napier.d("Click action took ${clickTime}ms", tag = Tags.BROWSER_AUTOMATION)
+
             recordContributionStep(
-                page.url(), 
-                page.title(), 
-                "click", 
-                selector, 
-                extractElementAttributes(element)
+                page.url(),
+                page.title(),
+                "click",
+                selector,
+                extractedAttributes
             )
             Napier.i("Clicked element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+            Napier.d("--- executeHoverHighlightClick END ---", tag = Tags.BROWSER_AUTOMATION)
             return@withContext true
 
         } catch (e: Exception) {
             Napier.e("Failed to execute hover-highlight-click for $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-            try {
-                try {
-                    page.evaluate("""
-                        (function() {
-                            const selector = arguments[0];
-                            const element = document.querySelector(selector);
-                            if (element) {
-                                element.removeAttribute('target');
-                                return true;
-                            }
-                            return false;
-                        })
-                    """.trimIndent(), selector)
-                } catch (jsError: Exception) {
-                    Napier.w("Failed to remove target attribute in fallback: ${jsError.message}", tag = Tags.BROWSER_AUTOMATION)
-                }
-                
-                locator.first().click()
-                recordContributionStep(
-                    page.url(), 
-                    page.title(), 
-                    "click", 
-                    selector, 
-                    extractElementAttributes(locator.first())
-                )
-                Napier.i("Fallback click succeeded for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
-                return@withContext true
-            } catch (fallbackError: Exception) {
-                Napier.e("Fallback click also failed for $selector: ${fallbackError.message}", fallbackError, tag = Tags.BROWSER_AUTOMATION)
-                return@withContext false
-            }
+            Napier.d("--- executeHoverHighlightClick END ---", tag = Tags.BROWSER_AUTOMATION)
+            return@withContext false
         }
     }
 
@@ -402,6 +416,9 @@ object BrowserAutomationService {
                 Napier.e("Cannot type text: page not initialized", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext
             }
+            Napier.d("--- typeText START ---", tag = Tags.BROWSER_AUTOMATION)
+            Napier.d("Attempting to type '$text' into selector: '$selector' on page: ${page.title()} (${page.url()})", tag = Tags.BROWSER_AUTOMATION)
+
             try {
                 // 1. 메인 프레임에서 요소 찾기
                 var locator = page.locator(selector)
@@ -412,9 +429,10 @@ object BrowserAutomationService {
                     val iframeLocator = findElementInFrames(selector)
                     if (iframeLocator != null) {
                         locator = iframeLocator
-                        Napier.i("Input element found in iframe: $selector", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.i("Input element found in iframe. Locator: ${locator.toString()}", tag = Tags.BROWSER_AUTOMATION)
                     } else {
                         Napier.w("Element with selector $selector not found in any frame for typing.", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.d("--- typeText END ---", tag = Tags.BROWSER_AUTOMATION)
                         return@withContext
                     }
                 }
@@ -441,6 +459,7 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.e("Unexpected error typing text into element $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
+            Napier.d("--- typeText END ---", tag = Tags.BROWSER_AUTOMATION)
         }
     }
 

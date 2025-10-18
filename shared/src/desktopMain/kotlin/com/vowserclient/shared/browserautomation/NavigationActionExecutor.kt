@@ -5,11 +5,11 @@ import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 
 interface NavigationActionExecutor {
-    suspend fun execute(browserActions: BrowserActions, step: NavigationStep): Boolean
+    suspend fun execute(browserActions: BrowserActions, step: NavigationStep, timeout: Double? = null): Boolean
 }
 
 class NavigateActionExecutor : NavigationActionExecutor {
-    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep): Boolean {
+    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep, timeout: Double?): Boolean {
         return try {
             browserActions.navigate(step.url)
             true
@@ -21,10 +21,10 @@ class NavigateActionExecutor : NavigationActionExecutor {
 }
 
 class ClickActionExecutor : NavigationActionExecutor {
-    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep): Boolean {
+    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep, timeout: Double?): Boolean {
         return step.selector?.let { selector ->
             try {
-                browserActions.click(selector)
+                browserActions.click(selector, timeout)
             } catch (e: Exception) {
                 Napier.e("Click action failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 false
@@ -37,7 +37,7 @@ class ClickActionExecutor : NavigationActionExecutor {
 }
 
 class TypeActionExecutor : NavigationActionExecutor {
-    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep): Boolean {
+    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep, timeout: Double?): Boolean {
         return step.selector?.let { selector ->
             try {
                 val textToType = step.htmlAttributes?.get("value") ?: step.htmlAttributes?.get("text") ?: ""
@@ -55,9 +55,9 @@ class TypeActionExecutor : NavigationActionExecutor {
 }
 
 class SubmitActionExecutor : NavigationActionExecutor {
-    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep): Boolean {
+    override suspend fun execute(browserActions: BrowserActions, step: NavigationStep, timeout: Double?): Boolean {
         return step.selector?.let { selector ->
-            ClickActionExecutor().execute(browserActions, step)
+            ClickActionExecutor().execute(browserActions, step, timeout)
         } ?: run {
             Napier.e("Selector is null for submit action.", tag = Tags.BROWSER_AUTOMATION)
             false

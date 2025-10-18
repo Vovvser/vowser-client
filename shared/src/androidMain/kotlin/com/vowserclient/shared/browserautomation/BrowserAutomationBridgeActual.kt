@@ -6,9 +6,10 @@ import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 
 actual object BrowserAutomationBridge {
-    actual suspend fun executeNavigationPath(path: NavigationPath) {
+    actual suspend fun executeNavigationPath(path: NavigationPath, timeout: Double?): Boolean {
         // TODO: Android 브라우저 자동화 구현
         Napier.i("Android: BrowserAutomationBridge.executeNavigationPath(${path.pathId}) - Not implemented yet", tag = Tags.BROWSER_AUTOMATION)
+        return false
     }
 
     actual suspend fun startContributionRecording() {
@@ -21,5 +22,8 @@ actual object BrowserAutomationBridge {
     }
 
     actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
+    }
+
+    actual suspend fun waitForNetworkIdle() {
     }
 }

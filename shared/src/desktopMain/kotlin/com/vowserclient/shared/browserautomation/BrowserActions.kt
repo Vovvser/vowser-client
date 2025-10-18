@@ -22,9 +22,9 @@ class BrowserActions(private val browserAutomationService: BrowserAutomationServ
         delayRandomly()
     }
 
-    suspend fun click(selector: String): Boolean {
+    suspend fun click(selector: String, timeout: Double? = null): Boolean {
         delayRandomly()
-        return browserAutomationService.hoverAndClickElement(selector)
+        return browserAutomationService.hoverAndClickElement(selector, timeout)
     }
 
     suspend fun type(selector: String, text: String) {
