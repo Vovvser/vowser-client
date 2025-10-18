@@ -4,8 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -23,7 +23,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
-import com.vowser.client.ui.theme.AppTheme
+import androidx.compose.ui.graphics.PathEffect
 import kotlin.math.*
 
 /**
@@ -41,11 +41,15 @@ fun GraphCanvas(
     isContributionMode: Boolean,
     selectedNode: GraphNode?,
     onCanvasSizeChanged: (Size) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    edgeColorOverride: Color? = null,
+    edgeHighlightColorOverride: Color? = null,
+    style: GraphStyle,
+    showGrid: Boolean = false,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val pulseAnimation = rememberInfiniteTransition()
-    val pulseScale by pulseAnimation.animateFloat(
+
+    val pulse by rememberInfiniteTransition().animateFloat(
         initialValue = 1f,
         targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
@@ -54,21 +58,20 @@ fun GraphCanvas(
         )
     )
 
-    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
-    val surfaceColor = MaterialTheme.colorScheme.surface
-
     Canvas(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectDragGestures { _, _ -> }
-            }
+            .pointerInput(Unit) { detectDragGestures { _, _ -> } }
     ) {
         onCanvasSizeChanged(size)
 
-        if (nodes.isNotEmpty()) {
-            drawUltraModernGrid(onSurfaceColor.copy(alpha = 0.05f))
+        drawRect(color = style.background)
+        if (showGrid) {
+            drawGrid(style.gridMinor, 40f)
+            drawGrid(style.gridMajor, 200f)
+        }
 
+        if (nodes.isNotEmpty()) {
             drawUltraModernEdges(
                 nodes = nodes,
                 edges = edges,
@@ -77,8 +80,11 @@ fun GraphCanvas(
                 offset = offset,
                 isContributionMode = isContributionMode,
                 textMeasurer = textMeasurer,
-                defaultColor = onSurfaceColor,
-                backgroundColor = surfaceColor
+                defaultColor = style.edge,
+                backgroundColor = style.labelBg,
+                edgeColorOverride = edgeColorOverride,
+                edgeHighlightColorOverride = edgeHighlightColorOverride,
+                style = style
             )
 
             drawUltraModernNodes(
@@ -88,28 +94,44 @@ fun GraphCanvas(
                 selectedNodeId = selectedNode?.id,
                 scale = scale,
                 offset = offset,
-                pulseScale = pulseScale,
+                pulseScale = pulse,
                 isContributionMode = isContributionMode,
                 textMeasurer = textMeasurer,
-                defaultColor = onSurfaceColor,
-                backgroundColor = surfaceColor
+                defaultColor = style.labelText,
+                backgroundColor = style.labelBg,
+                style = style
             )
         }
     }
 }
 
-private fun DrawScope.drawUltraModernGrid(gridColor: Color) {
-    val gridSize = 40f
+/** 격자 유틸 */
+private fun DrawScope.drawGrid(color: Color, cell: Float) {
     var x = 0f
     while (x <= size.width) {
-        drawLine(color = gridColor, start = Offset(x, 0f), end = Offset(x, size.height), strokeWidth = 1f)
-        x += gridSize
+        drawLine(color, Offset(x, 0f), Offset(x, size.height), 1f)
+        x += cell
     }
     var y = 0f
     while (y <= size.height) {
-        drawLine(color = gridColor, start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = 1f)
-        y += gridSize
+        drawLine(color, Offset(0f, y), Offset(size.width, y), 1f)
+        y += cell
     }
+}
+
+// 중심→중심 선을 원둘레→원둘레 선으로 깎아내는 보정 함수
+private fun circleEdgePoints(
+    start: Offset, end: Offset,
+    rFrom: Float, rTo: Float
+): Pair<Offset, Offset> {
+    val dx = end.x - start.x
+    val dy = end.y - start.y
+    val d  = hypot(dx, dy).coerceAtLeast(1e-3f)
+    val ux = dx / d
+    val uy = dy / d
+    val startEdge = Offset(start.x + ux * rFrom, start.y + uy * rFrom)
+    val endEdge   = Offset(end.x   - ux * rTo,   end.y   - uy * rTo)
+    return startEdge to endEdge
 }
 
 private fun DrawScope.drawUltraModernEdges(
@@ -121,55 +143,111 @@ private fun DrawScope.drawUltraModernEdges(
     isContributionMode: Boolean,
     textMeasurer: TextMeasurer,
     defaultColor: Color,
-    backgroundColor: Color
+    backgroundColor: Color,
+    edgeColorOverride: Color? = null,
+    edgeHighlightColorOverride: Color? = null,
+    style: GraphStyle,
 ) {
     val nodeMap = nodes.associateBy { it.id }
+    val labelSp = (11f * scale).sp
+    val dashed = PathEffect.dashPathEffect(floatArrayOf(4f, 3f), 0f)
 
     edges.forEach { edge ->
-        val fromNode = nodeMap[edge.from]
-        val toNode = nodeMap[edge.to]
+        val from = nodeMap[edge.from] ?: return@forEach
+        val to   = nodeMap[edge.to]   ?: return@forEach
 
-        if (fromNode != null && toNode != null) {
-            val isHighlighted = if (highlightedPath.size > 1) {
-                val fromIndex = highlightedPath.indexOf(fromNode.id)
-                val toIndex = highlightedPath.indexOf(toNode.id)
-                fromIndex >= 0 && toIndex >= 0 && abs(fromIndex - toIndex) == 1
-            } else false
+        val isHi = if (highlightedPath.size > 1) {
+            val fi = highlightedPath.indexOf(from.id)
+            val ti = highlightedPath.indexOf(to.id)
+            fi >= 0 && ti >= 0 && abs(fi - ti) == 1
+        } else false
 
-            val startPos = Offset(fromNode.x * scale + offset.x, fromNode.y * scale + offset.y)
-            val endPos = Offset(toNode.x * scale + offset.x, toNode.y * scale + offset.y)
+        val c1 = Offset(from.x * scale + offset.x, from.y * scale + offset.y)
+        val c2 = Offset(to.x   * scale + offset.x, to.y   * scale + offset.y)
+        val rFrom = from.type.size / 2f * scale
+        val rTo   = to.type.size   / 2f * scale
+        val gap = 6f //원과 선 사이 간격
+        val (startEdge, endEdge) = circleEdgePoints(c1, c2, rFrom + gap, rTo + gap)
+        val dx = endEdge.x - startEdge.x
+        val dy = endEdge.y - startEdge.y
+        val d  = hypot(dx, dy).coerceAtLeast(1e-3f)
+        val ux = dx / d
+        val uy = dy / d
+        // 화살촉 밑부분만큼 안쪽으로 라인 끝자락을 당겨서 자연스럽게 연결
+        val arrowBaseBack = 6f
+        val lineEnd = Offset(endEdge.x - ux * arrowBaseBack, endEdge.y - uy * arrowBaseBack)
+        val effect = if (isHi || isContributionMode) null else dashed
 
-            val edgeColor = when {
-                isHighlighted -> AppTheme.Colors.Success
-                isContributionMode -> AppTheme.Colors.Error
-                else -> defaultColor
-            }
+        val color = when {
+            isContributionMode -> style.edgeError
+            isHi               -> style.edgeHighlight
+            else               -> style.edge
+        }
+        val w = if (isHi || isContributionMode) 3f else 2f
 
-            val alpha = if (isHighlighted || isContributionMode) 1f else 0.3f
+        // 바탕 라인(연한색) + 메인 라인(진한색)
+        drawLine(
+            color = style.edgeSoft,
+            start = startEdge, end = lineEnd,
+            strokeWidth = w + 2f,
+            cap = StrokeCap.Round,
+            pathEffect = effect
+        )
+        drawLine(
+            color = color,
+            start = startEdge, end = lineEnd,
+            strokeWidth = w,
+            cap = StrokeCap.Round,
+            pathEffect = effect
+        )
 
-            drawLine(color = edgeColor.copy(alpha = alpha), start = startPos, end = endPos, strokeWidth = if (isHighlighted) 3f else 2f, cap = StrokeCap.Round)
+        // 새 화살표:
+        drawArrowHeadAtTip(
+            tip = endEdge,
+            angle = atan2(dy, dx),
+            color = color,
+            width = w,
+            softColor = style.edgeSoft,
+            arrowLen = 8f,                 // ← 길이 더 짧게
+            arrowAngleRad = (PI / 7).toFloat()   // 날개 각도(살짝 좁게/넓게 조절 가능)
+        )
 
-            drawUltraArrowHead(startPos, endPos, isHighlighted, isContributionMode, defaultColor)
-
-            if (scale > 0.7f && !edge.label.isNullOrBlank()) {
-                val midPoint = Offset((startPos.x + endPos.x) / 2f, (startPos.y + endPos.y) / 2f)
-                val textStyle = TextStyle(
-                    color = edgeColor.copy(alpha = if (isHighlighted || isContributionMode) 1f else 0.8f),
-                    fontSize = (AppTheme.Typography.overline.value * scale).sp,
-                    fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal
-                )
-                val textLayoutResult = textMeasurer.measure(edge.label, style = textStyle)
-                val bgPadding = 4f
-                drawRoundRect(
-                    color = backgroundColor.copy(alpha = 0.7f),
-                    topLeft = Offset(midPoint.x - textLayoutResult.size.width / 2f - bgPadding, midPoint.y - textLayoutResult.size.height / 2f - bgPadding),
-                    size = Size(textLayoutResult.size.width.toFloat() + bgPadding * 2, textLayoutResult.size.height.toFloat() + bgPadding * 2),
-                    cornerRadius = CornerRadius(4f)
-                )
-                drawText(textLayoutResult, topLeft = Offset(midPoint.x - textLayoutResult.size.width / 2f, midPoint.y - textLayoutResult.size.height / 2f))
-            }
+        if (scale > 0.7f && !edge.label.isNullOrBlank()) {
+            val mid = Offset((startEdge.x + endEdge.x) / 2f, (startEdge.y + endEdge.y) / 2f)
+            val ts = TextStyle(
+                color = color.copy(alpha = 0.95f),
+                fontSize = labelSp,
+                fontWeight = if (isHi) FontWeight.Bold else FontWeight.Medium
+            )
+            val layout = textMeasurer.measure(edge.label, style = ts)
+            val pad = 4f
+            drawRoundRect(
+                color = backgroundColor,
+                topLeft = Offset(mid.x - layout.size.width / 2f - pad, mid.y - layout.size.height / 2f - pad),
+                size = Size(layout.size.width.toFloat() + pad * 2, layout.size.height.toFloat() + pad * 2),
+                cornerRadius = CornerRadius(4f)
+            )
+            drawText(layout, topLeft = Offset(mid.x - layout.size.width / 2f, mid.y - layout.size.height / 2f))
         }
     }
+}
+
+private fun DrawScope.drawArrowHead(start: Offset, end: Offset, color: Color, width: Float) {
+    val arrowLen = 11f
+    val arrowAng = PI / 6
+    val ang = atan2(end.y - start.y, end.x - start.x)
+    val tip = end - Offset(cos(ang) * 20f, sin(ang) * 20f)
+
+    val e1 = Offset(
+        tip.x - arrowLen * cos(ang - arrowAng).toFloat(),
+        tip.y - arrowLen * sin(ang - arrowAng).toFloat()
+    )
+    val e2 = Offset(
+        tip.x - arrowLen * cos(ang + arrowAng).toFloat(),
+        tip.y - arrowLen * sin(ang + arrowAng).toFloat()
+    )
+    drawLine(color, tip, e1, width, StrokeCap.Round)
+    drawLine(color, tip, e2, width, StrokeCap.Round)
 }
 
 private fun DrawScope.drawUltraModernNodes(
@@ -183,66 +261,113 @@ private fun DrawScope.drawUltraModernNodes(
     isContributionMode: Boolean,
     textMeasurer: TextMeasurer,
     defaultColor: Color,
-    backgroundColor: Color
+    backgroundColor: Color,
+    style: GraphStyle,
 ) {
+    val nodeLabelSp = (13f * scale).sp
+
     nodes.forEach { node ->
-        val isHighlighted = highlightedPath.contains(node.id)
+        val isHi = highlightedPath.contains(node.id)
         val isActive = node.id == activeNodeId
-        val isSelected = node.id == selectedNodeId
+        val isSel = node.id == selectedNodeId
 
-        val position = Offset(node.x * scale + offset.x, node.y * scale + offset.y)
-        val baseRadius = node.type.size / 2f * scale
-        val radius = when {
-            isActive -> baseRadius * pulseScale * 1.3f
-            isSelected -> baseRadius * 1.2f
-            isHighlighted -> baseRadius * 1.1f
-            else -> baseRadius
+        val pos = Offset(node.x * scale + offset.x, node.y * scale + offset.y)
+        val baseR = node.type.size / 2f * scale
+        val r = when {
+            isActive -> baseR * pulseScale * 1.25f
+            isSel    -> baseR * 1.15f
+            isHi     -> baseR * 1.08f
+            else     -> baseR
         }
 
-        val borderColor = when {
-            isActive -> AppTheme.Colors.Error
-            isSelected -> AppTheme.Colors.Info
-            isHighlighted -> AppTheme.Colors.Success
-            isContributionMode -> AppTheme.Colors.Error
-            else -> defaultColor
+        val fill = when (node.type) {
+            NodeType.NAVIGATE -> style.nodeNavigate
+            NodeType.CLICK    -> style.nodeClick
+            NodeType.INPUT    -> style.nodeInput
+            NodeType.WAIT     -> style.nodeWait
+            NodeType.START    -> style.nodeStart
+            NodeType.WEBSITE  -> style.nodeWebsite
+            NodeType.ACTION   -> style.nodeAction
         }
+
+        val border = when {
+            node.id == activeNodeId        -> style.edgeActive
+            isContributionMode             -> style.edgeError
+            isSel || isHi                  -> style.edgeHighlight
+            else                           -> style.edge
+        }
+
+        drawCircle(color = fill.copy(0.20f), radius = r + 10f, center = pos)
+        drawCircle(color = fill.copy(0.10f), radius = r + 18f, center = pos)
 
         if (node.type == NodeType.START) {
-            val diamondPath = Path().apply {
-                moveTo(position.x, position.y - radius)
-                lineTo(position.x + radius, position.y)
-                lineTo(position.x, position.y + radius)
-                lineTo(position.x - radius, position.y)
+            val p = Path().apply {
+                moveTo(pos.x, pos.y - r)
+                lineTo(pos.x + r, pos.y)
+                lineTo(pos.x, pos.y + r)
+                lineTo(pos.x - r, pos.y)
                 close()
             }
-            drawPath(path = diamondPath, brush = Brush.radialGradient(colors = listOf(node.type.color.copy(alpha = 0.8f), node.type.color.copy(alpha = 0.4f)), center = position, radius = radius))
-            drawPath(path = diamondPath, color = borderColor.copy(alpha = if (isActive || isSelected) 1f else 0.5f), style = Stroke(width = if (isActive || isSelected) 3f else 2f))
+            drawPath(
+                path = p,
+                brush = Brush.radialGradient(
+                    colors = listOf(fill.copy(0.95f), fill.copy(0.45f)),
+                    center = pos, radius = r
+                )
+            )
+            drawPath(path = p, color = border, style = Stroke(width = if (isActive) 3.5f else 2.5f))
+            // 아이콘(▶︎)
+            drawUltraNodeIcon(NodeType.START, pos, r * 0.6f, style.nodeIcon)
         } else {
-            drawCircle(color = defaultColor.copy(alpha = 0.3f), radius = radius + 4f, center = position + Offset(2f, 2f))
-            drawCircle(brush = Brush.radialGradient(colors = listOf(node.type.color.copy(alpha = 0.8f), node.type.color.copy(alpha = 0.4f)), center = position, radius = radius), radius = radius, center = position)
-            drawCircle(brush = Brush.radialGradient(colors = listOf(defaultColor.copy(alpha = 0.1f), Color.Transparent), center = position - Offset(radius * 0.3f, radius * 0.3f), radius = radius * 0.5f), radius = radius, center = position)
-            drawCircle(color = borderColor.copy(alpha = if (isActive || isSelected) 1f else 0.5f), radius = radius, center = position, style = Stroke(width = if (isActive || isSelected) 3f else 2f))
+            // 본체
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(fill.copy(0.95f), fill.copy(0.45f)),
+                    center = pos, radius = r
+                ),
+                radius = r, center = pos
+            )
+            // 하이라이트 스팟
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.12f), Color.Transparent),
+                    center = pos - Offset(r * 0.35f, r * 0.35f),
+                    radius = r * 0.6f
+                ),
+                radius = r, center = pos
+            )
+            // 듀얼 링
+            drawCircle(color = style.edgeSoft, radius = r + 3f, center = pos, style = Stroke(3f))
+            drawCircle(color = border,        radius = r,     center = pos, style = Stroke(if (isActive) 3.5f else 2.5f))
+
+            // WEBSITE는 중앙 코어 도트 추가
+            if (node.type == NodeType.WEBSITE) {
+                drawCircle(color = style.nodeIcon.copy(alpha = 0.75f), radius = r * 0.12f, center = pos)
+            }
+
+            // ACTION은 ▶︎ 아이콘, 나머지는 타입별 아이콘
+            val iconType = if (node.type == NodeType.ACTION) NodeType.START else node.type
+            drawUltraNodeIcon(iconType, pos, r * 0.60f, style.nodeIcon)
         }
 
-        drawUltraNodeIcon(node.type, position, radius * 0.6f, defaultColor)
-
+        // 라벨
         if (scale > 0.8f) {
             val textStyle = TextStyle(
-                color = borderColor.copy(alpha = if (isHighlighted || isActive) 1f else 0.9f),
-                fontSize = (AppTheme.Typography.bodySmall.value * scale).sp,
-                fontWeight = if (isHighlighted || isActive) FontWeight.Bold else FontWeight.Medium
+                color = style.labelText,
+                fontSize = nodeLabelSp,
+                fontWeight = if (isHi || isActive) FontWeight.Bold else FontWeight.Medium
             )
-            val displayText = if (node.label.length > 15) node.label.take(12) + "..." else node.label
-            val textLayoutResult = textMeasurer.measure(displayText, style = textStyle)
-            val textPosition = Offset(position.x - textLayoutResult.size.width / 2f, position.y + radius + 8f)
-            val bgPadding = 6f
+            val txt = if (node.label.length > 15) node.label.take(12) + "..." else node.label
+            val layout = textMeasurer.measure(txt, style = textStyle)
+            val topLeft = Offset(pos.x - layout.size.width / 2f, pos.y + r + 8f)
+            val pad = 6f
             drawRoundRect(
-                color = backgroundColor.copy(alpha = 0.8f),
-                topLeft = Offset(textPosition.x - bgPadding, textPosition.y - bgPadding),
-                size = Size(textLayoutResult.size.width.toFloat() + bgPadding * 2, textLayoutResult.size.height.toFloat() + bgPadding * 2),
+                color = style.labelBg,
+                topLeft = Offset(topLeft.x - pad, topLeft.y - pad),
+                size = Size(layout.size.width.toFloat() + pad * 2, layout.size.height.toFloat() + pad * 2),
                 cornerRadius = CornerRadius(6f)
             )
-            drawText(textLayoutResult, topLeft = textPosition)
+            drawText(layout, topLeft = topLeft)
         }
     }
 }
@@ -250,79 +375,75 @@ private fun DrawScope.drawUltraModernNodes(
 private fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float, iconColor: Color) {
     when (nodeType) {
         NodeType.NAVIGATE -> {
-            // 화살표 (이동)
-            drawPath(path = Path().apply {
+            drawPath(Path().apply {
                 moveTo(center.x - size * 0.3f, center.y)
                 lineTo(center.x + size * 0.3f, center.y)
                 moveTo(center.x + size * 0.1f, center.y - size * 0.2f)
                 lineTo(center.x + size * 0.3f, center.y)
                 lineTo(center.x + size * 0.1f, center.y + size * 0.2f)
-            }, color = iconColor, style = Stroke(width = 2f, cap = StrokeCap.Round))
+            }, iconColor, style = Stroke(2f, cap = StrokeCap.Round))
         }
         NodeType.CLICK -> {
-            // 손가락/클릭 아이콘
-            drawCircle(color = iconColor, radius = size * 0.3f, center = center, style = Stroke(width = 2f))
-            drawCircle(color = iconColor, radius = size * 0.1f, center = center)
+            drawCircle(iconColor, size * 0.3f, center, style = Stroke(2f))
+            drawCircle(iconColor, size * 0.1f, center)
         }
         NodeType.INPUT -> {
-            // 키보드/입력 아이콘
-            val rectSize = size * 0.6f
-            drawRoundRect(
-                color = iconColor,
-                topLeft = Offset(center.x - rectSize / 2, center.y - rectSize / 3),
-                size = Size(rectSize, rectSize * 0.6f),
-                style = Stroke(width = 2f),
-                cornerRadius = CornerRadius(2f)
-            )
-            drawLine(color = iconColor, start = Offset(center.x - rectSize * 0.2f, center.y), end = Offset(center.x + rectSize * 0.2f, center.y), strokeWidth = 2f)
+            val rect = size * 0.6f
+            drawRoundRect(iconColor, Offset(center.x - rect / 2, center.y - rect / 3), Size(rect, rect * 0.6f), style = Stroke(2f), cornerRadius = CornerRadius(2f))
+            drawLine(iconColor, Offset(center.x - rect * 0.2f, center.y), Offset(center.x + rect * 0.2f, center.y), 2f)
         }
         NodeType.WAIT -> {
-            // 시계 아이콘
-            drawCircle(color = iconColor, radius = size * 0.4f, center = center, style = Stroke(width = 2f))
-            drawLine(color = iconColor, start = center, end = Offset(center.x, center.y - size * 0.3f), strokeWidth = 2f)
-            drawLine(color = iconColor, start = center, end = Offset(center.x + size * 0.2f, center.y), strokeWidth = 2f)
+            drawCircle(iconColor, size * 0.4f, center, style = Stroke(2f))
+            drawLine(iconColor, center, Offset(center.x, center.y - size * 0.3f), 2f)
+            drawLine(iconColor, center, Offset(center.x + size * 0.2f, center.y), 2f)
         }
         NodeType.START -> {
-            val triangleSize = size * 0.6f
-            drawPath(path = Path().apply {
-                moveTo(center.x - triangleSize * 0.3f, center.y - triangleSize * 0.5f)
-                lineTo(center.x + triangleSize * 0.5f, center.y)
-                lineTo(center.x - triangleSize * 0.3f, center.y + triangleSize * 0.5f)
+            val s = size * 0.6f
+            drawPath(Path().apply {
+                moveTo(center.x - s * 0.3f, center.y - s * 0.5f)
+                lineTo(center.x + s * 0.5f, center.y)
+                lineTo(center.x - s * 0.3f, center.y + s * 0.5f)
                 close()
-            }, color = iconColor)
+            }, iconColor)
         }
         NodeType.WEBSITE -> {
-            drawCircle(color = iconColor, radius = size * 0.4f, center = center, style = Stroke(width = 2f))
-            drawLine(color = iconColor, start = Offset(center.x, center.y - size * 0.4f), end = Offset(center.x, center.y + size * 0.4f), strokeWidth = 2f)
-            drawLine(color = iconColor, start = Offset(center.x - size * 0.4f, center.y), end = Offset(center.x + size * 0.4f, center.y), strokeWidth = 2f)
+            drawCircle(iconColor, size * 0.4f, center, style = Stroke(2f))
+            drawLine(iconColor, Offset(center.x, center.y - size * 0.4f), Offset(center.x, center.y + size * 0.4f), 2f)
+            drawLine(iconColor, Offset(center.x - size * 0.4f, center.y), Offset(center.x + size * 0.4f, center.y), 2f)
         }
         NodeType.ACTION -> {
-            drawPath(path = Path().apply {
+            drawPath(Path().apply {
                 moveTo(center.x - size * 0.3f, center.y - size * 0.4f)
                 lineTo(center.x + size * 0.2f, center.y)
                 lineTo(center.x - size * 0.1f, center.y + size * 0.1f)
                 lineTo(center.x - size * 0.2f, center.y + size * 0.4f)
                 close()
-            }, color = iconColor)
+            }, iconColor)
         }
     }
 }
 
-private fun DrawScope.drawUltraArrowHead(start: Offset, end: Offset, isHighlighted: Boolean, isRecording: Boolean, defaultColor: Color) {
-    val arrowLength = if (isHighlighted || isRecording) 12f else 8f
-    val arrowAngle = PI / 6
-    val lineAngle = atan2(end.y - start.y, end.x - start.x)
-    val adjustedEnd = end - Offset(cos(lineAngle) * 20f, sin(lineAngle) * 20f)
-
-    val arrowColor = when {
-        isHighlighted -> AppTheme.Colors.Success
-        isRecording -> AppTheme.Colors.Error
-        else -> defaultColor
+private fun DrawScope.drawArrowHeadAtTip(
+    tip: Offset,
+    angle: Float,
+    color: Color,
+    width: Float,
+    softColor: Color? = null,
+    arrowLen: Float = 8f,
+    arrowAngleRad: Float = (PI / 7).toFloat()
+) {
+    val e1 = Offset(
+        tip.x - arrowLen * cos(angle - arrowAngleRad),
+        tip.y - arrowLen * sin(angle - arrowAngleRad)
+    )
+    val e2 = Offset(
+        tip.x - arrowLen * cos(angle + arrowAngleRad),
+        tip.y - arrowLen * sin(angle + arrowAngleRad)
+    )
+    if (softColor != null) {
+        drawLine(color = softColor, start = tip, end = e1, strokeWidth = width + 1f, cap = StrokeCap.Round)
+        drawLine(color = softColor, start = tip, end = e2, strokeWidth = width + 1f, cap = StrokeCap.Round)
     }
-
-    val arrowEnd1 = Offset(adjustedEnd.x - arrowLength * cos(lineAngle - arrowAngle).toFloat(), adjustedEnd.y - arrowLength * sin(lineAngle - arrowAngle).toFloat())
-    val arrowEnd2 = Offset(adjustedEnd.x - arrowLength * cos(lineAngle + arrowAngle).toFloat(), adjustedEnd.y - arrowLength * sin(lineAngle + arrowAngle).toFloat())
-
-    drawLine(color = arrowColor, start = adjustedEnd, end = arrowEnd1, strokeWidth = if (isHighlighted || isRecording) 3f else 2f, cap = StrokeCap.Round)
-    drawLine(color = arrowColor, start = adjustedEnd, end = arrowEnd2, strokeWidth = if (isHighlighted || isRecording) 3f else 2f, cap = StrokeCap.Round)
+    drawLine(color = color, start = tip, end = e1, strokeWidth = width, cap = StrokeCap.Round)
+    drawLine(color = color, start = tip, end = e2, strokeWidth = width, cap = StrokeCap.Round)
 }
