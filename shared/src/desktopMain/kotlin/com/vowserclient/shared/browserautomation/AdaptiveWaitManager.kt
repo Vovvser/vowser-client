@@ -78,9 +78,10 @@ object AdaptiveWaitManager {
     suspend fun waitForElement(
         locator: Locator,
         page: Page,
-        description: String = "element"
+        description: String = "element",
+        timeout: Double? = null
     ): Boolean {
-        val adaptiveTimeout = calculateTimeout(page)
+        val adaptiveTimeout = timeout ?: calculateTimeout(page)
 
         Napier.d("Waiting for $description with adaptive timeout: ${adaptiveTimeout}ms", tag = Tags.BROWSER_AUTOMATION)
 
