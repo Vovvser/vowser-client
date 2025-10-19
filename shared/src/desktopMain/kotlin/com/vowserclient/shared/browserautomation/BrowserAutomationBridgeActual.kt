@@ -2,8 +2,10 @@ package com.vowser.client.browserautomation
 
 import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.contribution.ContributionStep
+import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import kotlinx.coroutines.delay
 
 actual object BrowserAutomationBridge {
 
@@ -51,20 +53,10 @@ actual object BrowserAutomationBridge {
         Napier.i("Starting contribution recording", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.startContributionRecording()
     }
-
+    
     actual fun stopContributionRecording() {
         Napier.i("Stopping contribution recording", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.stopContributionRecording()
-    }
-
-    actual suspend fun navigate(url: String) {
-        Napier.i("Navigating to: $url", tag = Tags.BROWSER_AUTOMATION)
-        BrowserAutomationService.navigate(url)
-    }
-
-    actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
-        Napier.i("Setting contribution recording callback", tag = Tags.BROWSER_AUTOMATION)
-        BrowserAutomationService.setContributionRecordingCallback(callback)
     }
 
     actual fun setContributionBrowserClosedCallback(callback: (() -> Unit)?) {
@@ -75,6 +67,16 @@ actual object BrowserAutomationBridge {
     actual suspend fun cleanupContribution() {
         Napier.i("Cleaning up contribution browser resources", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.cleanup()
+    }
+
+    actual suspend fun navigate(url: String) {
+        Napier.i("Navigating to: $url", tag = Tags.BROWSER_AUTOMATION)
+        BrowserAutomationService.navigate(url)
+    }
+    
+    actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
+        Napier.i("Setting contribution recording callback", tag = Tags.BROWSER_AUTOMATION)
+        BrowserAutomationService.setContributionRecordingCallback(callback)
     }
 
     actual suspend fun waitForNetworkIdle() {

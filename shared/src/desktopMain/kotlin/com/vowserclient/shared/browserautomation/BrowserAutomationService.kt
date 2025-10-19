@@ -940,7 +940,7 @@ object BrowserAutomationService {
                 }
             }
 
-            // 입력 이벤트 체크  
+            // 입력 이벤트 체크
             val inputData = targetPage.evaluate("window.__vowserLastInput")
             if (inputData != null) {
                 val inputMap = inputData as? Map<*, *>
