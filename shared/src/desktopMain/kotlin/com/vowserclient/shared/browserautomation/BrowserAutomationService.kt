@@ -18,6 +18,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 
 object BrowserAutomationService {
 
@@ -29,6 +31,7 @@ object BrowserAutomationService {
     // Memory management uses ContributionConstants
 
     private var contributionRecordingCallback: ((ContributionStep) -> Unit)? = null
+    private var browserClosedCallback: (() -> Unit)? = null
     private var isRecordingContributions = false
     private var pollingJob: Job? = null
     private var memoryCleanupJob: Job? = null
@@ -36,20 +39,38 @@ object BrowserAutomationService {
     private val pageLastActivity = mutableMapOf<Page, Long>() // 마지막 활동 시간
     private val trackedPages = mutableSetOf<Page>()
     private val pagePollingMutex = Mutex()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private var isExpectingClose = false
+    private var isPlaywrightActive = false
+    private var isBrowserActive = false
+    private var isPageActive = false
+
+    fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
+        contributionRecordingCallback = callback
+    }
+
+    fun setContributionBrowserClosedCallback(callback: (() -> Unit)?) {
+        browserClosedCallback = callback
+    }
 
     suspend fun initialize() = withContext(Dispatchers.IO) {
         mutex.withLock {
             
             try {
                 // Check Playwright initialization
-                if (!::playwright.isInitialized) {
+                if (!::playwright.isInitialized || !isPlaywrightActive) {
+                    if (::playwright.isInitialized) {
+                        runCatching { playwright.close() }
+                    }
                     playwright = Playwright.create()
+                    isPlaywrightActive = true
                 }
-                
+
                 // Check browser initialization
-                if (!::browser.isInitialized || browser.isConnected.not()) {
+                if (!::browser.isInitialized || browser.isConnected.not() || !isBrowserActive) {
                     if (::browser.isInitialized) {
-                        try { browser.close() } catch (e: Exception) { /* 이미 닫힌 경우 무시 */ }
+                        runCatching { browser.close() }
                     }
                     browser = playwright.chromium().launch(
                         BrowserType.LaunchOptions()
@@ -69,11 +90,18 @@ object BrowserAutomationService {
                                 "--disable-blink-features=AutomationControlled"
                             ))
                     )
+                    isBrowserActive = true
+                    browser.onDisconnected {
+                        Napier.w("Browser disconnected", tag = Tags.BROWSER_AUTOMATION)
+                        isBrowserActive = false
+                        isPlaywrightActive = false
+                        notifyBrowserClosed("Browser disconnected")
+                    }
                 }
                 
                 // Check page initialization
                 var needNewPage = false
-                if (!::page.isInitialized) {
+                if (!::page.isInitialized || !isPageActive) {
                     needNewPage = true
                 } else {
                     try {
@@ -93,8 +121,11 @@ object BrowserAutomationService {
                 
                 if (needNewPage) {
                     page = browser.newPage()
+                    registerPageCloseWatcher(page)
                     setupContributionRecording()
                     page.waitForLoadState()
+                    isPageActive = true
+                    isExpectingClose = false
                 }
                 
                 Napier.i("Browser automation initialized successfully", tag = Tags.BROWSER_AUTOMATION)
@@ -115,9 +146,11 @@ object BrowserAutomationService {
 
     suspend fun cleanup() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            
+            isExpectingClose = true
+
             // Stop contribution mode
             stopContributionRecording()
+            serviceScope.coroutineContext.cancelChildren()
             
             try {
                 if (::page.isInitialized && !page.isClosed) {
@@ -126,6 +159,7 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.w("Failed to close page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
+            isPageActive = false
             
             try {
                 if (::browser.isInitialized && browser.isConnected) {
@@ -134,6 +168,7 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.w("Failed to close browser: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
+            isBrowserActive = false
             
             try {
                 if (::playwright.isInitialized) {
@@ -142,6 +177,8 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.w("Failed to close playwright: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
+            isPlaywrightActive = false
+            isExpectingClose = false
             
             Napier.i("Browser automation cleanup completed", tag = Tags.BROWSER_AUTOMATION)
         }
@@ -523,16 +560,12 @@ object BrowserAutomationService {
         return 'highlight_added';
     })""".trimIndent()
     
-    // Contribution recording functions
-    fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
-        contributionRecordingCallback = callback
-    }
-    
     suspend fun startContributionRecording() {
         Napier.i("Starting contribution recording...", tag = Tags.BROWSER_AUTOMATION)
 
         try {
             initialize()
+            isExpectingClose = false
             
             // Additional check after initialization
             if (!::page.isInitialized || page.isClosed) {
@@ -632,6 +665,7 @@ object BrowserAutomationService {
     
     private fun setupNewPageTracking(newPage: Page) {
         try {
+            registerPageCloseWatcher(newPage)
             trackedPages.add(newPage)
             pageTimestamps[newPage] = Pair(0L, 0L)
             updatePageActivity(newPage)
@@ -781,7 +815,7 @@ object BrowserAutomationService {
     
     private fun startUserInteractionPolling() {
         pollingJob?.cancel()
-        pollingJob = CoroutineScope(Dispatchers.IO).launch {
+        pollingJob = serviceScope.launch {
             Napier.i("Starting user interaction polling", tag = Tags.BROWSER_AUTOMATION)
             while (isRecordingContributions && ::page.isInitialized) {
                 try {
@@ -820,7 +854,26 @@ object BrowserAutomationService {
             }
         }
     }
-    
+
+    private fun notifyBrowserClosed(reason: String) {
+        if (isExpectingClose) return
+        if (!isRecordingContributions) return
+
+        Napier.w("Contribution browser closed unexpectedly: $reason", tag = Tags.BROWSER_AUTOMATION)
+        isPageActive = false
+        isRecordingContributions = false
+        serviceScope.launch {
+            browserClosedCallback?.invoke()
+        }
+    }
+
+    private fun registerPageCloseWatcher(targetPage: Page) {
+        targetPage.onClose {
+            isPageActive = false
+            notifyBrowserClosed("Page closed: ${targetPage.url()}")
+        }
+    }
+
     private fun cleanupPage(targetPage: Page) {
         trackedPages.remove(targetPage)
         pageTimestamps.remove(targetPage)
@@ -988,7 +1041,9 @@ object BrowserAutomationService {
     }
     
     private fun startMemoryCleanupJob() {
-        memoryCleanupJob = CoroutineScope(Dispatchers.IO).launch {
+        memoryCleanupJob?.cancel()
+        memoryCleanupJob = serviceScope.launch {
+            Napier.i("Starting contribution memory cleanup job", tag = Tags.BROWSER_AUTOMATION)
             while (isRecordingContributions) {
                 try {
                     delay(ContributionConstants.MEMORY_CLEANUP_INTERVAL_MS)
@@ -998,7 +1053,6 @@ object BrowserAutomationService {
                 }
             }
         }
-        Napier.i("Started memory cleanup job", tag = Tags.BROWSER_AUTOMATION)
     }
     
     private suspend fun performMemoryCleanup() {

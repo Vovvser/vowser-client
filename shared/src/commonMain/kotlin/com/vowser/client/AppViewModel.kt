@@ -21,7 +21,6 @@ import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
-import com.vowser.client.stopPlatformRecording
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,12 +28,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.ui.graph.GraphEdge
 import com.vowser.client.ui.graph.GraphNode
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -150,6 +153,9 @@ class AppViewModel(
     val contributionStatus = contributionModeService.status
     val contributionStepCount = contributionModeService.currentStepCount
     val contributionTask = contributionModeService.currentTask
+    private val _isContributionInitializing = MutableStateFlow(false)
+    val isContributionInitializing: StateFlow<Boolean> = _isContributionInitializing.asStateFlow()
+    private var contributionSetupJob: Job? = null
 
     private val _awaitingContributionTask = MutableStateFlow(false)
     val awaitingContributionTask: StateFlow<Boolean> = _awaitingContributionTask.asStateFlow()
@@ -525,14 +531,29 @@ class AppViewModel(
         BrowserAutomationBridge.setContributionRecordingCallback { step ->
             contributionModeService.recordStep(step)
         }
+        BrowserAutomationBridge.setContributionBrowserClosedCallback {
+            handleContributionBrowserClosed()
+        }
     }
 
     fun startContribution(task: String) {
-        coroutineScope.launch {
+        if (contributionSetupJob?.isActive == true) {
+            Napier.w("Contribution initialization already in progress", tag = Tags.CONTRIBUTION_MODE)
+            return
+        }
+
+        contributionSetupJob = coroutineScope.launch {
+            _isContributionInitializing.value = true
             try {
                 _awaitingContributionTask.value = false
                 _pendingContributionTask.value = null
 
+                BrowserAutomationBridge.setContributionRecordingCallback { step ->
+                    contributionModeService.recordStep(step)
+                }
+                BrowserAutomationBridge.setContributionBrowserClosedCallback {
+                    handleContributionBrowserClosed()
+                }
                 BrowserAutomationBridge.startContributionRecording()
 
                 contributionModeService.startSession(task)
@@ -541,61 +562,130 @@ class AppViewModel(
                 BrowserAutomationBridge.navigate("about:blank")
 
                 addStatusLog("$task 기여가 시작되었습니다.", StatusLogType.SUCCESS)
-
+            } catch (e: CancellationException) {
+                Napier.i("Contribution initialization cancelled: ${e.message}", tag = Tags.CONTRIBUTION_MODE)
+                throw e
             } catch (e: Exception) {
                 _awaitingContributionTask.value = true
                 exceptionHandler.handleException(e, "Contribution mode initialization") {
                     startContribution(task)
                 }
-
-                try {
-                    BrowserAutomationBridge.stopContributionRecording()
+                runCatching { BrowserAutomationBridge.cleanupContribution() }
+                    .onFailure {
+                        Napier.w("Cleanup after failed contribution initialization: ${it.message}", it, tag = Tags.CONTRIBUTION_MODE)
+                    }
+                if (contributionModeService.isSessionActive()) {
                     contributionModeService.resetSession()
-                } catch (cleanupError: Exception) {
-                    Napier.w("Cleanup error: ${cleanupError.message}", tag = Tags.CONTRIBUTION_MODE)
                 }
+            } finally {
+                _isContributionInitializing.value = false
+                contributionSetupJob = null
             }
         }
     }
 
     fun stopContribution() {
         coroutineScope.launch {
+            contributionSetupJob?.cancelAndJoin()
+            contributionSetupJob = null
+            _isContributionInitializing.value = false
+
+            val stepCount = contributionModeService.currentStepCount.value
+            val task = contributionModeService.currentTask.value
+            val sessionId = contributionModeService.getCurrentSessionId()
+            var stepsSnapshot: List<ContributionStep> = emptyList()
+
             try {
-                val stepCount = contributionModeService.currentStepCount.value
-                val task = contributionModeService.currentTask.value
-                val sessionId = contributionModeService.getCurrentSessionId()
+                runCatching { BrowserAutomationBridge.stopContributionRecording() }
+                    .onFailure {
+                        Napier.w("Error stopping contribution recording: ${it.message}", it, tag = Tags.CONTRIBUTION_MODE)
+                    }
 
-                // 브라우저 녹화 중지
-                BrowserAutomationBridge.stopContributionRecording()
-
-                // 세션 종료 (WebSocket으로 전송)
                 contributionModeService.endSession()
 
                 addStatusLog("🏁 기여 모드 완료 - 총 ${stepCount}개 스텝 기록됨", StatusLogType.SUCCESS)
 
-                // 추가로 REST API를 통해 저장 (새로운 방식)
-                if (sessionId != null && task.isNotBlank() && stepCount > 0) {
+                stepsSnapshot = contributionModeService.getCurrentSession()
+                    ?.steps
+                    ?.toList()
+                    .orEmpty()
+
+                if (sessionId != null && task.isNotBlank() && stepsSnapshot.isNotEmpty()) {
                     addStatusLog("경로 데이터 저장 중...", StatusLogType.INFO)
-                    saveContributionPath(sessionId, task)
+                    saveContributionPath(sessionId, task, stepsSnapshot)
                 }
+            } catch (e: CancellationException) {
+                Napier.i("Contribution stop cancelled: ${e.message}", tag = Tags.CONTRIBUTION_MODE)
+                throw e
             } catch (e: Exception) {
                 Napier.e("Failed to stop contribution: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
                 addStatusLog("기여 모드 종료 실패: ${e.message}", StatusLogType.ERROR)
-            } finally {
-                _awaitingContributionTask.value = true
-                _pendingContributionTask.value = null
             }
+
+            runCatching { BrowserAutomationBridge.cleanupContribution() }
+                .onFailure {
+                    Napier.w("Contribution cleanup failed: ${it.message}", it, tag = Tags.CONTRIBUTION_MODE)
+                }
+
+            _awaitingContributionTask.value = true
+            _pendingContributionTask.value = null
+            contributionModeService.resetSession()
+        }
+    }
+
+    fun cancelContribution() {
+        coroutineScope.launch {
+            contributionSetupJob?.cancelAndJoin()
+            contributionSetupJob = null
+            _isContributionInitializing.value = false
+
+            val stepCount = contributionModeService.currentStepCount.value
+
+            runCatching { BrowserAutomationBridge.stopContributionRecording() }
+                .onFailure {
+                    Napier.w("Error stopping contribution recording during cancel: ${it.message}", it, tag = Tags.CONTRIBUTION_MODE)
+                }
+
+            runCatching { BrowserAutomationBridge.cleanupContribution() }
+                .onFailure {
+                    Napier.w("Contribution cleanup failed during cancel: ${it.message}", it, tag = Tags.CONTRIBUTION_MODE)
+                }
+
+            addStatusLog("작업이 중단되었습니다.", StatusLogType.WARNING)
+            if (stepCount > 0) {
+                addStatusLog("기여 모드가 중단되어 ${stepCount}개 스텝이 폐기되었습니다.", StatusLogType.WARNING)
+            }
+
+            contributionModeService.resetSession()
+
+            _awaitingContributionTask.value = true
+            _pendingContributionTask.value = null
+        }
+    }
+
+    fun notifyContributionInitializing() {
+        addStatusLog("브라우저를 준비하는 중입니다. 잠시만 기다려 주세요.", StatusLogType.INFO)
+    }
+
+    private fun handleContributionBrowserClosed() {
+        coroutineScope.launch {
+            if (!_isContributionInitializing.value && !contributionModeService.isSessionActive()) {
+                return@launch
+            }
+            addStatusLog("브라우저 창이 닫혀 기여 모드를 중단합니다.", StatusLogType.WARNING)
+            cancelContribution()
         }
     }
 
     /**
      * 기여 경로를 REST API를 통해 저장
      */
-    private suspend fun saveContributionPath(sessionId: String, taskIntent: String) {
+    private suspend fun saveContributionPath(
+        sessionId: String,
+        taskIntent: String,
+        steps: List<ContributionStep>
+    ) {
         try {
-            // 현재 세션의 스텝들을 가져옴
-            val steps = contributionModeService.getCurrentSession()?.steps ?: emptyList()
-
             if (steps.isEmpty()) {
                 Napier.w("No steps to save for session: $sessionId", tag = Tags.CONTRIBUTION_MODE)
                 return
