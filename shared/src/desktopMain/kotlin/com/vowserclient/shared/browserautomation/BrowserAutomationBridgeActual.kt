@@ -2,10 +2,8 @@ package com.vowser.client.browserautomation
 
 import com.vowser.client.websocket.dto.NavigationPath
 import com.vowser.client.contribution.ContributionStep
-import com.vowser.client.contribution.ContributionConstants
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
-import kotlinx.coroutines.delay
 
 actual object BrowserAutomationBridge {
 
