@@ -19,6 +19,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 
 object BrowserAutomationService {
 
@@ -27,9 +29,8 @@ object BrowserAutomationService {
     private lateinit var page: Page
     private val mutex = Mutex()
 
-    // Memory management uses ContributionConstants
-
     private var contributionRecordingCallback: ((ContributionStep) -> Unit)? = null
+    private var browserClosedCallback: (() -> Unit)? = null
     private var isRecordingContributions = false
     private var pollingJob: Job? = null
     private var memoryCleanupJob: Job? = null
@@ -37,20 +38,38 @@ object BrowserAutomationService {
     private val pageLastActivity = mutableMapOf<Page, Long>() // 마지막 활동 시간
     private val trackedPages = mutableSetOf<Page>()
     private val pagePollingMutex = Mutex()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private var isExpectingClose = false
+    private var isPlaywrightActive = false
+    private var isBrowserActive = false
+    private var isPageActive = false
+
+    fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
+        contributionRecordingCallback = callback
+    }
+
+    fun setContributionBrowserClosedCallback(callback: (() -> Unit)?) {
+        browserClosedCallback = callback
+    }
 
     suspend fun initialize() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            
+
             try {
                 // Check Playwright initialization
-                if (!::playwright.isInitialized) {
+                if (!::playwright.isInitialized || !isPlaywrightActive) {
+                    if (::playwright.isInitialized) {
+                        runCatching { playwright.close() }
+                    }
                     playwright = Playwright.create()
+                    isPlaywrightActive = true
                 }
-                
+
                 // Check browser initialization
-                if (!::browser.isInitialized || browser.isConnected.not()) {
+                if (!::browser.isInitialized || browser.isConnected.not() || !isBrowserActive) {
                     if (::browser.isInitialized) {
-                        try { browser.close() } catch (e: Exception) { /* 이미 닫힌 경우 무시 */ }
+                        runCatching { browser.close() }
                     }
                     browser = playwright.chromium().launch(
                         BrowserType.LaunchOptions()
@@ -70,11 +89,18 @@ object BrowserAutomationService {
                                 "--disable-blink-features=AutomationControlled"
                             ))
                     )
+                    isBrowserActive = true
+                    browser.onDisconnected {
+                        Napier.w("Browser disconnected", tag = Tags.BROWSER_AUTOMATION)
+                        isBrowserActive = false
+                        isPlaywrightActive = false
+                        notifyBrowserClosed("Browser disconnected")
+                    }
                 }
-                
+
                 // Check page initialization
                 var needNewPage = false
-                if (!::page.isInitialized) {
+                if (!::page.isInitialized || !isPageActive) {
                     needNewPage = true
                 } else {
                     try {
@@ -87,15 +113,18 @@ object BrowserAutomationService {
                         Napier.w("BrowserAutomationService: Page status check failed, creating new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                     }
                 }
-                
+
                 if (needNewPage) {
                     page = browser.newPage()
+                    registerPageCloseWatcher(page)
                     setupContributionRecording()
                     page.waitForLoadState()
+                    isPageActive = true
+                    isExpectingClose = false
                 }
-                
+
                 Napier.i("Browser automation initialized successfully", tag = Tags.BROWSER_AUTOMATION)
-                
+
             } catch (e: Exception) {
                 Napier.e("BrowserAutomationService: Critical initialization failure: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 // Complete cleanup and restart
@@ -112,10 +141,12 @@ object BrowserAutomationService {
 
     suspend fun cleanup() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            
+            isExpectingClose = true
+
             // Stop contribution mode
             stopContributionRecording()
-            
+            serviceScope.coroutineContext.cancelChildren()
+
             try {
                 if (::page.isInitialized && !page.isClosed) {
                     page.close()
@@ -123,7 +154,8 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.w("Failed to close page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
-            
+            isPageActive = false
+
             try {
                 if (::browser.isInitialized && browser.isConnected) {
                     browser.close()
@@ -131,7 +163,8 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.w("Failed to close browser: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
-            
+            isBrowserActive = false
+
             try {
                 if (::playwright.isInitialized) {
                     playwright.close()
@@ -139,7 +172,9 @@ object BrowserAutomationService {
             } catch (e: Exception) {
                 Napier.w("Failed to close playwright: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
-            
+            isPlaywrightActive = false
+            isExpectingClose = false
+
             Napier.i("Browser automation cleanup completed", tag = Tags.BROWSER_AUTOMATION)
         }
     }
@@ -262,7 +297,7 @@ object BrowserAutomationService {
             }
         }
     }
-    
+
     /**
      * 모든 iframe을 순회하며 요소 찾기
      */
@@ -342,7 +377,6 @@ object BrowserAutomationService {
 
         return@withContext null
     }
-
 
     private suspend fun executeHoverHighlightClick(locator: Locator, selector: String): Boolean = withContext(Dispatchers.IO) {
         Napier.d("--- executeHoverHighlightClick START ---", tag = Tags.BROWSER_AUTOMATION)
@@ -541,39 +575,35 @@ object BrowserAutomationService {
         indicator.style.top = indicatorTop + 'px';
         return 'highlight_added';
     })""".trimIndent()
-    
-    // Contribution recording functions
-    fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
-        contributionRecordingCallback = callback
-    }
-    
+
     suspend fun startContributionRecording() {
         Napier.i("Starting contribution recording...", tag = Tags.BROWSER_AUTOMATION)
 
         try {
             initialize()
-            
+            isExpectingClose = false
+
             // Additional check after initialization
             if (!::page.isInitialized || page.isClosed) {
                 throw Exception("Page initialization failed")
             }
-            
+
             isRecordingContributions = true
             startUserInteractionPolling()
             startMemoryCleanupJob()
-            
+
             // 리스너 주입 확인
             injectUserInteractionListeners()
-            
+
             Napier.i("Contribution recording started successfully", tag = Tags.BROWSER_AUTOMATION)
-            
+
         } catch (e: Exception) {
             Napier.e("Failed to start contribution recording: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             isRecordingContributions = false
             throw e
         }
     }
-    
+
     fun stopContributionRecording() {
         isRecordingContributions = false
         contributionRecordingCallback = null
@@ -586,12 +616,12 @@ object BrowserAutomationService {
         pageLastActivity.clear()
         Napier.i("Stopped contribution recording", tag = Tags.BROWSER_AUTOMATION)
     }
-    
+
     private fun setupContributionRecording() {
         if (!::page.isInitialized) return
-        
+
         Napier.i("Setting up contribution recording listeners", tag = Tags.BROWSER_AUTOMATION)
-        
+
         // Detect new tab opening and start tracking
         page.onPopup { newPage ->
             Napier.i("New tab detected: ${newPage.url()}", tag = Tags.BROWSER_AUTOMATION)
@@ -602,11 +632,11 @@ object BrowserAutomationService {
                 null,
                 mapOf("from_url" to page.url())
             )
-            
+
             // 새 탭도 추적 시작
             setupNewPageTracking(newPage)
         }
-        
+
         // Detect page navigation (URL change)
         page.onFrameNavigated { frame ->
             if (frame == page.mainFrame()) {
@@ -620,9 +650,9 @@ object BrowserAutomationService {
                 )
             }
         }
-        
+
         // Inject user interaction listeners when page load completes
-        page.onLoad { 
+        page.onLoad {
             try {
                 Napier.i("Page loaded, injecting listeners for: ${page.url()}", tag = Tags.BROWSER_AUTOMATION)
                 injectUserInteractionListeners()
@@ -630,14 +660,14 @@ object BrowserAutomationService {
                 Napier.w("Failed to inject user interaction listeners: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
-        
+
         // 콘솔 로그 리스너 (디버깅용)
         page.onConsoleMessage { message ->
             if (message.text().contains("Vowser") || message.text().contains("🖱️") || message.text().contains("⌨️")) {
                 Napier.i("Browser Console: ${message.text()}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
-        
+
         // 페이지가 이미 로드된 경우 즉시 리스너 주입
         try {
             injectUserInteractionListeners()
@@ -648,13 +678,14 @@ object BrowserAutomationService {
             Napier.w("Failed to inject initial user interaction listeners: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
         }
     }
-    
+
     private fun setupNewPageTracking(newPage: Page) {
         try {
+            registerPageCloseWatcher(newPage)
             trackedPages.add(newPage)
             pageTimestamps[newPage] = Pair(0L, 0L)
             updatePageActivity(newPage)
-            
+
             // 새 페이지 로드 시 리스너 주입
             newPage.onLoad {
                 try {
@@ -664,29 +695,29 @@ object BrowserAutomationService {
                     Napier.w("Failed to inject listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
-            
+
             // 새 페이지의 콘솔 로그 리스너
             newPage.onConsoleMessage { message ->
                 if (message.text().contains("Vowser") || message.text().contains("🖱️") || message.text().contains("⌨️")) {
                     Napier.i("New Tab Console: ${message.text()}", tag = Tags.BROWSER_AUTOMATION)
                 }
             }
-            
+
             // 새 페이지에 즉시 리스너 주입 시도
             try {
                 injectUserInteractionListeners(newPage)
             } catch (e: Exception) {
                 Napier.w("Failed to inject initial listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
-            
+
         } catch (e: Exception) {
             Napier.e("Failed to setup new page tracking: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
         }
     }
-    
+
     private fun injectUserInteractionListeners(targetPage: Page = page) {
         if (!isRecordingContributions) return
-        
+
         targetPage.evaluate("""
             (function() {
                 // 이미 리스너가 설정되어 있으면 중복 설정 방지
@@ -794,13 +825,13 @@ object BrowserAutomationService {
                 }
             })();
         """)
-        
+
         Napier.i("User interaction listeners injected", tag = Tags.BROWSER_AUTOMATION)
     }
-    
+
     private fun startUserInteractionPolling() {
         pollingJob?.cancel()
-        pollingJob = CoroutineScope(Dispatchers.IO).launch {
+        pollingJob = serviceScope.launch {
             Napier.i("Starting user interaction polling", tag = Tags.BROWSER_AUTOMATION)
             while (isRecordingContributions && ::page.isInitialized) {
                 try {
@@ -814,23 +845,23 @@ object BrowserAutomationService {
             Napier.i("User interaction polling stopped", tag = Tags.BROWSER_AUTOMATION)
         }
     }
-    
+
     private suspend fun checkForUserInteractions() {
         if (!isRecordingContributions) return
-        
+
         pagePollingMutex.withLock {
             // 모든 추적된 페이지에서 상호작용 체크
             val pagesToCheck = trackedPages.toList()
-            
+
             for (targetPage in pagesToCheck) {
                 try {
                     if (targetPage.isClosed) {
                         cleanupPage(targetPage)
                         continue
                     }
-                    
+
                     checkPageInteractions(targetPage)
-                    
+
                 } catch (e: Exception) {
                     Napier.w("Error checking interactions for page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                     // 페이지 접근 실패 시 추적에서 제거
@@ -839,13 +870,32 @@ object BrowserAutomationService {
             }
         }
     }
-    
+
+    private fun notifyBrowserClosed(reason: String) {
+        if (isExpectingClose) return
+        if (!isRecordingContributions) return
+
+        Napier.w("Contribution browser closed unexpectedly: $reason", tag = Tags.BROWSER_AUTOMATION)
+        isPageActive = false
+        isRecordingContributions = false
+        serviceScope.launch {
+            browserClosedCallback?.invoke()
+        }
+    }
+
+    private fun registerPageCloseWatcher(targetPage: Page) {
+        targetPage.onClose {
+            isPageActive = false
+            notifyBrowserClosed("Page closed: ${targetPage.url()}")
+        }
+    }
+
     private fun cleanupPage(targetPage: Page) {
         trackedPages.remove(targetPage)
         pageTimestamps.remove(targetPage)
         pageLastActivity.remove(targetPage)
     }
-    
+
     private suspend fun checkPageInteractions(targetPage: Page) {
         try {
             // 리스너 상태 체크
@@ -855,23 +905,23 @@ object BrowserAutomationService {
                 injectUserInteractionListeners(targetPage)
                 return
             }
-            
+
             // Check click events
             val clickData = targetPage.evaluate("window.__vowserLastClick")
-            
+
             if (clickData != null) {
                 val clickMap = clickData as? Map<*, *>
                 val timestamp = (clickMap?.get("timestamp") as? Number)?.toLong() ?: 0L
                 val pageTimestamp = pageTimestamps[targetPage]?.first ?: 0L
-                
+
                 if (timestamp > pageTimestamp) {
                     val selector = clickMap?.get("selector") as? String ?: ""
                     val attributesMap = clickMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
-                    
+
                     val buttonText = attributes["text"]?.take(ContributionConstants.MAX_ELEMENT_TEXT_LENGTH) ?: "No text"
                     Napier.i("Button clicked: [$buttonText] on $selector (${targetPage.url()})", tag = Tags.BROWSER_AUTOMATION)
-                    
+
                     recordContributionStep(
                         targetPage.url(),
                         targetPage.title(),
@@ -879,29 +929,29 @@ object BrowserAutomationService {
                         selector,
                         attributes
                     )
-                    
+
                     // 페이지별 타임스탬프 업데이트
                     val currentInputTimestamp = pageTimestamps[targetPage]?.second ?: 0L
                     pageTimestamps[targetPage] = Pair(timestamp, currentInputTimestamp)
                     updatePageActivity(targetPage)
-                    
+
                     // Clear processed click data
                     targetPage.evaluate("window.__vowserLastClick = null;")
                 }
             }
-            
-            // 입력 이벤트 체크  
+
+            // 입력 이벤트 체크
             val inputData = targetPage.evaluate("window.__vowserLastInput")
             if (inputData != null) {
                 val inputMap = inputData as? Map<*, *>
                 val timestamp = (inputMap?.get("timestamp") as? Number)?.toLong() ?: 0L
                 val pageInputTimestamp = pageTimestamps[targetPage]?.second ?: 0L
-                
+
                 if (timestamp > pageInputTimestamp) {
                     val selector = inputMap?.get("selector") as? String ?: ""
                     val attributesMap = inputMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
-                    
+
                     recordContributionStep(
                         targetPage.url(),
                         targetPage.title(),
@@ -909,32 +959,32 @@ object BrowserAutomationService {
                         selector,
                         attributes
                     )
-                    
+
                     // 페이지별 입력 타임스탬프 업데이트
                     val currentClickTimestamp = pageTimestamps[targetPage]?.first ?: 0L
                     pageTimestamps[targetPage] = Pair(currentClickTimestamp, timestamp)
                     updatePageActivity(targetPage)
-                    
+
                     // 처리된 입력 데이터 클리어
                     targetPage.evaluate("window.__vowserLastInput = null;")
                 }
             }
-            
+
             // Enter 키 이벤트 체크 (타이핑 완료 시그널)
             val enterKeyData = targetPage.evaluate("window.__vowserLastEnterKey")
             if (enterKeyData != null) {
                 val enterMap = enterKeyData as? Map<*, *>
                 val timestamp = (enterMap?.get("timestamp") as? Number)?.toLong() ?: 0L
                 val pageInputTimestamp = pageTimestamps[targetPage]?.second ?: 0L
-                
+
                 if (timestamp > pageInputTimestamp) {
                     val selector = enterMap?.get("selector") as? String ?: ""
                     val attributesMap = enterMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
                     val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
-                    
+
                     val inputText = attributes["text"]?.take(ContributionConstants.MAX_ELEMENT_TEXT_LENGTH) ?: "No text"
                     Napier.i("Enter key pressed: [$inputText] on $selector (${targetPage.url()})", tag = Tags.BROWSER_AUTOMATION)
-                    
+
                     recordContributionStep(
                         targetPage.url(),
                         targetPage.title(),
@@ -942,12 +992,12 @@ object BrowserAutomationService {
                         selector,
                         attributes
                     )
-                    
+
                     // Enter 키는 별도 타임스탬프로 처리하지 않고 입력 타임스탬프 업데이트
                     val currentClickTimestamp = pageTimestamps[targetPage]?.first ?: 0L
                     pageTimestamps[targetPage] = Pair(currentClickTimestamp, timestamp)
                     updatePageActivity(targetPage)
-                    
+
                     // 처리된 Enter 키 데이터 클리어
                     targetPage.evaluate("window.__vowserLastEnterKey = null;")
                 }
@@ -956,7 +1006,7 @@ object BrowserAutomationService {
             Napier.w("Error checking interactions for page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
         }
     }
-    
+
     private fun recordContributionStep(
         url: String,
         title: String,
@@ -965,7 +1015,7 @@ object BrowserAutomationService {
         htmlAttributes: Map<String, String>?
     ) {
         if (!isRecordingContributions || contributionRecordingCallback == null) return
-        
+
         val step = ContributionStep(
             url = url,
             title = title,
@@ -973,21 +1023,21 @@ object BrowserAutomationService {
             selector = selector,
             htmlAttributes = htmlAttributes
         )
-        
+
         contributionRecordingCallback?.invoke(step)
         Napier.i("Contribution Step Recorded: [${step.action}] ${step.title} (${step.url})", tag = Tags.BROWSER_AUTOMATION)
     }
-    
+
     private fun extractElementAttributes(locator: Locator): Map<String, String> {
         return try {
             val element = locator.first()
             val attributes = mutableMapOf<String, String>()
-            
+
             // 텍스트 내용 추출
             element.textContent()?.let { text ->
                 if (text.isNotBlank()) attributes["text"] = text.trim()
             }
-            
+
             // 주요 속성들 추출
             listOf("id", "class", "name", "type", "href", "alt", "title", "aria-label").forEach { attr ->
                 try {
@@ -998,16 +1048,18 @@ object BrowserAutomationService {
                     // 속성이 없는 경우 무시
                 }
             }
-            
+
             attributes
         } catch (e: Exception) {
             Napier.w("Failed to extract element attributes: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             emptyMap()
         }
     }
-    
+
     private fun startMemoryCleanupJob() {
-        memoryCleanupJob = CoroutineScope(Dispatchers.IO).launch {
+        memoryCleanupJob?.cancel()
+        memoryCleanupJob = serviceScope.launch {
+            Napier.i("Starting contribution memory cleanup job", tag = Tags.BROWSER_AUTOMATION)
             while (isRecordingContributions) {
                 try {
                     delay(ContributionConstants.MEMORY_CLEANUP_INTERVAL_MS)
@@ -1017,14 +1069,13 @@ object BrowserAutomationService {
                 }
             }
         }
-        Napier.i("Started memory cleanup job", tag = Tags.BROWSER_AUTOMATION)
     }
-    
+
     private suspend fun performMemoryCleanup() {
         pagePollingMutex.withLock {
             val currentTime = System.currentTimeMillis()
             val inactivePages = mutableListOf<Page>()
-            
+
             // 비활성 페이지 찾기
             pageLastActivity.forEach { (page, lastActivity) ->
                 if (currentTime - lastActivity > ContributionConstants.PAGE_INACTIVE_TIMEOUT_MS) {
@@ -1042,7 +1093,7 @@ object BrowserAutomationService {
                     }
                 }
             }
-            
+
             // 최대 페이지 수 초과 시 오래된 페이지부터 정리
             if (trackedPages.size > ContributionConstants.MAX_TRACKED_PAGES) {
                 val sortedByActivity = pageLastActivity.toList()
@@ -1051,18 +1102,18 @@ object BrowserAutomationService {
                 val pagesToRemove = sortedByActivity.take(trackedPages.size - ContributionConstants.MAX_TRACKED_PAGES)
                 inactivePages.addAll(pagesToRemove)
             }
-            
+
             // 비활성 페이지 정리
             inactivePages.forEach { page ->
                 cleanupPage(page)
             }
-            
+
             if (inactivePages.isNotEmpty()) {
                 Napier.i("Cleaned up ${inactivePages.size} inactive pages. Remaining: ${trackedPages.size}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
     }
-    
+
     private fun updatePageActivity(page: Page) {
         pageLastActivity[page] = System.currentTimeMillis()
     }

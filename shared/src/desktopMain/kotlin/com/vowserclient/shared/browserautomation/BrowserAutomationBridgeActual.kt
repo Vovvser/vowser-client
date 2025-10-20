@@ -56,7 +56,17 @@ actual object BrowserAutomationBridge {
         Napier.i("Stopping contribution recording", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.stopContributionRecording()
     }
-    
+
+    actual fun setContributionBrowserClosedCallback(callback: (() -> Unit)?) {
+        Napier.i("Setting contribution browser closed callback", tag = Tags.BROWSER_AUTOMATION)
+        BrowserAutomationService.setContributionBrowserClosedCallback(callback)
+    }
+
+    actual suspend fun cleanupContribution() {
+        Napier.i("Cleaning up contribution browser resources", tag = Tags.BROWSER_AUTOMATION)
+        BrowserAutomationService.cleanup()
+    }
+
     actual suspend fun navigate(url: String) {
         Napier.i("Navigating to: $url", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.navigate(url)

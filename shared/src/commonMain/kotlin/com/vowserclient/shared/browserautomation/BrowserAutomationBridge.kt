@@ -10,4 +10,6 @@ expect object BrowserAutomationBridge {
     suspend fun navigate(url: String)
     suspend fun waitForNetworkIdle()
     fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit)
+    fun setContributionBrowserClosedCallback(callback: (() -> Unit)?)
+    suspend fun cleanupContribution()
 }

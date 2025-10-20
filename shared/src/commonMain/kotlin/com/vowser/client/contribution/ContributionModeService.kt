@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.math.min
 import kotlin.time.Duration.Companion.minutes
 
 class ContributionModeService(
@@ -103,6 +104,16 @@ class ContributionModeService(
             .lowercase()
     }
 
+    private fun pruneRecentActions(currentTime: Long) {
+        val iterator = recentActions.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (currentTime - entry.value > deduplicationWindowMs) {
+                iterator.remove()
+            }
+        }
+    }
+
     /**
      * 중복 액션 체크
      */
@@ -111,6 +122,8 @@ class ContributionModeService(
         val actionKey = "${step.action}:$normalizedUrl"
         val now = step.timestamp
         val lastTime = recentActions[actionKey] ?: 0L
+
+        pruneRecentActions(now)
 
         return if (now - lastTime < deduplicationWindowMs) {
             when (step.action) {
@@ -244,7 +257,7 @@ class ContributionModeService(
         }
     }
     
-    fun endSession() {
+    suspend fun endSession() {
         val session = currentSession ?: run {
             Napier.w("No active session to end", tag = Tags.BROWSER_AUTOMATION)
             return
@@ -261,16 +274,14 @@ class ContributionModeService(
         
         session.isActive = false
         _status.value = ContributionStatus.SENDING
-        
-        coroutineScope.launch {
-            try {
-                sendBufferedSteps(isPartial = false, isComplete = true)
-                _status.value = ContributionStatus.COMPLETED
-                Napier.i("✅ Contribution session completed successfully - sessionId: ${session.sessionId}, duration: ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - session.startTime}ms", tag = Tags.BROWSER_AUTOMATION)
-            } catch (e: Exception) {
-                _status.value = ContributionStatus.ERROR
-                Napier.e("❌ Failed to complete contribution session - sessionId: ${session.sessionId}, error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-            }
+        try {
+            sendBufferedSteps(isPartial = false, isComplete = true)
+            _status.value = ContributionStatus.COMPLETED
+            Napier.i("✅ Contribution session completed successfully - sessionId: ${session.sessionId}, duration: ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - session.startTime}ms", tag = Tags.BROWSER_AUTOMATION)
+        } catch (e: Exception) {
+            _status.value = ContributionStatus.ERROR
+            Napier.e("❌ Failed to complete contribution session - sessionId: ${session.sessionId}, error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+            throw e
         }
     }
     
@@ -298,11 +309,11 @@ class ContributionModeService(
             try {
                 onSendMessage(message)
 
-                // 성공적으로 전송된 경우만 버퍼 클리어
-                if (isPartial) {
-                    stepBuffer.clear()
-                    lastSentIndex = session.steps.size
+                val removeCount = min(stepBuffer.size, stepsToSend.size)
+                if (removeCount > 0) {
+                    stepBuffer.subList(0, removeCount).clear()
                 }
+                lastSentIndex = session.steps.size
 
                 Napier.i("✅ Sent ${stepsToSend.size} steps (partial: $isPartial, complete: $isComplete), sessionId: ${message.sessionId}", tag = Tags.BROWSER_AUTOMATION)
                 return
@@ -333,16 +344,11 @@ class ContributionModeService(
     }
     
     private fun endSessionWithTimeout() {
-        currentSession?.isActive = false
-        _status.value = ContributionStatus.SENDING
-        
         coroutineScope.launch {
             try {
-                sendBufferedSteps(isPartial = false, isComplete = true)
-                _status.value = ContributionStatus.COMPLETED
+                endSession()
                 Napier.i("Contribution session auto-completed due to timeout", tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                _status.value = ContributionStatus.ERROR
                 Napier.e("Failed to auto-complete contribution session: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             }
         }
