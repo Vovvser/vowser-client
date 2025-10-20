@@ -55,7 +55,7 @@ fun GraphScreen(
     val isRecording by appViewModel.isRecording.collectAsState()
     val currentGraphDataState by appViewModel.currentGraphData.collectAsState()
     val statusHistory by appViewModel.statusHistory.collectAsState()
-    val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
+    val activeSttModes by appViewModel.selectedSttModes.collectAsState()
     val isWaitingForUser by appViewModel.isWaitingForUser.collectAsState()
     val waitMessage by appViewModel.waitMessage.collectAsState()
     val graphLoading by appViewModel.graphLoading.collectAsState()
@@ -148,7 +148,7 @@ fun GraphScreen(
                         statusHistory = statusHistory,
                         isDeveloperMode = isDeveloperMode,
                         receivedMessage = receivedMessage,
-                        selectedSttModes = selectedSttModes,
+                        selectedSttModes = activeSttModes,
                         onToggleRecording = onToggleRecording,
                         onReconnect = onReconnect,
                         onClearStatusHistory = onClearStatusHistory,
@@ -334,8 +334,8 @@ private fun EmptyStateUI(
 
         // STT 모드 선택기
         SttModeSelector(
-            selectedModes = selectedSttModes,
-            onModeToggle = onToggleSttMode,
+            selectedMode = selectedSttModes.firstOrNull(),
+            onModeSelect = onToggleSttMode,
             isVisible = !isRecording,
             modifier = Modifier.fillMaxWidth()
         )

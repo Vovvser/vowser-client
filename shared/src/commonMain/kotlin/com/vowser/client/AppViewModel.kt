@@ -254,19 +254,15 @@ class AppViewModel(
     }
 
     fun toggleSttMode(modeId: String) {
-        val currentModes = _selectedSttModes.value.toMutableSet()
+        val currentModes = _selectedSttModes.value
 
-        if (currentModes.contains(modeId)) {
-            if (currentModes.size > 1) {
-                currentModes.remove(modeId)
-                addStatusLog("STT 모드 비활성화: ${getSttModeDisplayName(modeId)}", StatusLogType.INFO)
-            }
-        } else {
-            currentModes.add(modeId)
-            addStatusLog("STT 모드 활성화: ${getSttModeDisplayName(modeId)}", StatusLogType.INFO)
+        if (currentModes.size == 1 && currentModes.contains(modeId)) {
+            // 이미 선택된 모드이면 상태 유지
+            return
         }
 
-        _selectedSttModes.value = currentModes
+        addStatusLog("현재 STT 모드 : ${getSttModeDisplayName(modeId)}", StatusLogType.INFO)
+        _selectedSttModes.value = setOf(modeId)
     }
 
     private fun getSttModeDisplayName(modeId: String): String {

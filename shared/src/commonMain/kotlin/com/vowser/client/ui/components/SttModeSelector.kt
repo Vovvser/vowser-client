@@ -1,6 +1,7 @@
 package com.vowser.client.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -18,8 +19,8 @@ import com.vowser.client.ui.theme.AppTheme
 data class SttMode(
     val id: String,
     val name: String,
+    val icon: String,
     val description: String,
-    val iconEmoji: String,
     val isDefault: Boolean = false
 )
 
@@ -28,8 +29,8 @@ data class SttMode(
  */
 @Composable
 fun SttModeSelector(
-    selectedModes: Set<String>,
-    onModeToggle: (String) -> Unit,
+    selectedMode: String?,
+    onModeSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
     isVisible: Boolean = true
 ) {
@@ -37,64 +38,61 @@ fun SttModeSelector(
         SttMode(
             id = "general",
             name = "기본",
+            icon = "가",
             description = "일반 음성 인식",
-            iconEmoji = "\uD83D\uDD35",
             isDefault = true
         ),
         SttMode(
             id = "number",
             name = "숫자",
+            icon = "123",
             description = "숫자 인식 최적화",
-            iconEmoji = "\uD83D\uDFE2",
         ),
         SttMode(
             id = "alphabet",
             name = "알파벳",
+            icon = "ABC",
             description = "알파벳 인식 최적화",
-            iconEmoji = "\uD83D\uDFE1",
-        ),
-        SttMode(
-            id = "snippet",
-            name = "스니펫",
-            description = "코드/명령어 인식",
-            iconEmoji = "\uD83D\uDFE3",
         )
+//      ,  SttMode(
+//            id = "snippet",
+//            name = "스니펫",
+//            description = "코드/명령어 인식",
+//        )
     )
 
     if (isVisible) {
         Card(
-            modifier = modifier.fillMaxWidth(),
+            modifier = modifier
+                .background(
+                    MaterialTheme.colorScheme.background,
+                    RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge)
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                    shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge)
+                )
+                .padding(2.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = AppTheme.Dimensions.cardElevationLow),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(8.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
         ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = AppTheme.Dimensions.paddingMedium, vertical = AppTheme.Dimensions.paddingSmall),
+                    .border(
+                        width = 0.dp,
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusSmall)
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
             ) {
-                Text(
-                    text = "STT:",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    availableModes.forEach { mode ->
-                        SttModeChip(
-                            mode = mode,
-                            isSelected = selectedModes.contains(mode.id),
-                            onToggle = { onModeToggle(mode.id) }
-                        )
-                    }
+                availableModes.forEach { mode ->
+                    SttModeChip(
+                        mode = mode,
+                        isSelected = selectedMode == mode.id,
+                        onToggle = { onModeSelect(mode.id) }
+                    )
                 }
             }
         }
@@ -102,7 +100,7 @@ fun SttModeSelector(
 }
 
 /**
- * STT 모드 선택 칩
+ * STT 모드 선택
  */
 @Composable
 private fun SttModeChip(
@@ -110,25 +108,35 @@ private fun SttModeChip(
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.onBackground
     } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        MaterialTheme.colorScheme.background
+    }
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.background
+    } else {
+        MaterialTheme.colorScheme.onBackground
     }
 
-    Row(
-        modifier = Modifier
-            .clickable { onToggle() }
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    Button(
+        onClick = onToggle,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = containerColor,
+            contentColor = contentColor,
+            disabledContainerColor = MaterialTheme.colorScheme.surface,
+            disabledContentColor =  MaterialTheme.colorScheme.onSurface,
+        ),
+        modifier = Modifier.width(120.dp)
     ) {
         Text(
-            text = mode.iconEmoji,
-            fontSize = 14.sp,
-            color = contentColor
+            text = mode.icon,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 14.sp
+            ),
+            color = contentColor,
+            modifier = Modifier.padding(end = 4.dp)
         )
-
         Text(
             text = mode.name,
             style = MaterialTheme.typography.bodySmall.copy(

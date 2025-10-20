@@ -77,14 +77,15 @@ fun ContributionScreen(
     val contributionStepCount by appViewModel.contributionStepCount.collectAsState()
     val contributionTask by appViewModel.contributionTask.collectAsState()
     val statusHistory by appViewModel.statusHistory.collectAsState()
-    val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
     val isRecording by appViewModel.isRecording.collectAsState()
     val awaitingTask by appViewModel.awaitingContributionTask.collectAsState()
     val pendingContributionTask by appViewModel.pendingContributionTask.collectAsState()
     val isContributionInitializing by appViewModel.isContributionInitializing.collectAsState()
+    val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
 
     var dialogState by remember { mutableStateOf<ContributionDialogState?>(null) }
     var taskInput by remember { mutableStateOf("") }
+
 
     val beginContribution: (String) -> Unit = { rawTask ->
         if (isContributionInitializing) {
@@ -177,14 +178,12 @@ fun ContributionScreen(
                 contributionStepCount = contributionStepCount,
                 contributionTask = contributionTask,
                 statusHistory = statusHistory,
-                selectedSttModes = selectedSttModes,
                 isContributionInitializing = isContributionInitializing,
                 onStopContribution = {
                     dialogState = ContributionDialogState(ContributionDialogOrigin.CompletionButton)
                 },
                 onReconnect = { appViewModel.reconnect() },
                 onClearStatusHistory = { appViewModel.clearStatusHistory() },
-                onToggleSttMode = { mode -> appViewModel.toggleSttMode(mode) },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -204,21 +203,37 @@ fun ContributionScreen(
                 )
             }
 
-            ContributionTaskInputBar(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = maxWidth * 0.1f,
-                        vertical = maxHeight * 0.05f
-                    ),
-                value = taskInput,
-                isRecording = isRecording,
-                awaitingTask = awaitingTask,
-                onValueChange = { taskInput = it },
-                onSubmit = beginContribution,
-                onToggleRecording = { appViewModel.toggleRecording() }
-            )
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                // STT 모드 선택
+                if (awaitingTask) {
+                    SttModeSelector(
+                        selectedMode = selectedSttModes.firstOrNull(),
+                        onModeSelect = { mode -> appViewModel.toggleSttMode(mode) },
+                        isVisible = !isRecording,
+                    )
+                }
+
+                ContributionTaskInputBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = maxWidth * 0.1f,
+                            vertical = maxHeight * 0.05f
+                        ),
+                    value = taskInput,
+                    isRecording = isRecording,
+                    awaitingTask = awaitingTask,
+                    onValueChange = { taskInput = it },
+                    onSubmit = beginContribution,
+                    onToggleRecording = { appViewModel.toggleRecording() }
+                )
+            }
 
             CompleteContributionDialog(
                 state = dialogState,
@@ -241,12 +256,10 @@ private fun ContributionContent(
     contributionStepCount: Int,
     contributionTask: String,
     statusHistory: List<StatusLogEntry>,
-    selectedSttModes: Set<String>,
     isContributionInitializing: Boolean,
     onStopContribution: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
-    onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -260,10 +273,12 @@ private fun ContributionContent(
 
     Column(
         modifier = modifier
-            .padding(AppTheme.Dimensions.paddingMedium,
+            .padding(
                 AppTheme.Dimensions.paddingMedium,
                 AppTheme.Dimensions.paddingMedium,
-                bottom = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingMedium)
+                AppTheme.Dimensions.paddingMedium,
+                bottom = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingMedium
+            )
             .background(MaterialTheme.colorScheme.background),
         verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
     ) {
@@ -403,12 +418,6 @@ private fun ContributionContent(
                 }
             }
         }
-
-        // STT 모드 선택 영역
-//        SttModeSelector(
-//            selectedModes = selectedSttModes,
-//            onToggleMode = onToggleSttMode
-//        )
     }
 }
 
