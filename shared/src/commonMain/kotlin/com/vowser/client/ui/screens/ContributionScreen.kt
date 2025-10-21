@@ -35,23 +35,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.vowser.client.AppViewModel
 import com.vowser.client.StatusLogEntry
 import com.vowser.client.StatusLogType
 import com.vowser.client.contribution.ContributionStatus
 import com.vowser.client.ui.components.GenericAppBar
 import com.vowser.client.ui.components.SttModeSelector
+import com.vowser.client.ui.navigation.LocalScreenNavigator
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.websocket.ConnectionStatus
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
+
+private enum class ContributionDialogOrigin {
+    BackNavigation,
+    CompletionButton
+}
+
+private data class ContributionDialogState(
+    val origin: ContributionDialogOrigin
+)
 
 /**
  * 기여모드 전용 화면
@@ -61,17 +71,34 @@ import org.jetbrains.compose.resources.painterResource
 fun ContributionScreen(
     appViewModel: AppViewModel
 ) {
+    val navigator = LocalScreenNavigator.current
     val connectionStatus by appViewModel.connectionStatus.collectAsState()
     val contributionStatus by appViewModel.contributionStatus.collectAsState()
     val contributionStepCount by appViewModel.contributionStepCount.collectAsState()
     val contributionTask by appViewModel.contributionTask.collectAsState()
     val statusHistory by appViewModel.statusHistory.collectAsState()
-    val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
     val isRecording by appViewModel.isRecording.collectAsState()
     val awaitingTask by appViewModel.awaitingContributionTask.collectAsState()
     val pendingContributionTask by appViewModel.pendingContributionTask.collectAsState()
+    val isContributionInitializing by appViewModel.isContributionInitializing.collectAsState()
+    val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
 
+    var dialogState by remember { mutableStateOf<ContributionDialogState?>(null) }
     var taskInput by remember { mutableStateOf("") }
+
+
+    val beginContribution: (String) -> Unit = { rawTask ->
+        if (isContributionInitializing) {
+            appViewModel.notifyContributionInitializing()
+        } else {
+            val trimmed = rawTask.trim()
+            if (trimmed.isNotEmpty() && awaitingTask) {
+                taskInput = trimmed
+                appViewModel.startContribution(trimmed)
+                appViewModel.clearPendingContributionTask()
+            }
+        }
+    }
 
     LaunchedEffect(contributionStatus) {
         if (contributionStatus == ContributionStatus.INACTIVE) {
@@ -89,15 +116,52 @@ fun ContributionScreen(
     LaunchedEffect(pendingContributionTask) {
         val task = pendingContributionTask?.trim()
         if (awaitingTask && !task.isNullOrEmpty()) {
-            taskInput = task
-            appViewModel.startContribution(task)
-            appViewModel.clearPendingContributionTask()
+            beginContribution(task)
         }
+    }
+
+    val handleBackPress: () -> Unit = {
+        when {
+            isContributionInitializing -> {
+                dialogState = null
+                appViewModel.notifyContributionInitializing()
+            }
+
+            contributionStatus == ContributionStatus.INACTIVE -> navigator.pop()
+            else -> dialogState = ContributionDialogState(ContributionDialogOrigin.BackNavigation)
+        }
+    }
+
+    val handleStop: (ContributionDialogOrigin) -> Unit = { origin ->
+        if (isContributionInitializing) {
+            appViewModel.notifyContributionInitializing()
+        } else {
+            appViewModel.cancelContribution()
+            if (origin == ContributionDialogOrigin.BackNavigation) {
+                navigator.pop()
+            }
+        }
+        dialogState = null
+    }
+
+    val handleComplete: (ContributionDialogOrigin) -> Unit = { origin ->
+        if (isContributionInitializing) {
+            appViewModel.notifyContributionInitializing()
+        } else {
+            appViewModel.stopContribution()
+            if (origin == ContributionDialogOrigin.BackNavigation) {
+                navigator.pop()
+            }
+        }
+        dialogState = null
     }
 
     Scaffold(
         topBar = {
-            GenericAppBar(title = "Contribution Mode")
+            GenericAppBar(
+                title = "Contribution Mode",
+                onBackPress = handleBackPress
+            )
         }
     ) { paddingValues ->
         BoxWithConstraints(
@@ -114,15 +178,12 @@ fun ContributionScreen(
                 contributionStepCount = contributionStepCount,
                 contributionTask = contributionTask,
                 statusHistory = statusHistory,
-                selectedSttModes = selectedSttModes,
-                onStartContribution = { task ->
-                    appViewModel.startContribution(task)
-                    appViewModel.clearPendingContributionTask()
+                isContributionInitializing = isContributionInitializing,
+                onStopContribution = {
+                    dialogState = ContributionDialogState(ContributionDialogOrigin.CompletionButton)
                 },
-                onStopContribution = { appViewModel.stopContribution() },
                 onReconnect = { appViewModel.reconnect() },
                 onClearStatusHistory = { appViewModel.clearStatusHistory() },
-                onToggleSttMode = { mode -> appViewModel.toggleSttMode(mode) },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -130,8 +191,7 @@ fun ContributionScreen(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .padding(bottom = maxHeight * 0.15f)
-                        .background(Color.Gray.copy(alpha = 0.7f))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         .pointerInput(Unit) {
                             awaitPointerEventScope {
                                 while (true) {
@@ -143,26 +203,43 @@ fun ContributionScreen(
                 )
             }
 
-            ContributionTaskInputBar(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = maxWidth * 0.1f,
-                        vertical = maxHeight * 0.05f
-                    ),
-                value = taskInput,
-                isRecording = isRecording,
-                awaitingTask = awaitingTask,
-                onValueChange = { taskInput = it },
-                onSubmit = { task ->
-                    val trimmed = task.trim()
-                    if (awaitingTask && trimmed.isNotEmpty()) {
-                        appViewModel.startContribution(trimmed)
-                        appViewModel.clearPendingContributionTask()
-                    }
-                },
-                onToggleRecording = { appViewModel.toggleRecording() }
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                // STT 모드 선택
+                if (awaitingTask) {
+                    SttModeSelector(
+                        selectedMode = selectedSttModes.firstOrNull(),
+                        onModeSelect = { mode -> appViewModel.toggleSttMode(mode) },
+                        isVisible = !isRecording,
+                    )
+                }
+
+                ContributionTaskInputBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = maxWidth * 0.1f,
+                            vertical = maxHeight * 0.05f
+                        ),
+                    value = taskInput,
+                    isRecording = isRecording,
+                    awaitingTask = awaitingTask,
+                    onValueChange = { taskInput = it },
+                    onSubmit = beginContribution,
+                    onToggleRecording = { appViewModel.toggleRecording() }
+                )
+            }
+
+            CompleteContributionDialog(
+                state = dialogState,
+                onDismiss = { dialogState = null },
+                onStop = handleStop,
+                onComplete = handleComplete
             )
         }
     }
@@ -179,16 +256,13 @@ private fun ContributionContent(
     contributionStepCount: Int,
     contributionTask: String,
     statusHistory: List<StatusLogEntry>,
-    selectedSttModes: Set<String>,
-    onStartContribution: (String) -> Unit,
+    isContributionInitializing: Boolean,
     onStopContribution: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
-    onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
-    val connectionStatusText = connectionStatus.displayText
 
     // 새 로그가 추가될 때 자동 스크롤
     LaunchedEffect(statusHistory.size) {
@@ -199,7 +273,12 @@ private fun ContributionContent(
 
     Column(
         modifier = modifier
-            .padding(AppTheme.Dimensions.paddingMedium)
+            .padding(
+                AppTheme.Dimensions.paddingMedium,
+                AppTheme.Dimensions.paddingMedium,
+                AppTheme.Dimensions.paddingMedium,
+                bottom = AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingXLarge + AppTheme.Dimensions.paddingMedium
+            )
             .background(MaterialTheme.colorScheme.background),
         verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
     ) {
@@ -257,6 +336,7 @@ private fun ContributionContent(
             if (contributionStatus != ContributionStatus.INACTIVE) {
                 Button(
                     onClick = onStopContribution,
+                    enabled = !isContributionInitializing,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,
                         contentColor = MaterialTheme.colorScheme.background
@@ -273,20 +353,6 @@ private fun ContributionContent(
                     Text("기여 완료")
                 }
             }
-        }
-
-        Text(
-            text = "연결 상태: $connectionStatusText",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        )
-
-        if (contributionStatus != ContributionStatus.INACTIVE && contributionTask.isNotBlank()) {
-            Text(
-                text = "기여 작업: $contributionTask (${contributionStepCount} 단계 기록 중)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
         }
 
         // 상태 로그 영역
@@ -382,7 +448,7 @@ private fun ContributionTaskInputBar(
                 color = MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge)
             )
-            .padding(0.dp),
+            .padding(8.dp, 0.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -486,5 +552,93 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+@Composable
+private fun CompleteContributionDialog(
+    state: ContributionDialogState?,
+    onDismiss: () -> Unit,
+    onStop: (ContributionDialogOrigin) -> Unit,
+    onComplete: (ContributionDialogOrigin) -> Unit
+) {
+    val dialogState = state ?: return
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(0.9f),
+            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusLarge)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(AppTheme.Dimensions.paddingLarge),
+                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
+            ) {
+                Text(
+                    "기여를 완료하시겠습니까?",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Text(
+                    "완료를 선택하면 수집된 단계가 서버로 전송됩니다. 중단을 선택하면 현재까지의 단계가 모두 폐기됩니다.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(Modifier.height(AppTheme.Dimensions.paddingMedium))
+
+                Row(
+                    modifier = Modifier.align(Alignment.End),
+                    horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                ) {
+                    OutlinedButton(
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            contentColor = MaterialTheme.colorScheme.onBackground,
+                            disabledContainerColor = MaterialTheme.colorScheme.surface,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
+                        onClick = onDismiss
+                    ) {
+                        Text(
+                            "취소",
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    OutlinedButton(
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            contentColor = MaterialTheme.colorScheme.onBackground,
+                            disabledContainerColor = MaterialTheme.colorScheme.surface,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
+                        onClick = { onStop(dialogState.origin) }) {
+                        Text(
+                            "중단",
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    OutlinedButton(
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background,
+                            disabledContainerColor = MaterialTheme.colorScheme.onSurface,
+                            disabledContentColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
+                        onClick = { onComplete(dialogState.origin) }) {
+                        Text(
+                            "완료",
+                            color = MaterialTheme.colorScheme.background,
+                        )
+                    }
+                }
+            }
+        }
     }
 }

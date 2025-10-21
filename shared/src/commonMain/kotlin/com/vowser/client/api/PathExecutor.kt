@@ -169,28 +169,27 @@ class PathExecutor {
     ) {
         Napier.d("▶ Executing step: ${step.description} (${step.action})", tag = Tags.BROWSER_AUTOMATION)
 
-        val needsNavigate = shouldNavigateBeforeAction(step)
-        if (needsNavigate) {
-            Napier.d("Step requires navigation to different page: ${step.url}", tag = Tags.BROWSER_AUTOMATION)
+        val previousStep = currentPath?.steps?.getOrNull(currentStepIndex - 1)
+        val isPrevStepNavClick = if (previousStep != null) willNavigateOnClick(previousStep) else false
+
+        // 1. Navigate if necessary
+        if (shouldNavigateBeforeAction(step, isPrevStepNavClick)) {
+            Napier.d("Step requires navigation to: ${step.url}", tag = Tags.BROWSER_AUTOMATION)
             executeNavigateStep(step)
-            delay(2000)
+            BrowserAutomationBridge.waitForNetworkIdle()
         }
 
+        // 2. Execute action
         when (step.action) {
             "click" -> {
                 executeClickStep(step)
-                if (willNavigateOnClick(step)) {
-                    Napier.d("Click will cause navigation, waiting for page load...", tag = Tags.BROWSER_AUTOMATION)
-                    delay(2000)
-                }
+                Napier.d("Click succeeded, unconditionally waiting for network to be idle...", tag = Tags.BROWSER_AUTOMATION)
+                BrowserAutomationBridge.waitForNetworkIdle()
             }
             "input", "type" -> executeInputStep(step, getUserInput)
             "wait" -> executeWaitStep(step)
             "navigate" -> {
-                if (!needsNavigate) {
-                    executeNavigateStep(step)
-                    delay(2000)
-                }
+                Napier.d("Explicit navigate action, handled by pre-step navigation check.", tag = Tags.BROWSER_AUTOMATION)
             }
             else -> {
                 Napier.w("Unknown action type: ${step.action}", tag = Tags.BROWSER_AUTOMATION)
@@ -203,7 +202,13 @@ class PathExecutor {
      * - 다음 스텝의 URL이 현재와 다르면 페이지 전환 예상
      */
     private fun willNavigateOnClick(step: PathStepDetail): Boolean {
-        val nextStep = currentPath?.steps?.getOrNull(currentStepIndex + 1) ?: return false
+        if (step.action != "click") return false
+        val steps = currentPath?.steps ?: return false
+        val currentIndex = steps.indexOf(step)
+        if (currentIndex == -1 || currentIndex + 1 >= steps.size) {
+            return false
+        }
+        val nextStep = steps[currentIndex + 1]
         val currentBaseUrl = extractBaseUrl(step.url)
         val nextBaseUrl = extractBaseUrl(nextStep.url)
         return currentBaseUrl != nextBaseUrl
@@ -211,24 +216,23 @@ class PathExecutor {
 
     /**
      * 액션 수행 전에 navigate가 필요한지 판단
-     * - 첫 스텝이면서 루트 URL인 경우
-     * - 또는 이전 스텝과 base URL(도메인+경로)이 다른 경우
      */
-    private fun shouldNavigateBeforeAction(step: PathStepDetail): Boolean {
-        // 첫 스텝이고 루트 URL이면 항상 navigate
-        if (currentStepIndex == 0 && isRootUrl(step.url)) {
-            return true
+    private fun shouldNavigateBeforeAction(step: PathStepDetail, isPrevStepNavClick: Boolean): Boolean {
+        // 이전 스텝이 페이지 전환을 유발하는 클릭이었다면, navigate하지 않음
+        if (isPrevStepNavClick) {
+            Napier.d("Skipping navigation because previous step was a navigation-causing click.", tag = Tags.BROWSER_AUTOMATION)
+            return false
         }
 
-        // 이전 스텝과 base URL이 다르면 navigate 필요
-        val previousStep = currentPath?.steps?.getOrNull(currentStepIndex - 1)
-        if (previousStep != null) {
-            val previousBaseUrl = extractBaseUrl(previousStep.url)
-            val currentBaseUrl = extractBaseUrl(step.url)
-            if (previousBaseUrl != currentBaseUrl) {
-                Napier.d("Base URL changed: $previousBaseUrl -> $currentBaseUrl", tag = Tags.BROWSER_AUTOMATION)
-                return true
-            }
+        // 첫 스텝이거나, 이전 스텝과 base URL이 다르면 navigate 필요
+        val previousStep = currentPath?.steps?.getOrNull(currentStepIndex - 1) ?: // 첫 스텝
+        return true
+
+        val previousBaseUrl = extractBaseUrl(previousStep.url)
+        val currentBaseUrl = extractBaseUrl(step.url)
+        if (previousBaseUrl != currentBaseUrl) {
+            Napier.d("Base URL changed: $previousBaseUrl -> $currentBaseUrl", tag = Tags.BROWSER_AUTOMATION)
+            return true
         }
 
         return false
@@ -247,41 +251,28 @@ class PathExecutor {
     }
 
     /**
-     * URL이 루트 URL인지 확인 (도메인만 있거나 / 뒤에 아무것도 없는 경우)
-     */
-    private fun isRootUrl(url: String): Boolean {
-        return try {
-            val withoutProtocol = url.substringAfter("://")
-            val path = withoutProtocol.substringAfter("/", "")
-            path.isEmpty() || path == "/"
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /**
      * Navigate 액션 실행
      */
     private suspend fun executeNavigateStep(step: PathStepDetail) {
-        try {
-            val navigationStep = NavigationStep(
-                url = step.url,
-                title = step.description,
-                action = "navigate",
-                selector = ""
-            )
+        val navigationStep = NavigationStep(
+            url = step.url,
+            title = step.description,
+            action = "navigate",
+            selector = ""
+        )
 
-            val navigationPath = NavigationPath(
-                pathId = "navigate_${Clock.System.now().toEpochMilliseconds()}",
-                steps = listOf(navigationStep),
-                description = step.description
-            )
+        val navigationPath = NavigationPath(
+            pathId = "navigate_${Clock.System.now().toEpochMilliseconds()}",
+            steps = listOf(navigationStep),
+            description = step.description
+        )
 
-            BrowserAutomationBridge.executeNavigationPath(navigationPath)
+        val success = BrowserAutomationBridge.executeNavigationPath(navigationPath)
+        if (success) {
             Napier.d("Navigate succeeded to: ${step.url}", tag = Tags.BROWSER_AUTOMATION)
-        } catch (e: Exception) {
-            Napier.e("Navigate failed to ${step.url}: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-            throw e
+        } else {
+            Napier.e("Navigate failed to ${step.url}", tag = Tags.BROWSER_AUTOMATION)
+            throw Exception("Navigate action failed for URL: ${step.url}")
         }
     }
 
@@ -289,30 +280,37 @@ class PathExecutor {
      * Click 액션 실행
      */
     private suspend fun executeClickStep(step: PathStepDetail) {
+        val selectors = step.selectors
+        val lastIndex = selectors.lastIndex
+
         // 다중 셀렉터 fallback - 각 셀렉터를 NavigationPath로 변환하여 실행
-        for ((index, selector) in step.selectors.withIndex()) {
-            try {
-                // jQuery 스타일 셀렉터를 Playwright 호환 형식으로 변환
-                val convertedSelector = convertSelector(selector)
+        for ((index, selector) in selectors.withIndex()) {
+            val isLastSelector = index == lastIndex
+            // 마지막 셀렉터가 아니면 빠른 타임아웃 적용, 마지막이면 기본 타임아웃(null)
+            val timeout = if (!isLastSelector) 2000.0 else null
 
-                val navigationStep = NavigationStep(
-                    url = step.url,
-                    title = step.description,
-                    action = "click",
-                    selector = convertedSelector
-                )
+            // jQuery 스타일 셀렉터를 Playwright 호환 형식으로 변환
+            val convertedSelector = convertSelector(selector)
 
-                val navigationPath = NavigationPath(
-                    pathId = "single_step_${Clock.System.now().toEpochMilliseconds()}",
-                    steps = listOf(navigationStep),
-                    description = step.description
-                )
+            val navigationStep = NavigationStep(
+                url = step.url,
+                title = step.description,
+                action = "click",
+                selector = convertedSelector
+            )
 
-                BrowserAutomationBridge.executeNavigationPath(navigationPath)
+            val navigationPath = NavigationPath(
+                pathId = "single_step_${Clock.System.now().toEpochMilliseconds()}",
+                steps = listOf(navigationStep),
+                description = step.description
+            )
+
+            val success = BrowserAutomationBridge.executeNavigationPath(navigationPath, timeout)
+            if (success) {
                 Napier.d("Click succeeded with selector[$index]: $convertedSelector", tag = Tags.BROWSER_AUTOMATION)
                 return
-            } catch (e: Exception) {
-                Napier.d("Click failed with selector[$index]: $selector - ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+            } else {
+                Napier.d("Click failed with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
                 // 다음 셀렉터 시도
             }
         }
@@ -498,26 +496,26 @@ class PathExecutor {
 
         // 다중 셀렉터 fallback
         for ((index, selector) in step.selectors.withIndex()) {
-            try {
-                val navigationStep = NavigationStep(
-                    url = step.url,
-                    title = step.description,
-                    action = "type",
-                    selector = selector,
-                    htmlAttributes = mapOf("value" to inputValue)
-                )
+            val navigationStep = NavigationStep(
+                url = step.url,
+                title = step.description,
+                action = "type",
+                selector = selector,
+                htmlAttributes = mapOf("value" to inputValue)
+            )
 
-                val navigationPath = NavigationPath(
-                    pathId = "single_step_${Clock.System.now().toEpochMilliseconds()}",
-                    steps = listOf(navigationStep),
-                    description = step.description
-                )
+            val navigationPath = NavigationPath(
+                pathId = "single_step_${Clock.System.now().toEpochMilliseconds()}",
+                steps = listOf(navigationStep),
+                description = step.description
+            )
 
-                BrowserAutomationBridge.executeNavigationPath(navigationPath)
+            val success = BrowserAutomationBridge.executeNavigationPath(navigationPath)
+            if (success) {
                 Napier.d("Input succeeded with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
                 return
-            } catch (e: Exception) {
-                Napier.d("Input failed with selector[$index]: $selector - ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+            } else {
+                Napier.d("Input failed with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
             }
         }
 
