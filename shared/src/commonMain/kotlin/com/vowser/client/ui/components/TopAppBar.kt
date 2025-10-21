@@ -38,7 +38,7 @@ fun HomeAppBar(
     onContribution: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenUser: () -> Unit,
-    onLogin: () -> Unit
+    onLogin: () -> Unit,
 ) {
     TopAppBar(
         title = {

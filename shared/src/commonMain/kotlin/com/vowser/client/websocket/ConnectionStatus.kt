@@ -9,6 +9,6 @@ enum class ConnectionStatus(
 ) {
     Disconnected("연결 끊김", AppTheme.Colors.Error),
     Connecting("연결 중", AppTheme.Colors.Loading),
-    Connected("연결됨", AppTheme.Colors.Green),
+    Connected("연결됨", AppTheme.Colors.Purple),
     Error("연결 끊김", AppTheme.Colors.Error)
 }

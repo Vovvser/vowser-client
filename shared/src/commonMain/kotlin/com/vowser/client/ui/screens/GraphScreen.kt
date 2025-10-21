@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -123,7 +124,7 @@ fun GraphScreen(
                 )
             }
         ) { paddingValues ->
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -154,7 +155,9 @@ fun GraphScreen(
                         onClearStatusHistory = onClearStatusHistory,
                         onToggleSttMode = onToggleSttMode,
                         onShowGraph = { if (graphData != null) showGraphView = true },
-                        modifier = Modifier.fillMaxSize() // 수동 padding 제거
+                        modifier = Modifier.fillMaxSize(), // 수동 padding 제거
+                        maxWidth = maxWidth,
+                        maxHeight = maxHeight
                     )
                 }
 
@@ -233,6 +236,7 @@ fun GraphScreen(
     }
 }
 
+
 /**
  * 통합 상태 UI
  */
@@ -249,7 +253,9 @@ private fun EmptyStateUI(
     onClearStatusHistory: () -> Unit,
     onShowGraph: () -> Unit,
     onToggleSttMode: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    maxWidth: Dp,
+    maxHeight: Dp
 ) {
     val listState = rememberLazyListState()
 
@@ -261,7 +267,7 @@ private fun EmptyStateUI(
     }
 
     Column(
-        modifier = modifier.padding(AppTheme.Dimensions.paddingMedium),
+        modifier = modifier.padding(horizontal = maxWidth * 0.05f),
         verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
     ) {
         // 상단 버튼 영역

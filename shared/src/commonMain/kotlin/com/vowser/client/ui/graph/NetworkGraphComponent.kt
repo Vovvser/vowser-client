@@ -21,7 +21,7 @@ enum class NodeType(val color: Color, val size: Float) {
     CLICK(Color(0xFF4CAF50), 60f),      // 클릭 - 녹색
     INPUT(Color(0xFFFF9800), 60f),      // 입력 - 주황색
     WAIT(Color(0xFF9C27B0), 60f),       // 대기 - 보라색
-    START(Color(0xFFDD896B), 80f),      // 시작 노드 (backward compatibility)
-    WEBSITE(Color(0xFF5776CD), 70f),    // 웹사이트 노드 (backward compatibility)
-    ACTION(Color(0xFF8160BD), 35f)      // 액션 노드 (backward compatibility)
+    START(Color(0xFFDD896B), 80f),      // 시작 노드
+    WEBSITE(Color(0xFF5776CD), 70f),    // 웹사이트 노드
+    ACTION(Color(0xFF8160BD), 35f)      // 액션 노드
 }
