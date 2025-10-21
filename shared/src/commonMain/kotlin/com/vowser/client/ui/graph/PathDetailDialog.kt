@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,7 +31,8 @@ fun PathDetailDialog(
                 .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = Color.White,
+                contentColor = Color.Black
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
@@ -46,23 +48,22 @@ fun PathDetailDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Search Result Details",
+                        text = "검색 결과 상세보기",
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                     IconButton(onClick = onDismiss) {
-                        Text("✕", fontSize = 24.sp)
+                        Text("✕", fontSize = 24.sp, color = Color.Black)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Search Summary
                 SearchSummaryCard(searchInfo)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Path List
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -89,38 +90,41 @@ private fun SearchSummaryCard(searchInfo: SearchInfo) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = Color.White,
+            contentColor  = Color.Black
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Query:",
+                    text = "검색어:",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black
                 )
                 Text(
                     text = searchInfo.query,
                     fontSize = MaterialTheme.typography.titleMedium.fontSize,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.Black
                 )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                InfoChip("Total Paths", "${searchInfo.totalPaths}")
-                InfoChip("Search Time", "${searchInfo.searchTimeMs}ms")
+                InfoChip("총 경로 수", "${searchInfo.totalPaths}")
+                InfoChip("검색 시간", "${searchInfo.searchTimeMs}ms")
                 searchInfo.topRelevance?.let {
-                    InfoChip("Top Score", "${(it * 100).toInt()}%")
+                    InfoChip("최고 점수", "${(it * 100).toInt()}%")
                 }
             }
         }
@@ -165,7 +169,6 @@ private fun PathDetailCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Path Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -188,9 +191,8 @@ private fun PathDetailCard(
 
             Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // Steps
             Text(
-                text = "Execution Steps (${path.steps.size})",
+                text = "실행 단계 (${path.steps.size}개)",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -204,7 +206,7 @@ private fun PathDetailCard(
 
                 if (path.steps.size > 5) {
                     Text(
-                        text = "... and ${path.steps.size - 5} more steps",
+                        text = "... 외 ${path.steps.size - 5}단계 더 있음",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         modifier = Modifier.padding(start = 16.dp)
@@ -243,7 +245,6 @@ private fun StepItem(order: Int, step: com.vowser.client.api.dto.PathStepDetail)
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // Order number
         Text(
             text = "$order.",
             style = MaterialTheme.typography.bodySmall,
@@ -251,12 +252,24 @@ private fun StepItem(order: Int, step: com.vowser.client.api.dto.PathStepDetail)
             color = MaterialTheme.colorScheme.primary
         )
 
-        // Description and URL
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+
+            val actionLabel = when (step.action.uppercase()) {
+                "NAVIGATE" -> "이동"
+                "CLICK" -> "클릭"
+                "INPUT" -> "입력"
+                "WAIT" -> "대기"
+                "START" -> "시작"
+                "ACTION" -> "액션"
+                "WEBSITE" -> "웹사이트"
+                else -> step.action
+            }
+
             Text(
-                text = "[${step.action.uppercase()}] ${step.description}",
+                text = "[$actionLabel] ${step.description}",
                 style = MaterialTheme.typography.bodyMedium,
-                lineHeight = 18.sp
+                lineHeight = 18.sp,
+                color = Color.Black
             )
             Text(
                 text = step.url.take(70) + if (step.url.length > 70) "..." else "",

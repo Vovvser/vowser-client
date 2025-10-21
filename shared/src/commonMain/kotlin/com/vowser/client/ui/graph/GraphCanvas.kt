@@ -33,7 +33,6 @@ import kotlin.math.*
 fun GraphCanvas(
     nodes: List<GraphNode>,
     edges: List<GraphEdge>,
-    canvasSize: Size,
     scale: Float,
     offset: Offset,
     highlightedPath: List<String>,
@@ -42,8 +41,6 @@ fun GraphCanvas(
     selectedNode: GraphNode?,
     onCanvasSizeChanged: (Size) -> Unit,
     modifier: Modifier = Modifier,
-    edgeColorOverride: Color? = null,
-    edgeHighlightColorOverride: Color? = null,
     style: GraphStyle,
     showGrid: Boolean = false,
 ) {
@@ -80,10 +77,7 @@ fun GraphCanvas(
                 offset = offset,
                 isContributionMode = isContributionMode,
                 textMeasurer = textMeasurer,
-                defaultColor = style.edge,
                 backgroundColor = style.labelBg,
-                edgeColorOverride = edgeColorOverride,
-                edgeHighlightColorOverride = edgeHighlightColorOverride,
                 style = style
             )
 
@@ -97,8 +91,6 @@ fun GraphCanvas(
                 pulseScale = pulse,
                 isContributionMode = isContributionMode,
                 textMeasurer = textMeasurer,
-                defaultColor = style.labelText,
-                backgroundColor = style.labelBg,
                 style = style
             )
         }
@@ -142,10 +134,7 @@ private fun DrawScope.drawUltraModernEdges(
     offset: Offset,
     isContributionMode: Boolean,
     textMeasurer: TextMeasurer,
-    defaultColor: Color,
     backgroundColor: Color,
-    edgeColorOverride: Color? = null,
-    edgeHighlightColorOverride: Color? = null,
     style: GraphStyle,
 ) {
     val nodeMap = nodes.associateBy { it.id }
@@ -232,24 +221,6 @@ private fun DrawScope.drawUltraModernEdges(
     }
 }
 
-private fun DrawScope.drawArrowHead(start: Offset, end: Offset, color: Color, width: Float) {
-    val arrowLen = 11f
-    val arrowAng = PI / 6
-    val ang = atan2(end.y - start.y, end.x - start.x)
-    val tip = end - Offset(cos(ang) * 20f, sin(ang) * 20f)
-
-    val e1 = Offset(
-        tip.x - arrowLen * cos(ang - arrowAng).toFloat(),
-        tip.y - arrowLen * sin(ang - arrowAng).toFloat()
-    )
-    val e2 = Offset(
-        tip.x - arrowLen * cos(ang + arrowAng).toFloat(),
-        tip.y - arrowLen * sin(ang + arrowAng).toFloat()
-    )
-    drawLine(color, tip, e1, width, StrokeCap.Round)
-    drawLine(color, tip, e2, width, StrokeCap.Round)
-}
-
 private fun DrawScope.drawUltraModernNodes(
     nodes: List<GraphNode>,
     highlightedPath: List<String>,
@@ -260,8 +231,6 @@ private fun DrawScope.drawUltraModernNodes(
     pulseScale: Float,
     isContributionMode: Boolean,
     textMeasurer: TextMeasurer,
-    defaultColor: Color,
-    backgroundColor: Color,
     style: GraphStyle,
 ) {
     val nodeLabelSp = (13f * scale).sp

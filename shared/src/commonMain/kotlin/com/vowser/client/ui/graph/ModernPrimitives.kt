@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.*
 
@@ -30,25 +29,6 @@ fun GlassPanel(
             .padding(12.dp),
         content = content
     )
-}
-
-@Composable
-fun ProgressPill(
-    progress: Float,
-    modifier: Modifier = Modifier,
-    height: Dp = 10.dp,
-    gradient: Brush? = null
-) {
-    val cs = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(999.dp)
-    Box(modifier = modifier.height(height).clip(shape).background(cs.onSurface.copy(alpha = 0.08f))) {
-        Box(
-            Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(progress.coerceIn(0f,1f))
-                .background(gradient ?: Brush.horizontalGradient(listOf(cs.primary, cs.tertiary)))
-        )
-    }
 }
 
 @Composable
