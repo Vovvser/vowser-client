@@ -1031,28 +1031,74 @@ object BrowserAutomationService {
     private fun extractElementAttributes(locator: Locator): Map<String, String> {
         return try {
             val element = locator.first()
-            val attributes = mutableMapOf<String, String>()
 
-            // 텍스트 내용 추출
-            element.textContent()?.let { text ->
-                if (text.isNotBlank()) attributes["text"] = text.trim()
-            }
-
-            // 주요 속성들 추출
-            listOf("id", "class", "name", "type", "href", "alt", "title", "aria-label").forEach { attr ->
-                try {
-                    element.getAttribute(attr)?.let { value ->
-                        if (value.isNotBlank()) attributes[attr] = value
+            @Suppress("UNCHECKED_CAST")
+            val attributes = element.evaluate(
+                """(element) => {
+                    const result = {};
+                    const textContent = element.textContent || "";
+                    const trimmedText = textContent.trim();
+                    if (trimmedText.length > 0) {
+                        result.text = trimmedText;
                     }
-                } catch (e: Exception) {
-                    // 속성이 없는 경우 무시
-                }
-            }
+
+                    const attributeNames = ["id", "class", "name", "type", "href", "alt", "title", "aria-label", "placeholder", "value"];
+                    for (const name of attributeNames) {
+                        const value = element.getAttribute(name);
+                        if (value && value.trim().length > 0) {
+                            result[name] = value;
+                        }
+                    }
+
+                    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+                        if (!result.type && element.type && element.type.trim().length > 0) {
+                            result.type = element.type;
+                        }
+                        if (!result.placeholder && element.placeholder && element.placeholder.trim().length > 0) {
+                            result.placeholder = element.placeholder;
+                        }
+                        if (!result.value && element.value && element.value.trim().length > 0) {
+                            result.value = element.value;
+                        }
+                    }
+
+                    return result;
+                }"""
+            ) as? Map<String, Any?>
 
             attributes
+                ?.mapNotNull { (key, value) ->
+                    val stringValue = value?.toString()?.trim()
+                    if (stringValue.isNullOrEmpty()) null else key to stringValue
+                }
+                ?.toMap()
+                ?: emptyMap()
         } catch (e: Exception) {
-            Napier.w("Failed to extract element attributes: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
-            emptyMap()
+            Napier.w("Failed to extract element attributes via script: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+
+            try {
+                val element = locator.first()
+                val map = mutableMapOf<String, String>()
+
+                element.textContent()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { map["text"] = it }
+
+                listOf("id", "class", "name", "type", "href", "alt", "title", "aria-label", "placeholder", "value")
+                    .forEach { attr ->
+                        runCatching { element.getAttribute(attr) }
+                            .getOrNull()
+                            ?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.let { map[attr] = it }
+                    }
+
+                map
+            } catch (fallbackError: Exception) {
+                Napier.w("Fallback attribute extraction failed: ${fallbackError.message}", tag = Tags.BROWSER_AUTOMATION)
+                emptyMap()
+            }
         }
     }
 
