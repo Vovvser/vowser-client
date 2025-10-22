@@ -54,11 +54,6 @@ fun SttModeSelector(
             icon = "ABC",
             description = "알파벳 인식 최적화",
         )
-//      ,  SttMode(
-//            id = "snippet",
-//            name = "스니펫",
-//            description = "코드/명령어 인식",
-//        )
     )
 
     if (isVisible) {

@@ -257,7 +257,6 @@ class AppViewModel(
         val currentModes = _selectedSttModes.value
 
         if (currentModes.size == 1 && currentModes.contains(modeId)) {
-            // 이미 선택된 모드이면 상태 유지
             return
         }
 
@@ -270,7 +269,6 @@ class AppViewModel(
             "general" -> "일반"
             "number" -> "숫자"
             "alphabet" -> "알파벳"
-            "snippet" -> "스니펫"
             else -> modeId
         }
     }
