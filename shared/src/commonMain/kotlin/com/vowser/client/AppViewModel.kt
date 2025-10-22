@@ -22,6 +22,10 @@ import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
 import io.github.aakira.napier.Napier
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.ServerResponseException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -183,10 +187,22 @@ class AppViewModel(
             result.onSuccess { memberResponse ->
                 _authState.value = AuthState.Authenticated(memberResponse.name, memberResponse.email)
                 _userInfo.value = memberResponse
-            }.onFailure {
-                _authState.value = AuthState.NotAuthenticated
-                _userInfo.value = null
-                tokenStorage.clearTokens()
+            }.onFailure { error ->
+                val shouldInvalidateTokens = when (error) {
+                    is ClientRequestException -> error.response.status == HttpStatusCode.Unauthorized
+                    is ServerResponseException -> error.response.status == HttpStatusCode.Unauthorized
+                    is ResponseException -> error.response.status == HttpStatusCode.Unauthorized
+                    else -> false
+                }
+
+                if (shouldInvalidateTokens) {
+                    tokenStorage.clearTokens()
+                    _userInfo.value = null
+                    _authState.value = AuthState.NotAuthenticated
+                } else {
+                    Napier.w("Failed to verify auth status: ${error.message}", error, tag = Tags.AUTH)
+                    _authState.value = AuthState.Error(error.message ?: "인증 상태 확인 실패")
+                }
             }
         }
     }
