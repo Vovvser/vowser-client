@@ -47,9 +47,9 @@ fun UserScreen(
     var showQuickVerify by remember { mutableStateOf(false) }
 
     // 화면 진입 시 유저 정보 새로고침
-     LaunchedEffect(Unit) {
-         viewModel.refreshUserInfo()
-     }
+    LaunchedEffect(Unit) {
+        viewModel.refreshUserInfo()
+    }
 
     Scaffold(
         topBar = {
@@ -98,46 +98,64 @@ fun UserScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(colGap)) {
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)) {
+                                Column(
+                                    Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                                ) {
                                     InfoItem("이름", userInfo!!.name)
                                     InfoItem("가입 날짜", formatKoreanDate(userInfo!!.createdAt))
                                     InfoItem("휴대폰 번호", userInfo!!.phoneNumber ?: "-")
                                 }
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)) {
+                                Column(
+                                    Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                                ) {
                                     InfoItem("네이버 아이디", userInfo!!.email)
                                     InfoItem("이메일", userInfo!!.email)
                                     InfoItem("생년월일", userInfo!!.birthdate ?: "-")
                                 }
                             }
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(maxWidth * 0.02f)
+                            Column (
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                OutlinedButton(
-                                    onClick = { showQuickVerify = true },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(AppTheme.Dimensions.buttonHeight),
-                                    border = ButtonDefaults.outlinedButtonBorder
+                                Text(
+                                    "이 정보는 네이버에서 제공된 내용입니다. 정보를 변경하려면 네이버 웹사이트에서 수정해 주세요.",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(maxWidth * 0.02f)
                                 ) {
-                                    Text(
-                                        "+  간편 인증 추가",
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
+                                    OutlinedButton(
+                                        onClick = { showQuickVerify = true },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(AppTheme.Dimensions.buttonHeight),
+                                        border = ButtonDefaults.outlinedButtonBorder
+                                    ) {
+                                        Text(
+                                            "+  간편 인증 추가",
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            viewModel.logout()
+                                            navigator.replaceAll(AppScreen.HOME)
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(AppTheme.Dimensions.buttonHeight),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = Color.White
+                                        )
+                                    ) { Text("로그아웃") }
                                 }
-                                Button(
-                                    onClick = {
-                                        viewModel.logout()
-                                        navigator.replaceAll(AppScreen.HOME)
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(AppTheme.Dimensions.buttonHeight),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.error,
-                                        contentColor = Color.White
-                                    )
-                                ) { Text("로그아웃") }
                             }
                         }
                     }
@@ -241,7 +259,11 @@ private fun QuickVerifyDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(AppTheme.Dimensions.borderRadius))
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline,
+                                        RoundedCornerShape(AppTheme.Dimensions.borderRadius)
+                                    )
                                     .background(
                                         MaterialTheme.colorScheme.surface,
                                         RoundedCornerShape(AppTheme.Dimensions.borderRadius)
