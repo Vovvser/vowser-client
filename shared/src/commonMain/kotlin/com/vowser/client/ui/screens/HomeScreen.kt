@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.vowser.client.AppViewModel
 import com.vowser.client.ui.components.HomeAppBar
 import com.vowser.client.ui.theme.AppTheme
+import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.navigation.LocalScreenNavigator
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
@@ -49,6 +50,7 @@ fun HomeScreen(
     val isRecording by viewModel.isRecording.collectAsState()
     val receivedMessage by viewModel.receivedMessage.collectAsState()
     val pendingCommand by viewModel.pendingCommand.collectAsState()
+    val selectedSttModes by viewModel.selectedSttModes.collectAsState()
 
     // 음성 인식 결과 처리
     LaunchedEffect(receivedMessage, isRecording, pendingCommand) {
@@ -131,15 +133,22 @@ fun HomeScreen(
                 }
 
                 // 하단 검색창
-                Box(
-                    Modifier
+                Column(
+                    modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(
                             horizontal = maxWidth * 0.1f,
                             vertical = maxHeight * 0.05f
-                        )
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    SttModeSelector(
+                        selectedMode = selectedSttModes.firstOrNull(),
+                        onModeSelect = { mode -> viewModel.toggleSttMode(mode) },
+                        isVisible = !isRecording,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
