@@ -22,6 +22,7 @@ import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
 import io.github.aakira.napier.Napier
+import io.ktor.websocket.CloseReason
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.ServerResponseException
@@ -83,7 +84,6 @@ class AppViewModel(
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
     private val _recordingStatus = MutableStateFlow("Ready to record")
-    val recordingStatus: StateFlow<String> = _recordingStatus.asStateFlow()
 
     // 그래프 상태 관리
     private val _currentGraphData = MutableStateFlow<GraphVisualizationData?>(null)
@@ -168,6 +168,33 @@ class AppViewModel(
     val pendingContributionTask: StateFlow<String?> = _pendingContributionTask.asStateFlow()
 
     init {
+        webSocketClient.onConnectionOpened = {
+            coroutineScope.launch {
+                _connectionStatus.value = ConnectionStatus.Connected
+                addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
+            }
+        }
+        webSocketClient.onConnectionClosed = { reason ->
+            coroutineScope.launch {
+                val newStatus = when (reason?.code) {
+                    CloseReason.Codes.NORMAL.code,
+                    CloseReason.Codes.GOING_AWAY.code,
+                    null -> ConnectionStatus.Disconnected
+                    else -> ConnectionStatus.Error
+                }
+
+                if (_connectionStatus.value != newStatus) {
+                    _connectionStatus.value = newStatus
+                    val message = if (newStatus == ConnectionStatus.Disconnected) {
+                        "서버 연결이 종료되었습니다."
+                    } else {
+                        "서버 연결이 비정상적으로 종료되었습니다."
+                    }
+                    addStatusLog(message, if (newStatus == ConnectionStatus.Disconnected) StatusLogType.WARNING else StatusLogType.ERROR)
+                }
+            }
+        }
+
         checkAuthStatus()
         setupWebSocketCallbacks()
         connectWebSocket()
@@ -333,6 +360,23 @@ class AppViewModel(
         Napier.d("Pending command cleared", tag = Tags.APP_VIEWMODEL)
     }
 
+    fun cancelActiveAutomation() {
+        coroutineScope.launch {
+            val wasExecuting = _isExecutingPath.value
+
+            pathExecutor.cancelExecution()
+            _isExecutingPath.value = false
+            _executionProgress.value = ""
+            _currentExecutingPath.value = null
+            _currentStepIndex.value = -1
+            _currentGraphData.update { it?.copy(activeNodeId = null) }
+
+            if (wasExecuting) {
+                addStatusLog("경로 실행이 중단되었습니다.", StatusLogType.WARNING)
+            }
+        }
+    }
+
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
@@ -396,8 +440,8 @@ class AppViewModel(
     fun reconnect() {
         coroutineScope.launch {
             addStatusLog("서버 재연결 시도...", StatusLogType.INFO)
-            webSocketClient.reconnect()
             _connectionStatus.value = ConnectionStatus.Connecting
+            webSocketClient.reconnect()
         }
     }
 
@@ -605,8 +649,7 @@ class AppViewModel(
             val stepCount = contributionModeService.currentStepCount.value
             val task = contributionModeService.currentTask.value
             val sessionId = contributionModeService.getCurrentSessionId()
-            var stepsSnapshot: List<ContributionStep> = emptyList()
-
+            var stepsSnapshot: List<ContributionStep>
             try {
                 runCatching { BrowserAutomationBridge.stopContributionRecording() }
                     .onFailure {
