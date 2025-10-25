@@ -421,13 +421,13 @@ object BrowserAutomationService {
             Napier.d("Click preparation took ${preparationTime}ms", tag = Tags.BROWSER_AUTOMATION)
 
             val clickTime = measureTimeMillis {
-                element.click()
+                element.click(Locator.ClickOptions().setNoWaitAfter(true))
             }
             Napier.d("Click action took ${clickTime}ms", tag = Tags.BROWSER_AUTOMATION)
 
             recordContributionStep(
-                page.url(),
-                page.title(),
+                runCatching { page.url() }.getOrElse { runCatching { page.url() }.getOrElse { "about:blank" } },
+                runCatching { page.title() }.getOrElse { runCatching { page.title() }.getOrElse { "" } },
                 "click",
                 selector,
                 extractedAttributes
@@ -1026,6 +1026,80 @@ object BrowserAutomationService {
 
         contributionRecordingCallback?.invoke(step)
         Napier.i("Contribution Step Recorded: [${step.action}] ${step.title} (${step.url})", tag = Tags.BROWSER_AUTOMATION)
+    }
+
+    suspend fun getSelectOptions(selector: String): List<SelectOption> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                Napier.e("Cannot read select options: page not initialized", tag = Tags.BROWSER_AUTOMATION)
+                return@withLock emptyList()
+            }
+
+            var locator = page.locator(selector)
+            if (locator.count() == 0) {
+                val frameLocator = findElementInFrames(selector)
+                if (frameLocator != null) {
+                    locator = frameLocator
+                } else {
+                    Napier.w("Select element not found for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    return@withLock emptyList()
+                }
+            }
+
+            val selectElement = locator.first()
+            val optionLocator = selectElement.locator("option")
+            val count = optionLocator.count()
+
+            (0 until count).mapNotNull { index ->
+                runCatching {
+                    val option = optionLocator.nth(index)
+                    val value = option.getAttribute("value")?.trim().orEmpty()
+                    val label = option.textContent()?.trim().orEmpty()
+                    val selected = runCatching { option.evaluate("opt => opt.selected") as? Boolean }
+                        .getOrNull() ?: false
+
+                    if (value.isBlank() && label.isBlank()) {
+                        null
+                    } else {
+                        SelectOption(
+                            value = if (value.isNotBlank()) value else label,
+                            label = if (label.isNotBlank()) label else value,
+                            isSelected = selected
+                        )
+                    }
+                }.getOrElse { error ->
+                    Napier.w("Failed to read option at index $index for selector $selector: ${error.message}", tag = Tags.BROWSER_AUTOMATION)
+                    null
+                }
+            }
+        }
+    }
+
+    suspend fun selectOption(selector: String, value: String) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                Napier.e("Cannot select option: page not initialized", tag = Tags.BROWSER_AUTOMATION)
+                return@withLock
+            }
+
+            var locator = page.locator(selector)
+            if (locator.count() == 0) {
+                val frameLocator = findElementInFrames(selector)
+                if (frameLocator != null) {
+                    locator = frameLocator
+                } else {
+                    throw PlaywrightException("Select element not found for selector: $selector")
+                }
+            }
+
+            try {
+                locator.first().selectOption(value)
+                Napier.i("Selected option value '$value' on selector $selector", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.e("Failed to select option '$value' on $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            }
+        }
     }
 
     private fun extractElementAttributes(locator: Locator): Map<String, String> {

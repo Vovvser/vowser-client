@@ -12,4 +12,6 @@ expect object BrowserAutomationBridge {
     fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit)
     fun setContributionBrowserClosedCallback(callback: (() -> Unit)?)
     suspend fun cleanupContribution()
+    suspend fun getSelectOptions(selector: String): List<SelectOption>
+    suspend fun selectOption(selector: String, value: String)
 }

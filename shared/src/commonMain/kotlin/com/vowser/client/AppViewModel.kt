@@ -12,6 +12,7 @@ import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.api.dto.PathSearchResponse
 import com.vowser.client.logging.LogUtils
 import com.vowser.client.logging.Tags
+import com.vowser.client.browserautomation.SelectOption
 import com.vowser.client.model.AuthState
 import com.vowser.client.model.MemberResponse
 import com.vowser.client.visualization.GraphVisualizationData
@@ -137,6 +138,14 @@ class AppViewModel(
     val inputRequest: StateFlow<com.vowser.client.api.dto.PathStepDetail?> = _inputRequest.asStateFlow()
 
     private var userInputContinuation: kotlin.coroutines.Continuation<String>? = null
+
+    private val _isWaitingForSelect = MutableStateFlow(false)
+    val isWaitingForSelect: StateFlow<Boolean> = _isWaitingForSelect.asStateFlow()
+
+    private val _selectOptions = MutableStateFlow<List<SelectOption>>(emptyList())
+    val selectOptions: StateFlow<List<SelectOption>> = _selectOptions.asStateFlow()
+
+    private var userSelectContinuation: kotlin.coroutines.Continuation<String>? = null
 
     // STT modes
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
@@ -370,6 +379,11 @@ class AppViewModel(
             _currentExecutingPath.value = null
             _currentStepIndex.value = -1
             _currentGraphData.update { it?.copy(activeNodeId = null) }
+            userSelectContinuation?.resume("")
+            userSelectContinuation = null
+            _isWaitingForSelect.value = false
+            _selectOptions.value = emptyList()
+            _inputRequest.value = null
 
             if (wasExecuting) {
                 addStatusLog("경로 실행이 중단되었습니다.", StatusLogType.WARNING)
@@ -899,6 +913,7 @@ class AppViewModel(
                 },
 
                 getUserInput = ::requestUserInput,
+                getUserSelect = ::requestUserSelect,
                 onLog = { message ->
                     addStatusLog(message, StatusLogType.INFO)
                 },
@@ -955,6 +970,7 @@ class AppViewModel(
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
                 getUserInput = ::requestUserInput,
+                getUserSelect = ::requestUserSelect,
                 onLog = { message -> addStatusLog(message, StatusLogType.INFO) },
                 onWaitForUser = { message -> waitForUserConfirmation(message) }
             )
@@ -1051,6 +1067,25 @@ class AppViewModel(
         }
     }
 
+    private suspend fun requestUserSelect(step: com.vowser.client.api.dto.PathStepDetail,
+                                          options: List<SelectOption>): String {
+        return suspendCancellableCoroutine { continuation ->
+            _isWaitingForSelect.value = true
+            _isWaitingForUserInput.value = false
+            _inputRequest.value = step
+            _selectOptions.value = options.toList()
+            userSelectContinuation = continuation
+            addStatusLog("옵션 선택 필요: ${step.description}", StatusLogType.INFO)
+
+            continuation.invokeOnCancellation {
+                _isWaitingForSelect.value = false
+                _selectOptions.value = emptyList()
+                _inputRequest.value = null
+                userSelectContinuation = null
+            }
+        }
+    }
+
     /**
      * 사용자 확인을 기다리는 suspend 함수
      * - PathExecutor의 onWaitForUser 콜백에 전달됩니다
@@ -1091,12 +1126,31 @@ class AppViewModel(
         addStatusLog("사용자 입력: $input", StatusLogType.INFO)
     }
 
+    fun submitUserSelect(value: String) {
+        val label = _selectOptions.value.firstOrNull { it.value == value }?.label ?: value
+        userSelectContinuation?.resume(value)
+        userSelectContinuation = null
+        _isWaitingForSelect.value = false
+        _selectOptions.value = emptyList()
+        _inputRequest.value = null
+        addStatusLog("사용자 선택: $label", StatusLogType.INFO)
+    }
+
     fun cancelUserInput() {
         userInputContinuation?.resume("")
         userInputContinuation = null
         _isWaitingForUserInput.value = false
         _inputRequest.value = null
         addStatusLog("사용자 입력 취소", StatusLogType.WARNING)
+    }
+
+    fun cancelUserSelect() {
+        userSelectContinuation?.resume("")
+        userSelectContinuation = null
+        _isWaitingForSelect.value = false
+        _selectOptions.value = emptyList()
+        _inputRequest.value = null
+        addStatusLog("사용자 선택 취소", StatusLogType.WARNING)
     }
 
     /**
