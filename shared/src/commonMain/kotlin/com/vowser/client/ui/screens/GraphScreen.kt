@@ -1,20 +1,18 @@
 package com.vowser.client.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -24,7 +22,6 @@ import com.vowser.client.StatusLogType
 import com.vowser.client.exception.DialogState
 import com.vowser.client.ui.components.GenericAppBar
 import com.vowser.client.ui.components.StatisticsPanel
-import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.components.StandardDialogs
 import com.vowser.client.ui.error.ErrorBoundary
 import com.vowser.client.ui.error.ErrorState
@@ -33,6 +30,8 @@ import com.vowser.client.ui.error.SmartLoadingIndicator
 import com.vowser.client.ui.graph.ModernNetworkGraph
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.websocket.ConnectionStatus
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * 그래프 메인 화면 컴포넌트
@@ -43,20 +42,21 @@ fun GraphScreen(
     appViewModel: AppViewModel,
     isDeveloperMode: Boolean,
     onReconnect: () -> Unit,
-    onSendToolCall: (String, Map<String, String>) -> Unit,
-    onToggleRecording: () -> Unit,
     onClearStatusHistory: () -> Unit,
-    onToggleSttMode: (String) -> Unit,
     onConfirmUserWait: () -> Unit,
     onNavigateBack: () -> Unit,
 ) {
+    DisposableEffect(Unit) {
+        onDispose {
+            appViewModel.cancelActiveAutomation()
+        }
+    }
+
     val dialogState by appViewModel.dialogState.collectAsState()
     val connectionStatus by appViewModel.connectionStatus.collectAsState()
     val receivedMessage by appViewModel.receivedMessage.collectAsState()
-    val isRecording by appViewModel.isRecording.collectAsState()
     val currentGraphDataState by appViewModel.currentGraphData.collectAsState()
     val statusHistory by appViewModel.statusHistory.collectAsState()
-    val activeSttModes by appViewModel.selectedSttModes.collectAsState()
     val isWaitingForUser by appViewModel.isWaitingForUser.collectAsState()
     val waitMessage by appViewModel.waitMessage.collectAsState()
     val graphLoading by appViewModel.graphLoading.collectAsState()
@@ -120,7 +120,10 @@ fun GraphScreen(
             topBar = {
                 GenericAppBar(
                     title = "경로 실행 그래프",
-                    onBackPress = onNavigateBack
+                    onBackPress = {
+                        appViewModel.cancelActiveAutomation()
+                        onNavigateBack()
+                    }
                 )
             }
         ) { paddingValues ->
@@ -144,20 +147,14 @@ fun GraphScreen(
                     )
                 } else {
                     EmptyStateUI(
-                        isRecording = isRecording,
                         connectionStatus = connectionStatus,
                         statusHistory = statusHistory,
                         isDeveloperMode = isDeveloperMode,
                         receivedMessage = receivedMessage,
-                        selectedSttModes = activeSttModes,
-                        onToggleRecording = onToggleRecording,
                         onReconnect = onReconnect,
                         onClearStatusHistory = onClearStatusHistory,
-                        onToggleSttMode = onToggleSttMode,
                         onShowGraph = { if (graphData != null) showGraphView = true },
-                        modifier = Modifier.fillMaxSize(), // 수동 padding 제거
-                        maxWidth = maxWidth,
-                        maxHeight = maxHeight
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
 
@@ -195,6 +192,7 @@ fun GraphScreen(
                             onDismiss = { appViewModel.exceptionHandler.hideDialog() }
                         )
                     }
+
                     is DialogState.BrowserError -> {
                         StandardDialogs.BrowserRetryDialog(
                             visible = true,
@@ -203,6 +201,7 @@ fun GraphScreen(
                             onCancelClick = currentDialogState.onCancel
                         )
                     }
+
                     is DialogState.ContributionError -> {
                         StandardDialogs.ContributionFailureDialog(
                             visible = true,
@@ -211,6 +210,7 @@ fun GraphScreen(
                             onGiveupClick = currentDialogState.onGiveUp
                         )
                     }
+
                     is DialogState.PlaywrightRestart -> {
                         StandardDialogs.PlaywrightRestartDialog(
                             visible = true,
@@ -218,6 +218,7 @@ fun GraphScreen(
                             onDismiss = { appViewModel.exceptionHandler.hideDialog() }
                         )
                     }
+
                     is DialogState.GenericError -> {
                         com.vowser.client.ui.components.ErrorDialog(
                             visible = true,
@@ -227,6 +228,7 @@ fun GraphScreen(
                             onDismiss = { appViewModel.exceptionHandler.hideDialog() }
                         )
                     }
+
                     is DialogState.Hidden -> {
                         // 다이얼로그 없음
                     }
@@ -240,22 +242,17 @@ fun GraphScreen(
 /**
  * 통합 상태 UI
  */
+@OptIn(ExperimentalResourceApi::class)
 @Composable
 private fun EmptyStateUI(
-    isRecording: Boolean,
     connectionStatus: ConnectionStatus,
     statusHistory: List<StatusLogEntry>,
     isDeveloperMode: Boolean,
     receivedMessage: String,
-    selectedSttModes: Set<String>,
-    onToggleRecording: () -> Unit,
     onReconnect: () -> Unit,
     onClearStatusHistory: () -> Unit,
     onShowGraph: () -> Unit,
-    onToggleSttMode: (String) -> Unit,
     modifier: Modifier = Modifier,
-    maxWidth: Dp,
-    maxHeight: Dp
 ) {
     val listState = rememberLazyListState()
 
@@ -267,116 +264,119 @@ private fun EmptyStateUI(
     }
 
     Column(
-        modifier = modifier.padding(horizontal = maxWidth * 0.05f),
-        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+        modifier = modifier
+            .padding(AppTheme.Dimensions.paddingMedium)
+            .background(MaterialTheme.colorScheme.background),
+        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
     ) {
         // 상단 버튼 영역
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
         ) {
             // 재연결 버튼
-            Button(
+            OutlinedButton(
                 onClick = onReconnect,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.Colors.Info,
-                    contentColor = Color.White
-                )
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground
+                ),
+                contentPadding = PaddingValues(AppTheme.Dimensions.paddingMedium, 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusSmall)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Refresh,
+                    painter = painterResource("drawable/refresh.png"),
                     contentDescription = "Reconnect",
                     modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
                 )
-                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingXSmall))
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
                 Text("재연결")
             }
 
-            // 개발자 모드 전용 버튼들
-            if (isDeveloperMode) {
-                // 그래프 보기 버튼
-                if (receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
-                    Button(
-                        onClick = onShowGraph,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppTheme.Colors.Info,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("그래프 보기")
-                    }
+            Spacer(Modifier.width(AppTheme.Dimensions.paddingSmall))
+
+            // 개발자 모드 전용 그래프 보기 버튼
+            if (isDeveloperMode && receivedMessage != "No message" || statusHistory.any { it.type == StatusLogType.SUCCESS }) {
+                Button(
+                    onClick = onShowGraph,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppTheme.Colors.Info,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("그래프 보기")
                 }
+                Spacer(Modifier.width(AppTheme.Dimensions.paddingSmall))
             }
 
-            Spacer(modifier = Modifier.weight(1f))
 
             // 클리어 버튼
             OutlinedButton(
                 onClick = onClearStatusHistory,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground
+                ),
+                contentPadding = PaddingValues(AppTheme.Dimensions.paddingMedium, 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusSmall)
             ) {
+                Icon(
+                    painter = painterResource("drawable/bin.png"),
+                    contentDescription = "Clear logs",
+                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
+                )
+                Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
                 Text("Clear")
             }
         }
-
-        // 연결 상태 표시
-        Row (
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
-        )
-        {
-            Canvas(modifier = Modifier.size(12.dp)) {
-                drawCircle(color = connectionStatus.displayColor)
-            }
-            Text(
-                text = connectionStatus.displayText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-        }
-
-        // STT 모드 선택기
-        SttModeSelector(
-            selectedMode = selectedSttModes.firstOrNull(),
-            onModeSelect = onToggleSttMode,
-            isVisible = !isRecording,
-            modifier = Modifier.fillMaxWidth()
-        )
 
         // 상태 로그 영역
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .padding(AppTheme.Dimensions.paddingSmall)
+                .background(MaterialTheme.colorScheme.background),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
         ) {
+            // 연결 상태 표시
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(top = AppTheme.Dimensions.paddingMedium, end = AppTheme.Dimensions.paddingMedium),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .padding(end = AppTheme.Dimensions.paddingSmall)
+                        .size(12.dp)
+                ) {
+                    drawCircle(color = connectionStatus.displayColor)
+                }
+                Text(
+                    text = connectionStatus.displayText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+
             Column {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
                     contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
                     verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
                 ) {
-                    if (statusHistory.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "음성으로 명령해보세요!\n예: \"웹툰 보고싶어\", \"서울 날씨 알려줘\"",
-                                    textAlign = TextAlign.Center,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                )
-                            }
-                        }
-                    } else {
-                        items(statusHistory) { logEntry ->
-                            StatusLogItem(logEntry)
-                        }
+                    items(statusHistory) { logEntry ->
+                        StatusLogItem(logEntry)
                     }
 
                     // 개발자 모드에서만 receivedMessage 표시
@@ -409,10 +409,10 @@ private fun StatusLogItem(entry: StatusLogEntry) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val (color, icon) = when (entry.type) {
-            StatusLogType.SUCCESS -> AppTheme.Colors.Success to "✅"
-            StatusLogType.ERROR -> AppTheme.Colors.Error to "❌"
-            StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠️"
-            StatusLogType.INFO -> MaterialTheme.colorScheme.primary to "ℹ️"
+            StatusLogType.SUCCESS -> AppTheme.Colors.Success to "✓"
+            StatusLogType.ERROR -> AppTheme.Colors.Error to "✗"
+            StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠"
+            StatusLogType.INFO -> MaterialTheme.colorScheme.primary to "ℹ"
         }
 
         Text(

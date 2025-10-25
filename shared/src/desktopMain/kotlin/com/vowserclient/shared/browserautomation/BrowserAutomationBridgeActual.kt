@@ -81,4 +81,16 @@ actual object BrowserAutomationBridge {
         Napier.i("Waiting for network idle", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.waitForNetworkIdle()
     }
+
+    actual suspend fun getSelectOptions(selector: String): List<SelectOption> {
+        return BrowserAutomationService.getSelectOptions(selector)
+    }
+
+    actual suspend fun selectOption(selector: String, value: String) {
+        BrowserAutomationService.selectOption(selector, value)
+    }
+
+    actual suspend fun setInputValue(selector: String, value: String) {
+        BrowserAutomationService.setInputValue(selector, value)
+    }
 }

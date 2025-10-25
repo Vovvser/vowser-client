@@ -1,5 +1,7 @@
 package com.vowser.client.auth
 
+import io.github.aakira.napier.Napier
+import java.util.prefs.BackingStoreException
 import java.util.prefs.Preferences
 
 class DesktopTokenStorage : TokenStorage {
@@ -13,6 +15,7 @@ class DesktopTokenStorage : TokenStorage {
     override fun saveTokens(accessToken: String, refreshToken: String) {
         prefs.put(ACCESS_TOKEN, accessToken)
         prefs.put(REFRESH_TOKEN, refreshToken)
+        flushSafely()
     }
 
     override fun getAccessToken(): String? {
@@ -26,5 +29,14 @@ class DesktopTokenStorage : TokenStorage {
     override fun clearTokens() {
         prefs.remove(ACCESS_TOKEN)
         prefs.remove(REFRESH_TOKEN)
+        flushSafely()
+    }
+
+    private fun flushSafely() {
+        try {
+            prefs.flush()
+        } catch (e: BackingStoreException) {
+            Napier.w("Failed to flush token preferences: ${e.message}", e)
+        }
     }
 }

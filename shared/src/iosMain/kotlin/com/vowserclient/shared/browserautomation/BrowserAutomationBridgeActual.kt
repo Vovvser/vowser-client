@@ -4,6 +4,7 @@ import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.websocket.dto.NavigationPath
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import com.vowser.client.browserautomation.SelectOption
 
 actual object BrowserAutomationBridge {
     actual suspend fun executeNavigationPath(path: NavigationPath, timeout: Double?): Boolean {
@@ -25,5 +26,13 @@ actual object BrowserAutomationBridge {
     }
 
     actual suspend fun waitForNetworkIdle() {
+    }
+
+    actual suspend fun getSelectOptions(selector: String): List<SelectOption> = emptyList()
+
+    actual suspend fun selectOption(selector: String, value: String) {
+    }
+
+    actual suspend fun setInputValue(selector: String, value: String) {
     }
 }

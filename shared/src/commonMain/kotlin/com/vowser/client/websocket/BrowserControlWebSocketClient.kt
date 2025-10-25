@@ -65,6 +65,8 @@ class BrowserControlWebSocketClient(
     var onAllPathsReceived: ((AllPathsResponse) -> Unit)? = null
     var onVoiceProcessingResultReceived: ((VoiceProcessingResult) -> Unit)? = null
     var onSearchResultReceived: ((List<MatchedPath>, String) -> Unit)? = null
+    var onConnectionOpened: (() -> Unit)? = null
+    var onConnectionClosed: ((CloseReason?) -> Unit)? = null
 
     private var currentNavigationJob: Job? = null
     private var messageReceivingJob: Job? = null
@@ -106,8 +108,15 @@ class BrowserControlWebSocketClient(
                 )
                 Napier.i("Successfully connected to ws://localhost:8080/control", tag = Tags.NETWORK_WEBSOCKET)
                 isConnecting = false
+                onConnectionOpened?.invoke()
                 Napier.d("Callback status - onAllPathsReceived: ${if (onAllPathsReceived != null) "SET" else "NULL"}", tag = Tags.NETWORK_WEBSOCKET)
                 startReceivingMessages()
+                CoroutineScope(Dispatchers.IO).launch {
+                    val reason = runCatching { session?.closeReason?.await() }.getOrNull()
+                    if (reason != null) {
+                        onConnectionClosed?.invoke(reason)
+                    }
+                }
                 return
             } catch (e: Exception) {
                 attempts++
@@ -286,6 +295,7 @@ class BrowserControlWebSocketClient(
             onVoiceProcessingResultReceived = null
             client.close()
             Napier.i("Connection closed and all resources cleaned up successfully.", tag = Tags.NETWORK_WEBSOCKET)
+            onConnectionClosed?.invoke(null)
         } catch (e: Exception) {
             Napier.e("Error during resource cleanup: ${e.message}", e, tag = Tags.NETWORK_WEBSOCKET)
             session = null

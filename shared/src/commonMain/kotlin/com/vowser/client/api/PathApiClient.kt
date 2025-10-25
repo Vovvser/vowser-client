@@ -200,6 +200,7 @@ class PathApiClient(
         "click"         -> "click"
         "navigate"      -> "navigate"
         "new_tab"       -> "new_tab"
+        "select"        -> "select"
         else            -> "click"
     }
 
