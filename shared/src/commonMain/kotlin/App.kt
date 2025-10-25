@@ -22,8 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.ImeAction
 import com.vowser.client.AppViewModel
 import com.vowser.client.ui.navigation.LocalScreenNavigator
 import com.vowser.client.ui.navigation.StackScreenNavigator
@@ -189,7 +192,14 @@ fun App(viewModel: AppViewModel) {
                         OutlinedTextField(
                             value = inputText,
                             onValueChange = { inputText = it },
-                            label = { Text(inputRequest?.textLabels?.joinToString(", ") ?: "입력") }
+                            label = { Text(inputRequest?.textLabels?.joinToString(", ") ?: "입력") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    viewModel.submitUserInput(inputText)
+                                }
+                            )
                         )
                     }
                 },

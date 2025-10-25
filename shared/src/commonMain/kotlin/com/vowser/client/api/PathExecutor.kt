@@ -6,9 +6,9 @@ import com.vowser.client.browserautomation.BrowserAutomationBridge
 import com.vowser.client.browserautomation.SelectOption
 import com.vowser.client.model.MemberResponse
 import com.vowser.client.websocket.dto.NavigationPath
-import com.vowser.client.websocket.dto.NavigationStep
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import com.vowser.client.websocket.dto.NavigationStep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -529,27 +529,20 @@ class PathExecutor {
         }
 
         // 다중 셀렉터 fallback
-        for ((index, selector) in step.selectors.withIndex()) {
-            val navigationStep = NavigationStep(
-                url = step.url,
-                title = step.description,
-                action = "type",
-                selector = selector,
-                htmlAttributes = mapOf("value" to inputValue)
-            )
-
-            val navigationPath = NavigationPath(
-                pathId = "single_step_${Clock.System.now().toEpochMilliseconds()}",
-                steps = listOf(navigationStep),
-                description = step.description
-            )
-
-            val success = BrowserAutomationBridge.executeNavigationPath(navigationPath)
-            if (success) {
+        step.selectors.forEachIndexed { index, selector ->
+            try {
+                BrowserAutomationBridge.setInputValue(selector, inputValue)
+                currentOnLog?.invoke("입력 완료: ${step.description} → $inputValue")
                 Napier.d("Input succeeded with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
+                if (step.shouldWait == true) {
+                    BrowserAutomationBridge.waitForNetworkIdle()
+                }
                 return
-            } else {
-                Napier.d("Input failed with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.d("Input failed with selector[$index]: $selector - ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+                if (index == step.selectors.lastIndex) {
+                    throw e
+                }
             }
         }
 

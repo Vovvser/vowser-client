@@ -89,4 +89,8 @@ actual object BrowserAutomationBridge {
     actual suspend fun selectOption(selector: String, value: String) {
         BrowserAutomationService.selectOption(selector, value)
     }
+
+    actual suspend fun setInputValue(selector: String, value: String) {
+        BrowserAutomationService.setInputValue(selector, value)
+    }
 }

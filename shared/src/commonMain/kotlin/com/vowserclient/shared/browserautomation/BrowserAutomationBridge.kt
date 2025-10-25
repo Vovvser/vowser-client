@@ -14,4 +14,5 @@ expect object BrowserAutomationBridge {
     suspend fun cleanupContribution()
     suspend fun getSelectOptions(selector: String): List<SelectOption>
     suspend fun selectOption(selector: String, value: String)
+    suspend fun setInputValue(selector: String, value: String)
 }

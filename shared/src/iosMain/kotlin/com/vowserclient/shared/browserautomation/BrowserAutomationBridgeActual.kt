@@ -32,4 +32,7 @@ actual object BrowserAutomationBridge {
 
     actual suspend fun selectOption(selector: String, value: String) {
     }
+
+    actual suspend fun setInputValue(selector: String, value: String) {
+    }
 }

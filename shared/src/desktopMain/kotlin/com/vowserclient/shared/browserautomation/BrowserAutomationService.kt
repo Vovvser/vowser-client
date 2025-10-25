@@ -473,7 +473,7 @@ object BrowserAutomationService {
 
                 if (locator.count() > 0 && locator.first().isVisible) {
                     if (delayMs != null) {
-                        locator.first().pressSequentially(text, Locator.PressSequentiallyOptions().setDelay(delayMs))
+                        locator.first().pressSequentially(text, Locator.PressSequentiallyOptions().setDelay(delayMs).setNoWaitAfter(true))
                     } else {
                         locator.first().fill(text)
                     }
@@ -896,7 +896,7 @@ object BrowserAutomationService {
         pageLastActivity.remove(targetPage)
     }
 
-    private suspend fun checkPageInteractions(targetPage: Page) {
+    private fun checkPageInteractions(targetPage: Page) {
         try {
             // 리스너 상태 체크
             val listenersSetup = targetPage.evaluate("window.__vowserContributionListenersSetup")
@@ -1031,8 +1031,7 @@ object BrowserAutomationService {
     suspend fun getSelectOptions(selector: String): List<SelectOption> = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("Cannot read select options: page not initialized", tag = Tags.BROWSER_AUTOMATION)
-                return@withLock emptyList()
+                initialize()
             }
 
             var locator = page.locator(selector)
@@ -1078,8 +1077,7 @@ object BrowserAutomationService {
     suspend fun selectOption(selector: String, value: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
-                Napier.e("Cannot select option: page not initialized", tag = Tags.BROWSER_AUTOMATION)
-                return@withLock
+                initialize()
             }
 
             var locator = page.locator(selector)
@@ -1097,6 +1095,40 @@ object BrowserAutomationService {
                 Napier.i("Selected option value '$value' on selector $selector", tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
                 Napier.e("Failed to select option '$value' on $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            }
+        }
+    }
+
+    suspend fun setInputValue(selector: String, value: String) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                initialize()
+            }
+
+            var locator = page.locator(selector)
+            if (locator.count() == 0) {
+                val frameLocator = findElementInFrames(selector)
+                if (frameLocator != null) {
+                    locator = frameLocator
+                } else {
+                    throw PlaywrightException("Input element not found for selector: $selector")
+                }
+            }
+
+            val element = locator.first()
+            if (!element.isVisible) {
+                throw PlaywrightException("Input element not visible for selector: $selector")
+            }
+
+            try {
+                element.focus()
+                element.evaluate("el => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+                element.fill(value)
+                element.evaluate("el => el.dispatchEvent(new Event('change', { bubbles: true }))")
+                Napier.i("Input value set for selector $selector", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.e("Failed to set input value for $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 throw e
             }
         }

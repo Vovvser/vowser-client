@@ -1073,7 +1073,7 @@ class AppViewModel(
             _isWaitingForSelect.value = true
             _isWaitingForUserInput.value = false
             _inputRequest.value = step
-            _selectOptions.value = options.toList()
+            _selectOptions.value = options
             userSelectContinuation = continuation
             addStatusLog("옵션 선택 필요: ${step.description}", StatusLogType.INFO)
 
