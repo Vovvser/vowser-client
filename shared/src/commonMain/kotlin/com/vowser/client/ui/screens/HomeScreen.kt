@@ -50,6 +50,7 @@ fun HomeScreen(
     val isRecording by viewModel.isRecording.collectAsState()
     val receivedMessage by viewModel.receivedMessage.collectAsState()
     val pendingCommand by viewModel.pendingCommand.collectAsState()
+    val isContributionScreenActive by viewModel.isContributionScreenActive.collectAsState()
 
     // 음성 인식 결과 처리
     LaunchedEffect(receivedMessage, isRecording, pendingCommand) {
@@ -57,17 +58,12 @@ fun HomeScreen(
         if (!isRecording &&
             !command.isNullOrBlank() &&
             receivedMessage != "No message" &&
-            receivedMessage.isNotBlank()
+            receivedMessage.isNotBlank() &&
+            selectedMode == SearchMode.EXECUTE &&
+            !isContributionScreenActive
         ) {
-            when (selectedMode) {
-                SearchMode.SEARCH -> { /* TODO : 검색*/
-                }
-
-                SearchMode.EXECUTE -> {
-                    viewModel.setPendingCommand(command)
-                    navigator.push(AppScreen.GRAPH)
-                }
-            }
+            viewModel.setPendingCommand(command)
+            navigator.push(AppScreen.GRAPH)
         }
     }
     Scaffold(

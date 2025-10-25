@@ -22,6 +22,7 @@ import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.contribution.ContributionStatus
 import io.github.aakira.napier.Napier
 import io.ktor.websocket.CloseReason
 import io.ktor.client.plugins.ClientRequestException
@@ -146,6 +147,12 @@ class AppViewModel(
     val selectOptions: StateFlow<List<SelectOption>> = _selectOptions.asStateFlow()
 
     private var userSelectContinuation: kotlin.coroutines.Continuation<String>? = null
+
+    private val _isContributionScreenActive = MutableStateFlow(false)
+    val isContributionScreenActive: StateFlow<Boolean> = _isContributionScreenActive.asStateFlow()
+
+    private val _isSpeechProcessing = MutableStateFlow(false)
+    val isSpeechProcessing: StateFlow<Boolean> = _isSpeechProcessing.asStateFlow()
 
     // STT modes
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
@@ -391,6 +398,40 @@ class AppViewModel(
         }
     }
 
+    fun setContributionScreenActive(active: Boolean) {
+        _isContributionScreenActive.value = active
+    }
+
+    private fun isContributionContextActive(): Boolean {
+        return _isContributionScreenActive.value ||
+                _awaitingContributionTask.value ||
+                contributionStatus.value != ContributionStatus.INACTIVE ||
+                _isContributionInitializing.value
+    }
+
+    private fun handleSpeechTranscript(transcript: String) {
+        if (isContributionContextActive()) {
+            handleContributionVoice(transcript)
+        } else {
+            handleExecutionVoice(transcript)
+        }
+    }
+
+    private fun handleContributionVoice(transcript: String) {
+        clearPendingCommand()
+        if (!_awaitingContributionTask.value) {
+            requestContributionTaskInput()
+        }
+        _pendingContributionTask.value = transcript
+        _receivedMessage.value = ""
+    }
+
+    private fun handleExecutionVoice(transcript: String) {
+        clearPendingCommand()
+        _receivedMessage.value = transcript
+        setPendingCommand(transcript)
+    }
+
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
@@ -495,6 +536,7 @@ class AppViewModel(
             _recordingStatus.value = "Uploading audio..."
             addStatusLog("음성 데이터 업로드 중...", StatusLogType.INFO)
             try {
+                _isSpeechProcessing.value = true
                 val result = speechRepository.transcribeAudio(audioBytes, sessionId, _selectedSttModes.value)
                 result.fold(
                     onSuccess = { response ->
@@ -505,13 +547,11 @@ class AppViewModel(
                             tag = Tags.MEDIA_SPEECH
                         )
 
-                        if (response.substringAfter("\"transcript\":\"")
-                                .substringBefore("\"")
-                            .isNotEmpty()) {
-                            _receivedMessage.value = response.substringAfter("\"transcript\":\"")
-                                .substringBefore("\"")
-                            setPendingCommand(response.substringAfter("\"transcript\":\"")
-                                .substringBefore("\""))
+                        val transcript = response.substringAfter("\"transcript\":\"")
+                            .substringBefore("\"")
+                            .trim()
+                        if (transcript.isNotEmpty()) {
+                            handleSpeechTranscript(transcript)
                         }
                     },
                     onFailure = { error ->
@@ -537,6 +577,8 @@ class AppViewModel(
                         result.getOrThrow()
                     }
                 }
+            } finally {
+                _isSpeechProcessing.value = false
             }
         } else {
             _recordingStatus.value = "No audio data recorded"
@@ -546,6 +588,7 @@ class AppViewModel(
         kotlinx.coroutines.delay(com.vowser.client.contribution.ContributionConstants.RECORDING_STATUS_RESET_DELAY_MS)
         _recordingStatus.value = "Ready to record"
         addStatusLog("녹음 준비 완료", StatusLogType.INFO)
+        _isWaitingForUserInput.value = false
     }
 
     private fun setupWebSocketCallbacks() {
@@ -581,12 +624,7 @@ class AppViewModel(
 
                     val transcript = voiceResult.transcript?.trim()
                     if (!transcript.isNullOrBlank()) {
-                        if (_awaitingContributionTask.value) {
-                            _pendingContributionTask.value = transcript
-                        } else {
-                            _receivedMessage.value = transcript
-                            setPendingCommand(transcript)
-                        }
+                        handleSpeechTranscript(transcript)
                     }
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
@@ -816,6 +854,11 @@ class AppViewModel(
         try {
             _graphLoading.value = true
             addStatusLog("경로 검색 중: $transcript", StatusLogType.INFO)
+
+            if (_isContributionScreenActive.value) {
+                addStatusLog("음성 명령이 기여 모드에서 수신되었습니다. 해당 기능은 지원되지 않습니다.", StatusLogType.WARNING)
+                return
+            }
 
             val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
                 pathApiClient.searchPaths(transcript, limit = 5)
