@@ -8,7 +8,7 @@ object ContributionConstants {
     const val DEFAULT_TASK_NAME = "기여모드 작업"
     
     // WebSocket 메시지 타입
-    const val MESSAGE_TYPE = "save_contribution_path"
+    const val MESSAGE_TYPE = "save_new_path"
 
     // 타임아웃 설정
     const val SESSION_TIMEOUT_MINUTES = 30L
