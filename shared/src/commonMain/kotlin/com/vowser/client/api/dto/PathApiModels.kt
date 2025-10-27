@@ -61,15 +61,15 @@ data class PathSaveResult(
 @Serializable
 data class PathSaveDetails(
     @SerialName("sessionId") @JsonNames("session_id")
-    val sessionId: String,
+    val sessionId: String? = null,
 
     @SerialName("taskIntent") @JsonNames("task_intent")
-    val taskIntent: String,
+    val taskIntent: String? = null,
 
-    val domain: String,
+    val domain: String? = null,
 
     @SerialName("stepsSaved") @JsonNames("steps_saved")
-    val stepsSaved: Int
+    val stepsSaved: Int? = 0
 )
 
 @Serializable

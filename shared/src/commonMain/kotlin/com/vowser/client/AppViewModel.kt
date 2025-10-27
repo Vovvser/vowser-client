@@ -187,7 +187,7 @@ class AppViewModel(
         webSocketClient.onConnectionOpened = {
             coroutineScope.launch {
                 _connectionStatus.value = ConnectionStatus.Connected
-                addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
+                addStatusLog("서버 연결(${sessionId} 세션) 완료", StatusLogType.SUCCESS)
             }
         }
         webSocketClient.onConnectionClosed = { reason ->
@@ -202,9 +202,9 @@ class AppViewModel(
                 if (_connectionStatus.value != newStatus) {
                     _connectionStatus.value = newStatus
                     val message = if (newStatus == ConnectionStatus.Disconnected) {
-                        "서버 연결이 종료되었습니다."
+                        "서버 연결(${sessionId} 세션)이 종료되었습니다."
                     } else {
-                        "서버 연결이 비정상적으로 종료되었습니다."
+                        "서버 연결(${sessionId} 세션)이 비정상적으로 종료되었습니다."
                     }
                     addStatusLog(message, if (newStatus == ConnectionStatus.Disconnected) StatusLogType.WARNING else StatusLogType.ERROR)
                 }
@@ -526,7 +526,7 @@ class AppViewModel(
 
     fun reconnect() {
         coroutineScope.launch {
-            addStatusLog("서버 재연결 시도...", StatusLogType.INFO)
+            addStatusLog("서버 재연결(${sessionId} 세션) 시도...", StatusLogType.INFO)
             _connectionStatus.value = ConnectionStatus.Connecting
             webSocketClient.reconnect()
         }
@@ -817,6 +817,7 @@ class AppViewModel(
         steps: List<ContributionStep>
     ) {
         try {
+            // 사용자가 기록한 스텝을 그대로 저장 (navigate 포함)
             if (steps.isEmpty()) {
                 Napier.w("No steps to save for session: $sessionId", tag = Tags.CONTRIBUTION_MODE)
                 return
@@ -958,8 +959,9 @@ class AppViewModel(
     private suspend fun executePathFromVoice(path: MatchedPathDetail) {
         try {
             if (_isExecutingPath.value) {
-                addStatusLog("다른 경로가 실행 중입니다", StatusLogType.WARNING)
-                return
+                addStatusLog("이전 경로를 중지하고 새로운 명령을 실행합니다", StatusLogType.WARNING)
+                pathExecutor.cancelExecution()
+                _isExecutingPath.value = false
             }
 
             _isExecutingPath.value = true
@@ -996,7 +998,7 @@ class AppViewModel(
                 Napier.i("Voice command path execution completed: ${path.taskIntent}", tag = Tags.BROWSER_AUTOMATION)
             } else {
                 val failedStep = result.failedAt?.let { "${it + 1}/${result.totalSteps}" } ?: "Unknown"
-                addStatusLog("경로 실행 실패 (단계 $failedStep): ${result.error}", StatusLogType.ERROR)
+//                addStatusLog("경로 실행 실패 (단계 $failedStep): ${result.error}", StatusLogType.ERROR)
                 Napier.e(
                     "Voice command path execution failed at step $failedStep: ${result.error}",
                     tag = Tags.BROWSER_AUTOMATION
@@ -1019,6 +1021,11 @@ class AppViewModel(
      */
     private suspend fun executeFullPath(path: com.vowser.client.websocket.dto.MatchedPath) {
         try {
+            if (_isExecutingPath.value) {
+                addStatusLog("이전 경로를 중지하고 새로운 경로를 실행합니다", StatusLogType.WARNING)
+                pathExecutor.cancelExecution()
+                _isExecutingPath.value = false
+            }
             _isExecutingPath.value = true
             _executionProgress.value = "0/${path.steps.size}"
 

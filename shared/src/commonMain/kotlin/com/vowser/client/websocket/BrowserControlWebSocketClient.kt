@@ -172,6 +172,13 @@ class BrowserControlWebSocketClient(
             receiveMessages().collect { messageString ->
                 Napier.d("Received raw message: ${messageString.take(100)}...", tag = Tags.NETWORK_WEBSOCKET)
                 try {
+                    // 필수 키가 없는 단순 텍스트/상태 메시지는 무시 (백엔드 콘솔/상태 에코)
+                    val looksLikeProtocol = messageString.contains("\"status\"") || messageString.contains("\"type\"") || messageString.contains("\"data\"")
+                    val looksLikeTextOnly = messageString.contains("\"content\"") && messageString.contains("\"text\"") && messageString.contains("\"error\"")
+                    if (!looksLikeProtocol && looksLikeTextOnly) {
+                        Napier.d("Non-protocol text message (ignored): ${messageString.take(60)}...", tag = Tags.NETWORK_WEBSOCKET)
+                        return@collect
+                    }
                     val message = json.decodeFromString<WebSocketMessage>(messageString)
 
                     when (message) {
@@ -199,7 +206,7 @@ class BrowserControlWebSocketClient(
                         }
                     }
                 } catch (e: Exception) {
-                    if (messageString.contains("연결되었습니다") || messageString.contains("error\":false")) {
+                    if (messageString.contains("연결되었습니다") || messageString.contains("error\":false") || messageString.contains("\"content\"")) {
                         Napier.d("Received welcome or status message (ignored): ${messageString.take(50)}...", tag = Tags.NETWORK_WEBSOCKET)
                     } else {
                         Napier.e("Failed to parse or execute command from message: ${messageString.take(50)}... Error: ${e.message}", e, tag = Tags.NETWORK_WEBSOCKET)
