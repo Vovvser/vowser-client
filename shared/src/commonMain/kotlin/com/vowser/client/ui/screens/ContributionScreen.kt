@@ -25,7 +25,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -71,6 +73,13 @@ private data class ContributionDialogState(
 fun ContributionScreen(
     appViewModel: AppViewModel
 ) {
+    DisposableEffect(Unit) {
+        appViewModel.setContributionScreenActive(true)
+        onDispose {
+            appViewModel.setContributionScreenActive(false)
+        }
+    }
+
     val navigator = LocalScreenNavigator.current
     val connectionStatus by appViewModel.connectionStatus.collectAsState()
     val contributionStatus by appViewModel.contributionStatus.collectAsState()
@@ -80,6 +89,7 @@ fun ContributionScreen(
     val isRecording by appViewModel.isRecording.collectAsState()
     val awaitingTask by appViewModel.awaitingContributionTask.collectAsState()
     val pendingContributionTask by appViewModel.pendingContributionTask.collectAsState()
+    val isSpeechProcessing by appViewModel.isSpeechProcessing.collectAsState()
     val isContributionInitializing by appViewModel.isContributionInitializing.collectAsState()
     val selectedSttModes by appViewModel.selectedSttModes.collectAsState()
 
@@ -116,6 +126,7 @@ fun ContributionScreen(
     LaunchedEffect(pendingContributionTask) {
         val task = pendingContributionTask?.trim()
         if (awaitingTask && !task.isNullOrEmpty()) {
+            taskInput = task
             beginContribution(task)
         }
     }
@@ -231,7 +242,8 @@ fun ContributionScreen(
                     awaitingTask = awaitingTask,
                     onValueChange = { taskInput = it },
                     onSubmit = beginContribution,
-                    onToggleRecording = { appViewModel.toggleRecording() }
+                    onToggleRecording = { appViewModel.toggleRecording() },
+                    enabled = !isSpeechProcessing
                 )
             }
 
@@ -241,6 +253,17 @@ fun ContributionScreen(
                 onStop = handleStop,
                 onComplete = handleComplete
             )
+
+            if (isSpeechProcessing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
     }
 }
@@ -430,7 +453,8 @@ private fun ContributionTaskInputBar(
     awaitingTask: Boolean,
     onValueChange: (String) -> Unit,
     onSubmit: (String) -> Unit,
-    onToggleRecording: () -> Unit
+    onToggleRecording: () -> Unit,
+    enabled: Boolean
 ) {
     Row(
         modifier = modifier
@@ -469,7 +493,7 @@ private fun ContributionTaskInputBar(
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-                enabled = awaitingTask,
+                enabled = awaitingTask && enabled,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp),
@@ -494,7 +518,7 @@ private fun ContributionTaskInputBar(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        IconButton(onClick = onToggleRecording, enabled = awaitingTask) {
+        IconButton(onClick = onToggleRecording, enabled = awaitingTask && enabled) {
             if (isRecording) {
                 Icon(
                     imageVector = Icons.Filled.Clear,

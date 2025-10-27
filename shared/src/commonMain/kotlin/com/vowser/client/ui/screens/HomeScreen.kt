@@ -18,14 +18,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vowser.client.AppViewModel
 import com.vowser.client.ui.components.HomeAppBar
-import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.ui.components.SttModeSelector
+import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.ui.navigation.LocalScreenNavigator
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
@@ -51,6 +52,7 @@ fun HomeScreen(
     val receivedMessage by viewModel.receivedMessage.collectAsState()
     val pendingCommand by viewModel.pendingCommand.collectAsState()
     val selectedSttModes by viewModel.selectedSttModes.collectAsState()
+    val isContributionScreenActive by viewModel.isContributionScreenActive.collectAsState()
 
     // 음성 인식 결과 처리
     LaunchedEffect(receivedMessage, isRecording, pendingCommand) {
@@ -58,7 +60,8 @@ fun HomeScreen(
         if (!isRecording &&
             !command.isNullOrBlank() &&
             receivedMessage != "No message" &&
-            receivedMessage.isNotBlank()
+            receivedMessage.isNotBlank() &&
+            !isContributionScreenActive
         ) {
             when (selectedMode) {
                 SearchMode.SEARCH -> { /* TODO : 검색*/ }
@@ -94,38 +97,62 @@ fun HomeScreen(
             Modifier
                 .fillMaxSize()
         ) {
-            BoxWithConstraints (
+
+            BoxWithConstraints(
                 Modifier
                     .fillMaxSize()
-                    .padding(maxWidth * 0.03f, maxHeight * 0.1f,  maxWidth * 0.03f, 0.dp),
+                    .padding(maxWidth * 0.05f, maxHeight * 0.15f, maxWidth * 0.05f, 0.dp),
             ) {
+                val srtQuery = "SRT 예매 자동화 (Python Playwright)"
+
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
                     modifier = Modifier
                         .fillMaxSize(),
                     contentPadding = PaddingValues(
-                        start = AppTheme.Dimensions.paddingXLarge, end = AppTheme.Dimensions.paddingLarge, top = AppTheme.Dimensions.paddingXLarge,
-                        bottom = minHeight -  (maxHeight * 0.8f),
+                        start = AppTheme.Dimensions.paddingLarge,
+                        end = AppTheme.Dimensions.paddingMedium,
+                        top = AppTheme.Dimensions.paddingLarge,
+                        bottom = minHeight - (maxHeight * 0.8f),
                     ),
-                    horizontalArrangement = Arrangement.spacedBy(maxWidth * 0.05f),
-                    verticalArrangement = Arrangement.spacedBy(maxHeight * 0.03f)
+                    horizontalArrangement = Arrangement.spacedBy(maxWidth * 0.06f),
+                    verticalArrangement = Arrangement.spacedBy(maxHeight * 0.04f)
                 ) {
-                    items(50) { index ->
+                    items(1) { index -> // TODO: 나중에 API로 항목 동적 로드
+                        // SRT 예매 카드
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(1f),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            )
+                                .background(Color.Transparent)
+                                .border(0.dp, Color.Transparent, RoundedCornerShape(0.dp))
+                                .aspectRatio(1f)
+                                .clickable {
+                                    selectedMode = SearchMode.EXECUTE
+                                    searchQuery = srtQuery
+                                    viewModel.setPendingCommand(srtQuery)
+                                    navigator.push(AppScreen.GRAPH)
+                                },
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
+                            Column (
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall),
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
+                                        .border(0.dp, MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(0.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "🚉💺",
+                                        fontSize = 48.sp,
+                                    )
+                                }
                                 Text(
-                                    "Webpage ${index + 1}",
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    "SRT 예매",
+                                    fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }

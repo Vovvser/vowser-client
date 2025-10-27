@@ -52,7 +52,7 @@ fun HomeAppBar(
                 modifier = Modifier.padding(end = AppTheme.Dimensions.paddingSmall)
             ) {
                 // 기여모드 버튼
-//                if (isLoggedIn) {
+                if (isLoggedIn) {
                 OutlinedButton(
                     onClick = onContribution,
                     colors = ButtonDefaults.buttonColors(
@@ -81,7 +81,7 @@ fun HomeAppBar(
                     )
                 }
                 Spacer(modifier = Modifier.width(AppTheme.Dimensions.paddingSmall))
-//                }
+                }
 
                 // 유저 프로필 버튼
                 IconButton(onClick = {

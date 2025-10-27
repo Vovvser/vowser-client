@@ -421,13 +421,13 @@ object BrowserAutomationService {
             Napier.d("Click preparation took ${preparationTime}ms", tag = Tags.BROWSER_AUTOMATION)
 
             val clickTime = measureTimeMillis {
-                element.click()
+                element.click(Locator.ClickOptions().setNoWaitAfter(true))
             }
             Napier.d("Click action took ${clickTime}ms", tag = Tags.BROWSER_AUTOMATION)
 
             recordContributionStep(
-                page.url(),
-                page.title(),
+                runCatching { page.url() }.getOrElse { runCatching { page.url() }.getOrElse { "about:blank" } },
+                runCatching { page.title() }.getOrElse { runCatching { page.title() }.getOrElse { "" } },
                 "click",
                 selector,
                 extractedAttributes
@@ -473,7 +473,7 @@ object BrowserAutomationService {
 
                 if (locator.count() > 0 && locator.first().isVisible) {
                     if (delayMs != null) {
-                        locator.first().pressSequentially(text, Locator.PressSequentiallyOptions().setDelay(delayMs))
+                        locator.first().pressSequentially(text, Locator.PressSequentiallyOptions().setDelay(delayMs).setNoWaitAfter(true))
                     } else {
                         locator.first().fill(text)
                     }
@@ -896,7 +896,7 @@ object BrowserAutomationService {
         pageLastActivity.remove(targetPage)
     }
 
-    private suspend fun checkPageInteractions(targetPage: Page) {
+    private fun checkPageInteractions(targetPage: Page) {
         try {
             // 리스너 상태 체크
             val listenersSetup = targetPage.evaluate("window.__vowserContributionListenersSetup")
@@ -1028,31 +1028,183 @@ object BrowserAutomationService {
         Napier.i("Contribution Step Recorded: [${step.action}] ${step.title} (${step.url})", tag = Tags.BROWSER_AUTOMATION)
     }
 
-    private fun extractElementAttributes(locator: Locator): Map<String, String> {
-        return try {
-            val element = locator.first()
-            val attributes = mutableMapOf<String, String>()
-
-            // 텍스트 내용 추출
-            element.textContent()?.let { text ->
-                if (text.isNotBlank()) attributes["text"] = text.trim()
+    suspend fun getSelectOptions(selector: String): List<SelectOption> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                initialize()
             }
 
-            // 주요 속성들 추출
-            listOf("id", "class", "name", "type", "href", "alt", "title", "aria-label").forEach { attr ->
-                try {
-                    element.getAttribute(attr)?.let { value ->
-                        if (value.isNotBlank()) attributes[attr] = value
-                    }
-                } catch (e: Exception) {
-                    // 속성이 없는 경우 무시
+            var locator = page.locator(selector)
+            if (locator.count() == 0) {
+                val frameLocator = findElementInFrames(selector)
+                if (frameLocator != null) {
+                    locator = frameLocator
+                } else {
+                    Napier.w("Select element not found for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    return@withLock emptyList()
                 }
             }
 
+            val selectElement = locator.first()
+            val optionLocator = selectElement.locator("option")
+            val count = optionLocator.count()
+
+            (0 until count).mapNotNull { index ->
+                runCatching {
+                    val option = optionLocator.nth(index)
+                    val value = option.getAttribute("value")?.trim().orEmpty()
+                    val label = option.textContent()?.trim().orEmpty()
+                    val selected = runCatching { option.evaluate("opt => opt.selected") as? Boolean }
+                        .getOrNull() ?: false
+
+                    if (value.isBlank() && label.isBlank()) {
+                        null
+                    } else {
+                        SelectOption(
+                            value = if (value.isNotBlank()) value else label,
+                            label = if (label.isNotBlank()) label else value,
+                            isSelected = selected
+                        )
+                    }
+                }.getOrElse { error ->
+                    Napier.w("Failed to read option at index $index for selector $selector: ${error.message}", tag = Tags.BROWSER_AUTOMATION)
+                    null
+                }
+            }
+        }
+    }
+
+    suspend fun selectOption(selector: String, value: String) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                initialize()
+            }
+
+            var locator = page.locator(selector)
+            if (locator.count() == 0) {
+                val frameLocator = findElementInFrames(selector)
+                if (frameLocator != null) {
+                    locator = frameLocator
+                } else {
+                    throw PlaywrightException("Select element not found for selector: $selector")
+                }
+            }
+
+            try {
+                locator.first().selectOption(value)
+                Napier.i("Selected option value '$value' on selector $selector", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.e("Failed to select option '$value' on $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            }
+        }
+    }
+
+    suspend fun setInputValue(selector: String, value: String) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!::page.isInitialized) {
+                initialize()
+            }
+
+            var locator = page.locator(selector)
+            if (locator.count() == 0) {
+                val frameLocator = findElementInFrames(selector)
+                if (frameLocator != null) {
+                    locator = frameLocator
+                } else {
+                    throw PlaywrightException("Input element not found for selector: $selector")
+                }
+            }
+
+            val element = locator.first()
+            if (!element.isVisible) {
+                throw PlaywrightException("Input element not visible for selector: $selector")
+            }
+
+            try {
+                element.focus()
+                element.evaluate("el => { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+                element.fill(value)
+                element.evaluate("el => el.dispatchEvent(new Event('change', { bubbles: true }))")
+                Napier.i("Input value set for selector $selector", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.e("Failed to set input value for $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            }
+        }
+    }
+
+    private fun extractElementAttributes(locator: Locator): Map<String, String> {
+        return try {
+            val element = locator.first()
+
+            @Suppress("UNCHECKED_CAST")
+            val attributes = element.evaluate(
+                """(element) => {
+                    const result = {};
+                    const textContent = element.textContent || "";
+                    const trimmedText = textContent.trim();
+                    if (trimmedText.length > 0) {
+                        result.text = trimmedText;
+                    }
+
+                    const attributeNames = ["id", "class", "name", "type", "href", "alt", "title", "aria-label", "placeholder", "value"];
+                    for (const name of attributeNames) {
+                        const value = element.getAttribute(name);
+                        if (value && value.trim().length > 0) {
+                            result[name] = value;
+                        }
+                    }
+
+                    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+                        if (!result.type && element.type && element.type.trim().length > 0) {
+                            result.type = element.type;
+                        }
+                        if (!result.placeholder && element.placeholder && element.placeholder.trim().length > 0) {
+                            result.placeholder = element.placeholder;
+                        }
+                        if (!result.value && element.value && element.value.trim().length > 0) {
+                            result.value = element.value;
+                        }
+                    }
+
+                    return result;
+                }"""
+            ) as? Map<String, Any?>
+
             attributes
+                ?.mapNotNull { (key, value) ->
+                    val stringValue = value?.toString()?.trim()
+                    if (stringValue.isNullOrEmpty()) null else key to stringValue
+                }
+                ?.toMap()
+                ?: emptyMap()
         } catch (e: Exception) {
-            Napier.w("Failed to extract element attributes: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
-            emptyMap()
+            Napier.w("Failed to extract element attributes via script: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+
+            try {
+                val element = locator.first()
+                val map = mutableMapOf<String, String>()
+
+                element.textContent()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { map["text"] = it }
+
+                listOf("id", "class", "name", "type", "href", "alt", "title", "aria-label", "placeholder", "value")
+                    .forEach { attr ->
+                        runCatching { element.getAttribute(attr) }
+                            .getOrNull()
+                            ?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.let { map[attr] = it }
+                    }
+
+                map
+            } catch (fallbackError: Exception) {
+                Napier.w("Fallback attribute extraction failed: ${fallbackError.message}", tag = Tags.BROWSER_AUTOMATION)
+                emptyMap()
+            }
         }
     }
 

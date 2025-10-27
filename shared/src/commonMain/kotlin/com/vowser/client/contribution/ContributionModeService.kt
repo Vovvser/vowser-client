@@ -294,7 +294,7 @@ class ContributionModeService(
         
         val message = ContributionMessage(
             sessionId = session.sessionId,
-            task = session.task,
+            taskIntent = session.task,
             steps = stepsToSend,
             isPartial = isPartial,
             isComplete = isComplete,

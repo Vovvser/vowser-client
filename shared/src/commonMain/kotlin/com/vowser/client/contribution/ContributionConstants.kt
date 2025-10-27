@@ -8,7 +8,7 @@ object ContributionConstants {
     const val DEFAULT_TASK_NAME = "기여모드 작업"
     
     // WebSocket 메시지 타입
-    const val MESSAGE_TYPE = "save_contribution_path"
+    const val MESSAGE_TYPE = "save_new_path"
 
     // 타임아웃 설정
     const val SESSION_TIMEOUT_MINUTES = 30L
@@ -24,7 +24,7 @@ object ContributionConstants {
     const val MAX_TRACKED_PAGES = 20
     const val PAGE_INACTIVE_TIMEOUT_MS = 5 * 60 * 1000L // 5분
     const val MEMORY_CLEANUP_INTERVAL_MS = 2 * 60 * 1000L // 2분
-    const val POLLING_INTERVAL_MS = 500L // 0.5초
+    const val POLLING_INTERVAL_MS = 1500L // 1.5초
     
     // 타이핑 디바운싱 설정
     const val TYPING_DEBOUNCE_TIME_MS = 1500L

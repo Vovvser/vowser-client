@@ -12,6 +12,7 @@ import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.api.dto.PathSearchResponse
 import com.vowser.client.logging.LogUtils
 import com.vowser.client.logging.Tags
+import com.vowser.client.browserautomation.SelectOption
 import com.vowser.client.model.AuthState
 import com.vowser.client.model.MemberResponse
 import com.vowser.client.visualization.GraphVisualizationData
@@ -21,7 +22,13 @@ import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.contribution.ContributionStatus
 import io.github.aakira.napier.Napier
+import io.ktor.websocket.CloseReason
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.ServerResponseException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -79,7 +86,6 @@ class AppViewModel(
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
     private val _recordingStatus = MutableStateFlow("Ready to record")
-    val recordingStatus: StateFlow<String> = _recordingStatus.asStateFlow()
 
     // 그래프 상태 관리
     private val _currentGraphData = MutableStateFlow<GraphVisualizationData?>(null)
@@ -134,6 +140,20 @@ class AppViewModel(
 
     private var userInputContinuation: kotlin.coroutines.Continuation<String>? = null
 
+    private val _isWaitingForSelect = MutableStateFlow(false)
+    val isWaitingForSelect: StateFlow<Boolean> = _isWaitingForSelect.asStateFlow()
+
+    private val _selectOptions = MutableStateFlow<List<SelectOption>>(emptyList())
+    val selectOptions: StateFlow<List<SelectOption>> = _selectOptions.asStateFlow()
+
+    private var userSelectContinuation: kotlin.coroutines.Continuation<String>? = null
+
+    private val _isContributionScreenActive = MutableStateFlow(false)
+    val isContributionScreenActive: StateFlow<Boolean> = _isContributionScreenActive.asStateFlow()
+
+    private val _isSpeechProcessing = MutableStateFlow(false)
+    val isSpeechProcessing: StateFlow<Boolean> = _isSpeechProcessing.asStateFlow()
+
     // STT modes
     private val _selectedSttModes = MutableStateFlow(setOf("general"))
     val selectedSttModes: StateFlow<Set<String>> = _selectedSttModes.asStateFlow()
@@ -164,6 +184,33 @@ class AppViewModel(
     val pendingContributionTask: StateFlow<String?> = _pendingContributionTask.asStateFlow()
 
     init {
+        webSocketClient.onConnectionOpened = {
+            coroutineScope.launch {
+                _connectionStatus.value = ConnectionStatus.Connected
+                addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
+            }
+        }
+        webSocketClient.onConnectionClosed = { reason ->
+            coroutineScope.launch {
+                val newStatus = when (reason?.code) {
+                    CloseReason.Codes.NORMAL.code,
+                    CloseReason.Codes.GOING_AWAY.code,
+                    null -> ConnectionStatus.Disconnected
+                    else -> ConnectionStatus.Error
+                }
+
+                if (_connectionStatus.value != newStatus) {
+                    _connectionStatus.value = newStatus
+                    val message = if (newStatus == ConnectionStatus.Disconnected) {
+                        "서버 연결이 종료되었습니다."
+                    } else {
+                        "서버 연결이 비정상적으로 종료되었습니다."
+                    }
+                    addStatusLog(message, if (newStatus == ConnectionStatus.Disconnected) StatusLogType.WARNING else StatusLogType.ERROR)
+                }
+            }
+        }
+
         checkAuthStatus()
         setupWebSocketCallbacks()
         connectWebSocket()
@@ -183,10 +230,22 @@ class AppViewModel(
             result.onSuccess { memberResponse ->
                 _authState.value = AuthState.Authenticated(memberResponse.name, memberResponse.email)
                 _userInfo.value = memberResponse
-            }.onFailure {
-                _authState.value = AuthState.NotAuthenticated
-                _userInfo.value = null
-                tokenStorage.clearTokens()
+            }.onFailure { error ->
+                val shouldInvalidateTokens = when (error) {
+                    is ClientRequestException -> error.response.status == HttpStatusCode.Unauthorized
+                    is ServerResponseException -> error.response.status == HttpStatusCode.Unauthorized
+                    is ResponseException -> error.response.status == HttpStatusCode.Unauthorized
+                    else -> false
+                }
+
+                if (shouldInvalidateTokens) {
+                    tokenStorage.clearTokens()
+                    _userInfo.value = null
+                    _authState.value = AuthState.NotAuthenticated
+                } else {
+                    Napier.w("Failed to verify auth status: ${error.message}", error, tag = Tags.AUTH)
+                    _authState.value = AuthState.Error(error.message ?: "인증 상태 확인 실패")
+                }
             }
         }
     }
@@ -315,6 +374,62 @@ class AppViewModel(
         Napier.d("Pending command cleared", tag = Tags.APP_VIEWMODEL)
     }
 
+    fun cancelActiveAutomation() {
+        coroutineScope.launch {
+            val wasExecuting = _isExecutingPath.value
+
+            pathExecutor.cancelExecution()
+            _isExecutingPath.value = false
+            _executionProgress.value = ""
+            _currentExecutingPath.value = null
+            _currentStepIndex.value = -1
+            _currentGraphData.update { it?.copy(activeNodeId = null) }
+            userSelectContinuation?.resume("")
+            userSelectContinuation = null
+            _isWaitingForSelect.value = false
+            _selectOptions.value = emptyList()
+            _inputRequest.value = null
+
+            if (wasExecuting) {
+                addStatusLog("경로 실행이 중단되었습니다.", StatusLogType.WARNING)
+            }
+        }
+    }
+
+    fun setContributionScreenActive(active: Boolean) {
+        _isContributionScreenActive.value = active
+    }
+
+    private fun isContributionContextActive(): Boolean {
+        return _isContributionScreenActive.value ||
+                _awaitingContributionTask.value ||
+                contributionStatus.value != ContributionStatus.INACTIVE ||
+                _isContributionInitializing.value
+    }
+
+    private fun handleSpeechTranscript(transcript: String) {
+        if (isContributionContextActive()) {
+            handleContributionVoice(transcript)
+        } else {
+            handleExecutionVoice(transcript)
+        }
+    }
+
+    private fun handleContributionVoice(transcript: String) {
+        clearPendingCommand()
+        if (!_awaitingContributionTask.value) {
+            requestContributionTaskInput()
+        }
+        _pendingContributionTask.value = transcript
+        _receivedMessage.value = ""
+    }
+
+    private fun handleExecutionVoice(transcript: String) {
+        clearPendingCommand()
+        _receivedMessage.value = transcript
+        setPendingCommand(transcript)
+    }
+
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
@@ -378,8 +493,8 @@ class AppViewModel(
     fun reconnect() {
         coroutineScope.launch {
             addStatusLog("서버 재연결 시도...", StatusLogType.INFO)
-            webSocketClient.reconnect()
             _connectionStatus.value = ConnectionStatus.Connecting
+            webSocketClient.reconnect()
         }
     }
 
@@ -419,6 +534,7 @@ class AppViewModel(
             _recordingStatus.value = "Uploading audio..."
             addStatusLog("음성 데이터 업로드 중...", StatusLogType.INFO)
             try {
+                _isSpeechProcessing.value = true
                 val result = speechRepository.transcribeAudio(audioBytes, sessionId, _selectedSttModes.value)
                 result.fold(
                     onSuccess = { response ->
@@ -429,13 +545,11 @@ class AppViewModel(
                             tag = Tags.MEDIA_SPEECH
                         )
 
-                        if (response.substringAfter("\"transcript\":\"")
-                                .substringBefore("\"")
-                            .isNotEmpty()) {
-                            _receivedMessage.value = response.substringAfter("\"transcript\":\"")
-                                .substringBefore("\"")
-                            setPendingCommand(response.substringAfter("\"transcript\":\"")
-                                .substringBefore("\""))
+                        val transcript = response.substringAfter("\"transcript\":\"")
+                            .substringBefore("\"")
+                            .trim()
+                        if (transcript.isNotEmpty()) {
+                            handleSpeechTranscript(transcript)
                         }
                     },
                     onFailure = { error ->
@@ -461,6 +575,8 @@ class AppViewModel(
                         result.getOrThrow()
                     }
                 }
+            } finally {
+                _isSpeechProcessing.value = false
             }
         } else {
             _recordingStatus.value = "No audio data recorded"
@@ -470,6 +586,7 @@ class AppViewModel(
         kotlinx.coroutines.delay(com.vowser.client.contribution.ContributionConstants.RECORDING_STATUS_RESET_DELAY_MS)
         _recordingStatus.value = "Ready to record"
         addStatusLog("녹음 준비 완료", StatusLogType.INFO)
+        _isWaitingForUserInput.value = false
     }
 
     private fun setupWebSocketCallbacks() {
@@ -505,12 +622,7 @@ class AppViewModel(
 
                     val transcript = voiceResult.transcript?.trim()
                     if (!transcript.isNullOrBlank()) {
-                        if (_awaitingContributionTask.value) {
-                            _pendingContributionTask.value = transcript
-                        } else {
-                            _receivedMessage.value = transcript
-                            setPendingCommand(transcript)
-                        }
+                        handleSpeechTranscript(transcript)
                     }
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
@@ -587,8 +699,7 @@ class AppViewModel(
             val stepCount = contributionModeService.currentStepCount.value
             val task = contributionModeService.currentTask.value
             val sessionId = contributionModeService.getCurrentSessionId()
-            var stepsSnapshot: List<ContributionStep> = emptyList()
-
+            var stepsSnapshot: List<ContributionStep>
             try {
                 runCatching { BrowserAutomationBridge.stopContributionRecording() }
                     .onFailure {
@@ -742,6 +853,11 @@ class AppViewModel(
             _graphLoading.value = true
             addStatusLog("경로 검색 중: $transcript", StatusLogType.INFO)
 
+            if (_isContributionScreenActive.value) {
+                addStatusLog("음성 명령이 기여 모드에서 수신되었습니다. 해당 기능은 지원되지 않습니다.", StatusLogType.WARNING)
+                return
+            }
+
             val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
                 pathApiClient.searchPaths(transcript, limit = 5)
             }
@@ -838,6 +954,7 @@ class AppViewModel(
                 },
 
                 getUserInput = ::requestUserInput,
+                getUserSelect = ::requestUserSelect,
                 onLog = { message ->
                     addStatusLog(message, StatusLogType.INFO)
                 },
@@ -894,6 +1011,7 @@ class AppViewModel(
                     addStatusLog("[$current/$total] $description", StatusLogType.INFO)
                 },
                 getUserInput = ::requestUserInput,
+                getUserSelect = ::requestUserSelect,
                 onLog = { message -> addStatusLog(message, StatusLogType.INFO) },
                 onWaitForUser = { message -> waitForUserConfirmation(message) }
             )
@@ -990,6 +1108,25 @@ class AppViewModel(
         }
     }
 
+    private suspend fun requestUserSelect(step: com.vowser.client.api.dto.PathStepDetail,
+                                          options: List<SelectOption>): String {
+        return suspendCancellableCoroutine { continuation ->
+            _isWaitingForSelect.value = true
+            _isWaitingForUserInput.value = false
+            _inputRequest.value = step
+            _selectOptions.value = options
+            userSelectContinuation = continuation
+            addStatusLog("옵션 선택 필요: ${step.description}", StatusLogType.INFO)
+
+            continuation.invokeOnCancellation {
+                _isWaitingForSelect.value = false
+                _selectOptions.value = emptyList()
+                _inputRequest.value = null
+                userSelectContinuation = null
+            }
+        }
+    }
+
     /**
      * 사용자 확인을 기다리는 suspend 함수
      * - PathExecutor의 onWaitForUser 콜백에 전달됩니다
@@ -1030,12 +1167,31 @@ class AppViewModel(
         addStatusLog("사용자 입력: $input", StatusLogType.INFO)
     }
 
+    fun submitUserSelect(value: String) {
+        val label = _selectOptions.value.firstOrNull { it.value == value }?.label ?: value
+        userSelectContinuation?.resume(value)
+        userSelectContinuation = null
+        _isWaitingForSelect.value = false
+        _selectOptions.value = emptyList()
+        _inputRequest.value = null
+        addStatusLog("사용자 선택: $label", StatusLogType.INFO)
+    }
+
     fun cancelUserInput() {
         userInputContinuation?.resume("")
         userInputContinuation = null
         _isWaitingForUserInput.value = false
         _inputRequest.value = null
         addStatusLog("사용자 입력 취소", StatusLogType.WARNING)
+    }
+
+    fun cancelUserSelect() {
+        userSelectContinuation?.resume("")
+        userSelectContinuation = null
+        _isWaitingForSelect.value = false
+        _selectOptions.value = emptyList()
+        _inputRequest.value = null
+        addStatusLog("사용자 선택 취소", StatusLogType.WARNING)
     }
 
     /**
