@@ -454,34 +454,28 @@ private fun UserWaitDialog(
     onConfirm: () -> Unit
 ) {
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.background,
         onDismissRequest = { /* 사용자가 임의로 닫을 수 없음 */ },
         title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
-            ) {
-                Text(
-                    text = "⏸️",
-                    fontSize = 24.sp
-                )
-                Text(
-                    text = "사용자 작업 대기 중",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
+            Text(
+                text = "사용자 입력",
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.titleLarge
+            )
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
             ) {
                 Text(
-                    text = waitMessage,
+                    text = waitMessage.ifBlank { "입력 값이 필요합니다." },
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
-                    text = "작업을 완료하신 후 아래 버튼을 눌러주세요.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    text = "작업을 완료하신 후 확인을 눌러주세요.",
+                    color = MaterialTheme.colorScheme.background,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         },
@@ -489,11 +483,11 @@ private fun UserWaitDialog(
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.Colors.Success,
+                    containerColor = Color.Black,
                     contentColor = Color.White
                 )
             ) {
-                Text("완료")
+                Text("확인")
             }
         },
     )
