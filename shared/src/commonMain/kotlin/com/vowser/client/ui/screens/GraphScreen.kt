@@ -140,7 +140,12 @@ fun GraphScreen(
                         activeNodeId = realTimeActiveNodeId ?: activeNodeId,
                         isContributionMode = false,
                         searchInfo = graphData.searchInfo,
-                        allMatchedPaths = graphData.allMatchedPaths
+                        allMatchedPaths = graphData.allMatchedPaths,
+                        modifier = Modifier
+                            .size(width = 1920.dp, height = 1080.dp)
+                            .align(Alignment.Center)
+                        ,
+                        contentScale = 1.0f
                     )
                 } else {
                     EmptyStateUI(
@@ -155,7 +160,7 @@ fun GraphScreen(
                         onClearStatusHistory = onClearStatusHistory,
                         onToggleSttMode = onToggleSttMode,
                         onShowGraph = { if (graphData != null) showGraphView = true },
-                        modifier = Modifier.fillMaxSize(), // 수동 padding 제거
+                        modifier = Modifier.fillMaxSize(),
                         maxWidth = maxWidth,
                         maxHeight = maxHeight
                     )
