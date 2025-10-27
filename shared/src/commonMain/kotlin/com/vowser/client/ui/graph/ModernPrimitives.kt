@@ -2,6 +2,8 @@ package com.vowser.client.ui.graph
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.*
 import com.vowser.client.ui.theme.AppTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -56,10 +59,22 @@ fun LineDiagram(
     val labelColor = cs.onSurface
     val labelMuted = cs.onSurface.copy(alpha = 0.65f)
 
-    Column(
-        modifier = modifier
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(activeIndex) {
+        if (activeIndex != null && activeIndex in steps.indices) {
+            listState.animateScrollToItem(activeIndex)
+        }
+    }
+
+    LazyColumn(
+        modifier = modifier,
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall),
+        contentPadding = PaddingValues(vertical = AppTheme.Dimensions.paddingXSmall)
     ) {
-        steps.forEachIndexed { index, node ->
+        items(steps.size) { index ->
+            val node = steps[index]
             val isActive = activeIndex == index
             val isPast = activeIndex?.let { index < it } ?: false
 

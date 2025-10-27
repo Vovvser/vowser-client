@@ -282,7 +282,7 @@ private fun EmptyStateUI(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.Start,
         ) {
             // 재연결 버튼
             OutlinedButton(
@@ -317,9 +317,9 @@ private fun EmptyStateUI(
                 ) {
                     Text("그래프 보기")
                 }
-                Spacer(Modifier.width(AppTheme.Dimensions.paddingSmall))
             }
 
+            Spacer(modifier = Modifier.weight(1f))
 
             // 클리어 버튼
             OutlinedButton(
