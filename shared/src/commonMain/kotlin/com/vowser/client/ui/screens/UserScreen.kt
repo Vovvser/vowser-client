@@ -45,6 +45,10 @@ fun UserScreen(
     val userInfoLoading by viewModel.userInfoLoading.collectAsState()
 
     var showQuickVerify by remember { mutableStateOf(false) }
+    var quickVerifyMethod = ""
+    var quickVerifyName = userInfo?.name ?: ""
+    var quickVerifyBirthdate = userInfo?.birthdate ?: ""
+    var quickVerifyPhoneNumber = userInfo?.phoneNumber ?: ""
 
     // 화면 진입 시 유저 정보 새로고침
     LaunchedEffect(Unit) {
@@ -115,7 +119,36 @@ fun UserScreen(
                                     InfoItem("생년월일", userInfo!!.birthdate ?: "-")
                                 }
                             }
-                            Column (
+
+                            if (!showQuickVerify && quickVerifyMethod.isNotEmpty()) {
+                                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.SpaceBetween,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(colGap)) {
+                                        Column (
+                                            Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                                        ) {
+                                            InfoItem("간편 인증 등록", quickVerifyMethod)
+                                            InfoItem("이름", quickVerifyName)
+                                        }
+                                        Column(
+                                            Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                                        ) {
+                                            InfoItem("생년월일", quickVerifyBirthdate)
+                                            InfoItem("전화번호", quickVerifyPhoneNumber)
+                                        }
+                                    }
+                                }
+
+                            }
+
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
@@ -169,7 +202,10 @@ fun UserScreen(
                 visible = showQuickVerify,
                 onDismiss = { showQuickVerify = false },
                 onSubmit = { method, name, birthdate, phoneNumber ->
-                    // TODO: 간편 인증 로직 구현
+                    quickVerifyMethod = method
+                    quickVerifyName = name
+                    quickVerifyBirthdate = birthdate
+                    quickVerifyPhoneNumber = phoneNumber
                     showQuickVerify = false
                 }
             )
