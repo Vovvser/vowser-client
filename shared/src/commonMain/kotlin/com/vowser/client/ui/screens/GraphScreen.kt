@@ -160,6 +160,8 @@ fun GraphScreen(
                         onClearStatusHistory = onClearStatusHistory,
                         onShowGraph = { if (graphData != null) showGraphView = true },
                         modifier = Modifier.fillMaxSize(),
+                        routeNodes = graphData?.nodes,
+                        activeNodeId = realTimeActiveNodeId,
                     )
                 }
 
@@ -258,6 +260,8 @@ private fun EmptyStateUI(
     onClearStatusHistory: () -> Unit,
     onShowGraph: () -> Unit,
     modifier: Modifier = Modifier,
+    routeNodes: List<com.vowser.client.ui.graph.GraphNode>? = null,
+    activeNodeId: String? = null,
 ) {
     val listState = rememberLazyListState()
 
@@ -349,52 +353,72 @@ private fun EmptyStateUI(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
         ) {
-            // 연결 상태 표시
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(top = AppTheme.Dimensions.paddingMedium, end = AppTheme.Dimensions.paddingMedium),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Canvas(
-                    modifier = Modifier
-                        .padding(end = AppTheme.Dimensions.paddingSmall)
-                        .size(12.dp)
-                ) {
-                    drawCircle(color = connectionStatus.displayColor)
+            Row(modifier = Modifier.fillMaxSize()) {
+                if (!routeNodes.isNullOrEmpty()) {
+                    val steps = routeNodes
+                    val activeIdx = steps.indexOfFirst { it.id == activeNodeId }.let { if (it >= 0) it else null }
+                    Box(
+                        modifier = Modifier
+                            .width(200.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(AppTheme.Dimensions.paddingMedium)
+                    ) {
+                        com.vowser.client.ui.graph.LineDiagram(
+                            steps = steps,
+                            activeIndex = activeIdx,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
-                Text(
-                    text = connectionStatus.displayText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
 
-            Column {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
-                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
-                ) {
-                    items(statusHistory) { logEntry ->
-                        StatusLogItem(logEntry)
+                Column(modifier = Modifier.weight(1f)) {
+                    // 연결 상태 표시
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(top = AppTheme.Dimensions.paddingMedium, end = AppTheme.Dimensions.paddingMedium),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Canvas(
+                            modifier = Modifier
+                                .padding(end = AppTheme.Dimensions.paddingSmall)
+                                .size(12.dp)
+                        ) {
+                            drawCircle(color = connectionStatus.displayColor)
+                        }
+                        Text(
+                            text = connectionStatus.displayText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
                     }
 
-                    // 개발자 모드에서만 receivedMessage 표시
-                    if (isDeveloperMode && receivedMessage != "No message") {
-                        item {
-                            StatusLogItem(
-                                StatusLogEntry(
-                                    timestamp = "서버",
-                                    message = receivedMessage,
-                                    type = StatusLogType.INFO
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
+                        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
+                    ) {
+                        items(statusHistory) { logEntry ->
+                            StatusLogItem(logEntry)
+                        }
+
+                        // 개발자 모드에서만 receivedMessage 표시
+                        if (isDeveloperMode && receivedMessage != "No message") {
+                            item {
+                                StatusLogItem(
+                                    StatusLogEntry(
+                                        timestamp = "서버",
+                                        message = receivedMessage,
+                                        type = StatusLogType.INFO
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }

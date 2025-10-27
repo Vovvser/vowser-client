@@ -22,6 +22,8 @@ import com.vowser.client.ui.theme.AppTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 fun GlassPanel(
@@ -39,6 +41,89 @@ fun GlassPanel(
             .padding(12.dp),
         content = content
     )
+}
+
+@Composable
+fun LineDiagram(
+    steps: List<GraphNode>,
+    activeIndex: Int? = null,
+    modifier: Modifier = Modifier
+) {
+    val cs = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val lineColor = cs.outline.copy(alpha = 0.35f)
+    val futureLine = cs.outline.copy(alpha = 0.18f)
+    val labelColor = cs.onSurface
+    val labelMuted = cs.onSurface.copy(alpha = 0.65f)
+
+    Column(
+        modifier = modifier
+    ) {
+        steps.forEachIndexed { index, node ->
+            val isActive = activeIndex == index
+            val isPast = activeIndex?.let { index < it } ?: false
+
+            Row(
+                modifier = Modifier
+                    .height(28.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(20.dp)
+                        .fillMaxHeight()
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val cx = size.width / 2f
+                        val cy = size.height / 2f
+                        val radius = with(density) { 5.dp.toPx() }
+                        val stroke = with(density) { 2.dp.toPx() }
+
+                        if (index > 0) {
+                            drawLine(
+                                color = if (isPast || isActive) lineColor else futureLine,
+                                start = androidx.compose.ui.geometry.Offset(cx, 0f),
+                                end = androidx.compose.ui.geometry.Offset(cx, cy - radius),
+                                strokeWidth = stroke
+                            )
+                        }
+                        if (index < steps.lastIndex) {
+                            drawLine(
+                                color = if (isPast) lineColor else futureLine,
+                                start = androidx.compose.ui.geometry.Offset(cx, cy + radius),
+                                end = androidx.compose.ui.geometry.Offset(cx, size.height),
+                                strokeWidth = stroke
+                            )
+                        }
+                        if (isActive) {
+                            drawCircle(color = Color.Black, radius = radius + stroke, center = androidx.compose.ui.geometry.Offset(cx, cy))
+                            drawCircle(color = AppTheme.Colors.Purple, radius = radius + stroke / 2f, center = androidx.compose.ui.geometry.Offset(cx, cy))
+                            drawCircle(color = Color.White, radius = radius * 0.6f, center = androidx.compose.ui.geometry.Offset(cx, cy))
+                        } else if (isPast) {
+                            drawCircle(color = lineColor, radius = radius, center = androidx.compose.ui.geometry.Offset(cx, cy))
+                        } else {
+                            drawCircle(color = futureLine, radius = radius, center = androidx.compose.ui.geometry.Offset(cx, cy))
+                        }
+                    }
+                }
+
+                val label = node.label
+                Text(
+                    text = if (label.length > 24) label.take(22) + "…" else label,
+                    fontSize = 12.sp,
+                    color = when {
+                        isActive -> labelColor
+                        isPast -> labelMuted
+                        else -> labelMuted
+                    },
+                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
 }
 
 @Composable
