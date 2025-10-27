@@ -108,7 +108,9 @@ class ContributionModeService(
         val iterator = recentActions.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (currentTime - entry.value > deduplicationWindowMs) {
+            val key = entry.key
+            val window = if (key.startsWith("navigate:")) 5000L else deduplicationWindowMs
+            if (currentTime - entry.value > window) {
                 iterator.remove()
             }
         }
@@ -143,7 +145,8 @@ class ContributionModeService(
                     when {
                         now - recentClick < deduplicationWindowMs -> true
                         now - recentType < deduplicationWindowMs -> true
-                        now - recentNavigate < 1000L -> true
+                        // 같은 URL로 반복 navigate는 더 길게 억제
+                        now - recentNavigate < 5000L -> true
                         else -> {
                             recentActions[actionKey] = now
                             false
@@ -199,18 +202,20 @@ class ContributionModeService(
             step.htmlAttributes?.get("keyCode") == "13" ||
             step.htmlAttributes?.get("which") == "13" ||
             step.htmlAttributes?.get("code")?.lowercase() == "enter") {
-            pendingTypingStep?.let { recordStepImmediately(it) }
+            // Enter는 타이핑 완료 시그널로만 사용: 대기 중인 타이핑 스텝만 기록하고 Enter 스텝 자체는 건너뜀
+            pendingTypingStep?.let { recordTypeStepMergingPreviousClick(it) }
             pendingTypingStep = null
-            recordStepImmediately(step)
             return
         }
 
         pendingTypingStep = step
 
+        val effectiveDebounce = if (isSearchField(step)) typingDebounceTimeMs + 500 else typingDebounceTimeMs
+
         typingDebounceJob = coroutineScope.launch {
-            delay(typingDebounceTimeMs)
+            delay(effectiveDebounce)
             pendingTypingStep?.let { pendingStep ->
-                recordStepImmediately(pendingStep)
+                recordTypeStepMergingPreviousClick(pendingStep)
                 pendingTypingStep = null
             }
         }
@@ -224,10 +229,49 @@ class ContributionModeService(
     private fun flushPendingTypingStep() {
         typingDebounceJob?.cancel()
         pendingTypingStep?.let { pendingStep ->
-            recordStepImmediately(pendingStep)
+            recordTypeStepMergingPreviousClick(pendingStep)
             pendingTypingStep = null
             Napier.d("Flushed pending typing step due to other action", tag = Tags.BROWSER_AUTOMATION)
         }
+    }
+
+    /**
+     * 직전 동일 요소 클릭(step.action == "click")을 type과 병합하여 제거
+     */
+    private fun recordTypeStepMergingPreviousClick(step: ContributionStep) {
+        val session = currentSession ?: run {
+            recordStepImmediately(step)
+            return
+        }
+
+        if (session.steps.isNotEmpty()) {
+            val last = session.steps.last()
+            val sameUrl = normalizeUrl(last.url) == normalizeUrl(step.url)
+            val sameTarget = (last.selector?.trim() == step.selector?.trim())
+            val closeInTime = (step.timestamp - last.timestamp) in 0..3000
+            if (last.action == "click" && sameUrl && sameTarget && closeInTime) {
+                // 직전 클릭 스텝 제거 (session + buffer)
+                session.steps.removeLast()
+                val indexInBuffer = stepBuffer.indexOfLast { it.action == "click" && it.selector?.trim() == step.selector?.trim() && normalizeUrl(it.url) == normalizeUrl(step.url) }
+                if (indexInBuffer >= 0) {
+                    stepBuffer.removeAt(indexInBuffer)
+                }
+                _currentStepCount.value = session.steps.size
+                Napier.i("Merged previous click into type for selector: ${step.selector}", tag = Tags.BROWSER_AUTOMATION)
+            }
+        }
+
+        recordStepImmediately(step)
+    }
+
+    private fun isSearchField(step: ContributionStep): Boolean {
+        val attrs = step.htmlAttributes ?: return false
+        val type = attrs["type"]?.lowercase()
+        val placeholder = attrs["placeholder"]?.lowercase()
+        val ariaLabel = attrs["aria-label"]?.lowercase()
+        return type == "search" ||
+                placeholder?.contains("검색") == true || placeholder?.contains("search") == true ||
+                ariaLabel?.contains("검색") == true || ariaLabel?.contains("search") == true
     }
     
     /**

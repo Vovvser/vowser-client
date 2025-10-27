@@ -130,7 +130,10 @@ class PathApiClient(
         val isInput = action == "input"
         val inputType = if (isInput) detectInputType(step) else null
         val inputPlaceholder = if (isInput) {
-            step.htmlAttributes?.get("placeholder") ?: step.htmlAttributes?.get("aria-label")
+            // 실행 재현성을 높이기 위해, 입력된 텍스트를 우선 저장 (민감/장문은 제외)
+            val typed = step.htmlAttributes?.get("text")?.trim()
+            val safeTyped = if (!typed.isNullOrEmpty() && typed.length <= 20 && (inputType == "search" || inputType == "text")) typed else null
+            safeTyped ?: (step.htmlAttributes?.get("placeholder") ?: step.htmlAttributes?.get("aria-label"))
         } else null
 
         return PathStepSubmission(
@@ -154,43 +157,121 @@ class PathApiClient(
     private fun generateSelectors(step: ContributionStep): List<String> {
         val selectors = mutableListOf<String>()
         val attrs = step.htmlAttributes
+        val action = step.action.lowercase()
+        val detectedInputType = detectInputType(step)
+        val tagName = attrs?.get("tag")?.lowercase()
+        val isAnchor = tagName == "a"
+        val isButton = tagName == "button"
 
-        // 1. 원본 셀렉터
-        step.selector?.let { selectors.add(it) }
+        fun esc(value: String): String = value.replace("'", "\\'")
+        fun cssIdent(value: String): String {
+            if (value.isEmpty()) return value
+            val sb = StringBuilder()
+            value.forEachIndexed { idx, ch ->
+                val valid = ch.isLetterOrDigit() || ch == '-' || ch == '_'
+                if (!valid || (idx == 0 && ch.isDigit())) sb.append('\\').append(ch) else sb.append(ch)
+            }
+            return sb.toString()
+        }
+
+        // 1. (원본 셀렉터는 가장 마지막에 추가하여 너무 범용적인 선택이 우선되지 않도록 한다)
 
         // 2. ID 기반
         attrs?.get("id")?.let { id ->
-            if (id.isNotBlank()) selectors.add("#$id")
+            if (id.isNotBlank()) selectors.add("#${cssIdent(id)}")
         }
 
-        // 3. Name 기반
+        // 2-1. (select 특화 셀렉터 생성은 제외)
+
+        // 3. Anchor/URL 기반 (가장 안정적이므로 상위 우선순위)
+        attrs?.get("href")?.let { href ->
+            if (href.isNotBlank()) {
+                selectors.add("a[href='${esc(href)}']")
+            }
+        }
+
+        // 4. Name 기반
         attrs?.get("name")?.let { name ->
             if (name.isNotBlank()) {
-                selectors.add("[name='$name']")
+                selectors.add("[name='${esc(name)}']")
             }
         }
 
-        // 4. data-testid 기반
+        // 5. data-testid 기반
         attrs?.get("data-testid")?.let { testId ->
             if (testId.isNotBlank()) {
-                selectors.add("[data-testid='$testId']")
+                selectors.add("[data-testid='${esc(testId)}']")
             }
         }
+        // 5-1. data-nclicks 기반(네이버 계열)
+        attrs?.get("data-nclicks")?.let { v ->
+            if (v.isNotBlank()) selectors.add("[data-nclicks='${esc(v)}']")
+        }
 
-        // 5. aria-label 기반
+        // 6. aria-label 기반
         attrs?.get("aria-label")?.let { label ->
             if (label.isNotBlank()) {
-                selectors.add("[aria-label='$label']")
+                selectors.add("[aria-label='${esc(label)}']")
             }
         }
 
-        // 6. Class 기반
+        // 7. 태그 특화 셀렉터
+        if (tagName == "input") {
+            attrs?.get("placeholder")?.let { ph ->
+                if (ph.isNotBlank()) selectors.add("input[placeholder='${esc(ph)}']")
+            }
+            // 민감값 노출 방지: value 기반 셀렉터는 검색/텍스트형이고 값이 짧을 때만
+            attrs?.get("value")?.let { v ->
+                val safe = v.trim()
+                val isShort = safe.length in 1..20
+                val isNonSensitive = detectedInputType == "search" || detectedInputType == "text"
+                if (safe.isNotEmpty() && isShort && isNonSensitive) {
+                    selectors.add("input[value='${esc(safe)}']")
+                }
+            }
+            attrs?.get("type")?.let { t ->
+                if (t.isNotBlank()) selectors.add("input[type='${esc(t)}']")
+            }
+        } else if (isButton) {
+            selectors.add("button")
+            attrs?.get("type")?.let { t ->
+                if (t.isNotBlank()) selectors.add("button[type='${esc(t)}']")
+            }
+        }
+
+        // 8. 텍스트 기반 (Playwright 확장 :has-text) — 클릭에서는 높은 우선순위
+        val text = attrs?.get("text")?.trim()?.take(100)
+        if (!text.isNullOrBlank() && action == "click") {
+            val safe = esc(text)
+            selectors.add("a:has-text('$safe')")
+            selectors.add("button:has-text('$safe')")
+            selectors.add("[role='button']:has-text('$safe')")
+            selectors.add("*:has-text('$safe')")
+        }
+
+        // 9. Class 기반 (낮은 우선순위)
         attrs?.get("class")?.let { className ->
             if (className.isNotBlank()) {
                 val classes = className.split(" ").filter { it.isNotBlank() }
                 if (classes.isNotEmpty()) {
-                    selectors.add(".${classes.joinToString(".")}")
+                    val escClasses = classes.map { cssIdent(it) }
+                    selectors.add(".${escClasses.joinToString(".")}")
+                    // 토큰 매칭 보조 셀렉터(첫 토큰)
+                    selectors.add("[class~='${esc(classes.first())}']")
+                    // 텍스트와 조합한 앵커 클래스 우선 후보
+                    if (!text.isNullOrBlank() && action == "click") {
+                        val safeText = esc(text)
+                        if (isAnchor) selectors.add("a.${escClasses.joinToString(".")}:has-text('$safeText')")
+                        if (isButton) selectors.add("button.${escClasses.joinToString(".")}:has-text('$safeText')")
+                    }
                 }
+            }
+        }
+
+        // 10. 원본 셀렉터(최후순위) — 클릭은 제외하여 과도하게 범용적인 구조 셀렉터 사용을 피함
+        if (action != "click") {
+            step.selector?.let { rawSel ->
+                if (rawSel.isNotBlank()) selectors.add(rawSel)
             }
         }
 
@@ -219,7 +300,15 @@ class PathApiClient(
         val labels = mutableListOf<String>()
         val attrs = step.htmlAttributes
 
-        attrs?.get("text")?.let { if (it.isNotBlank()) labels.add(it.trim()) }
+        // 입력값은 민감도와 길이에 따라 제한(검색 입력은 허용)
+        val action = step.action.lowercase()
+        val detectedType = detectInputType(step)
+        val rawText = attrs?.get("text")?.trim()
+        val allowText = when {
+            action == "type" -> (detectedType == "search" && (rawText?.length ?: 0) in 1..20)
+            else -> true
+        }
+        if (allowText && !rawText.isNullOrBlank()) labels.add(rawText)
         attrs?.get("aria-label")?.let { if (it.isNotBlank()) labels.add(it.trim()) }
         attrs?.get("placeholder")?.let { if (it.isNotBlank()) labels.add(it.trim()) }
         attrs?.get("alt")?.let { if (it.isNotBlank()) labels.add(it.trim()) }
@@ -243,7 +332,16 @@ class PathApiClient(
             ?: step.title.trim()
 
         return when (action.lowercase()) {
-            "click" -> if (text.isNotBlank()) "$text 클릭" else "요소 클릭"
+            "click" -> {
+                val tag = step.htmlAttributes?.get("tag")?.lowercase()
+                val inputType = step.htmlAttributes?.get("type")?.lowercase()
+                when {
+                    tag == "input" || tag == "textarea" -> "입력창 클릭"
+                    inputType == "search" -> "검색창 클릭"
+                    text.isNotBlank() -> "$text 클릭"
+                    else -> "요소 클릭"
+                }
+            }
             "type", "input" -> {
                 val inputType = detectInputType(step)
                 val typeLabel = when (inputType) {

@@ -188,7 +188,10 @@ object BrowserAutomationService {
             try {
                 page.navigate(url)
                 AdaptiveWaitManager.waitForPageLoad(page, "navigation to $url")
-                recordContributionStep(url, page.title(), "navigate", null, null)
+                // about: 및 빈 URL은 기록하지 않음
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    recordContributionStep(url, page.title(), "navigate", null, null)
+                }
             } catch (e: PlaywrightException) {
                 Napier.e("Navigation failed to $url: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
@@ -392,16 +395,61 @@ object BrowserAutomationService {
                 element.hover()
                 Napier.d("Hovered over element", tag = Tags.BROWSER_AUTOMATION)
 
-                val isStandardSelector = !selector.contains(":has-text")
-                if (isStandardSelector) {
-                    try {
-                        page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
-                        Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
-                    } catch (e: Exception) {
-                        Napier.w("Highlight failed: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
-                    }
-                } else {
-                    Napier.w("Skipping highlight for non-standard selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                // Try element-context highlight first (works with :has-text and iframes)
+                try {
+                    element.evaluate(
+                        """
+                        (el)=>{
+                            try{
+                                const styleId='wtg-highlight-styles';
+                                if(!document.getElementById(styleId)){
+                                    const style=document.createElement('style');
+                                    style.id=styleId;
+                                    style.innerHTML="[data-wtg-highlighted=\"true\"] {"+
+                                        "box-shadow: 0 0 0 5px rgba(0,123,255,0.7) !important;"+
+                                        "background-color: rgba(0,123,255,0.1) !important;"+
+                                        "transition: box-shadow 0.2s, background-color 0.2s !important;"+
+                                    "}"+
+                                    "#wtg-click-indicator {"+
+                                        "position: absolute !important;"+
+                                        "background-color: #007bff !important;"+
+                                        "color: #fff !important;"+
+                                        "padding: 5px 10px !important;"+
+                                        "border-radius: 20px !important;"+
+                                        "font-size: 12px !important;"+
+                                        "font-weight: bold !important;"+
+                                        "white-space: nowrap !important;"+
+                                        "z-index: 2147483647 !important;"+
+                                        "pointer-events: none !important;"+
+                                        "opacity: 0;"+
+                                        "animation: wtg-fade-in 0.3s forwards !important;"+
+                                    "}"+
+                                    "@keyframes wtg-fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }";
+                                    document.head.appendChild(style);
+                                }
+                                document.querySelectorAll('[data-wtg-highlighted]').forEach(n=>{n.style.boxShadow='';n.style.backgroundColor='';n.removeAttribute('data-wtg-highlighted');});
+                                const ex=document.getElementById('wtg-click-indicator'); if(ex) ex.remove();
+                                if(!el) return;
+                                el.setAttribute('data-wtg-highlighted','true');
+                                const indicator=document.createElement('div');
+                                indicator.id='wtg-click-indicator';
+                                indicator.textContent='Click Target';
+                                document.body.appendChild(indicator); indicator.offsetWidth;
+                                const rect=el.getBoundingClientRect();
+                                let left=rect.right+window.scrollX+10; let top=rect.top+window.scrollY-indicator.offsetHeight-10;
+                                if(top<window.scrollY) top=rect.bottom+window.scrollY+10;
+                                if(left+indicator.offsetWidth>window.innerWidth+window.scrollX){
+                                    left=rect.left+window.scrollX-indicator.offsetWidth-10;
+                                    if(left<window.scrollX) left=window.scrollX+10;
+                                }
+                                indicator.style.left=left+'px'; indicator.style.top=top+'px';
+                            }catch(e){}
+                        }
+                        """
+                    )
+                    Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                } catch (e: Exception) {
+                    Napier.w("Element-context highlight failed: ${e.message}.", tag = Tags.BROWSER_AUTOMATION)
                 }
 
                 delay(300)
@@ -622,32 +670,51 @@ object BrowserAutomationService {
 
         Napier.i("Setting up contribution recording listeners", tag = Tags.BROWSER_AUTOMATION)
 
-        // Detect new tab opening and start tracking
+        // Detect new tab opening. In contribution mode, redirect popup to same tab; otherwise leave default behavior.
         page.onPopup { newPage ->
-            Napier.i("New tab detected: ${newPage.url()}", tag = Tags.BROWSER_AUTOMATION)
-            recordContributionStep(
-                newPage.url(),
-                newPage.title(),
-                "new_tab",
-                null,
-                mapOf("from_url" to page.url())
-            )
-
-            // 새 탭도 추적 시작
-            setupNewPageTracking(newPage)
+            if (!isRecordingContributions) {
+                Napier.i("Popup detected (non-contribution): ${runCatching { newPage.url() }.getOrElse { "" }}", tag = Tags.BROWSER_AUTOMATION)
+                return@onPopup
+            }
+            val popupUrl = runCatching { newPage.url() }.getOrElse { "" }
+            Napier.i("New tab detected during contribution: $popupUrl — redirecting to same tab", tag = Tags.BROWSER_AUTOMATION)
+            try {
+                runCatching { newPage.waitForLoadState() }
+                val targetUrl = runCatching { newPage.url() }.getOrElse { popupUrl }
+                if (targetUrl.isNotBlank() && targetUrl != "about:blank") {
+                    page.navigate(targetUrl)
+                    recordContributionStep(
+                        targetUrl,
+                        page.title(),
+                        "navigate",
+                        null,
+                        mapOf("from_popup" to "true")
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.w("Failed to redirect popup into same tab: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+            } finally {
+                runCatching { newPage.close() }
+            }
         }
 
         // Detect page navigation (URL change)
         page.onFrameNavigated { frame ->
             if (frame == page.mainFrame()) {
                 Napier.i("Frame navigated to: ${frame.url()}", tag = Tags.BROWSER_AUTOMATION)
-                recordContributionStep(
-                    frame.url(),
-                    frame.page().title(),
-                    "navigate",
-                    null,
-                    null
-                )
+                // about:blank 등은 기록을 생략하여 노이즈 감소
+                val url = frame.url()
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    recordContributionStep(
+                        url,
+                        frame.page().title(),
+                        "navigate",
+                        null,
+                        null
+                    )
+                }
+                // 네비 직후에도 리스너가 즉시 준비되도록 재주입
+                runCatching { injectUserInteractionListeners(frame.page()) }
             }
         }
 
@@ -658,6 +725,16 @@ object BrowserAutomationService {
                 injectUserInteractionListeners()
             } catch (e: Exception) {
                 Napier.w("Failed to inject user interaction listeners: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+            }
+        }
+
+        // Inject earlier at DOMContentLoaded to avoid missing initial clicks
+        page.onDOMContentLoaded {
+            try {
+                Napier.d("DOMContentLoaded, injecting listeners for: ${page.url()}", tag = Tags.BROWSER_AUTOMATION)
+                injectUserInteractionListeners()
+            } catch (e: Exception) {
+                Napier.w("Failed to inject listeners on DOMContentLoaded: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
 
@@ -715,28 +792,91 @@ object BrowserAutomationService {
         }
     }
 
-    private fun injectUserInteractionListeners(targetPage: Page = page) {
-        if (!isRecordingContributions) return
+    private fun injectUserInteractionListeners(targetPage: Page = page): Boolean {
+        if (!isRecordingContributions) return false
 
-        targetPage.evaluate("""
+        val injected = targetPage.evaluate("""
             (function() {
                 // 이미 리스너가 설정되어 있으면 중복 설정 방지
-                if (window.__vowserContributionListenersSetup) return;
+                if (window.__vowserContributionListenersSetup) return false;
                 window.__vowserContributionListenersSetup = true;
                 
                 console.log('Vowser contribution listeners injected');
                 
-                // Click event detection
+                // Prevent opening new tabs: force anchors to stay in same tab and override window.open
+                if (!window.__vowserNoNewTabs) {
+                    window.__vowserNoNewTabs = true;
+                    try {
+                        const __origOpen = window.open;
+                        window.open = function(url, target, features) {
+                            try {
+                                if (url) {
+                                    window.location.href = url;
+                                    return null;
+                                }
+                            } catch (e) {}
+                            return __origOpen ? __origOpen.apply(window, arguments) : null;
+                        };
+                    } catch (e) { /* ignore */ }
+
+                    document.addEventListener('click', function(ev) {
+                        try {
+                            const el = ev.target;
+                            if (!el || !el.closest) return;
+                            const a = el.closest('a[target]');
+                            if (a) {
+                                a.setAttribute('target', '_self');
+                            }
+                            const anchor = el.closest('a[href]');
+                            if (anchor && (ev.metaKey || ev.ctrlKey)) {
+                                ev.preventDefault();
+                                ev.stopImmediatePropagation();
+                                try { anchor.setAttribute('target', '_self'); } catch (e) {}
+                                window.location.href = anchor.href;
+                            }
+                        } catch (e) { /* ignore */ }
+                    }, true);
+
+                    // Middle-click(auxclick) opens new tab by default; force same-tab navigation
+                    document.addEventListener('auxclick', function(ev) {
+                        try {
+                            if (ev.button !== 1) return; // only middle button
+                            const el = ev.target;
+                            if (!el || !el.closest) return;
+                            const anchor = el.closest('a[href]');
+                            if (anchor) {
+                                ev.preventDefault();
+                                ev.stopImmediatePropagation();
+                                try { anchor.setAttribute('target', '_self'); } catch (e) {}
+                                window.location.href = anchor.href;
+                            }
+                        } catch (e) { /* ignore */ }
+                    }, true);
+                }
+
+                // Click event detection (prefer closest anchor/button target)
                 document.addEventListener('click', function(event) {
-                    const element = event.target;
+                    const original = event.target;
+                    let element = original;
+                    try {
+                        if (original && original.closest) {
+                            const candidate = original.closest('a,button,[role="button"]');
+                            if (candidate) element = candidate;
+                        }
+                    } catch (e) { /* ignore */ }
+
                     const selector = generateSelector(element);
+                    const isAnchor = element && element.tagName && element.tagName.toLowerCase() === 'a';
+                    const href = isAnchor ? (element.href || element.getAttribute('href') || '') : (element.getAttribute ? (element.getAttribute('href') || '') : '');
                     const attributes = {
-                        'text': element.textContent?.trim() || '',
+                        'text': (element.innerText || element.textContent || '').trim(),
                         'tag': element.tagName?.toLowerCase() || '',
                         'id': element.id || '',
                         'class': element.className || '',
-                        'href': element.href || '',
-                        'type': element.type || ''
+                        'href': href,
+                        'type': element.type || '',
+                        'name': element.name || '',
+                        'value': (element.value !== undefined ? (element.value || '') : '')
                     };
                     
                     window.__vowserLastClick = {
@@ -744,6 +884,7 @@ object BrowserAutomationService {
                         attributes: attributes,
                         timestamp: Date.now()
                     };
+                    try { localStorage.setItem('__vowser_last_click', JSON.stringify(window.__vowserLastClick)); } catch (e) {}
                     
                     console.log('Click detected:', selector, attributes);
                 }, true);
@@ -800,33 +941,51 @@ object BrowserAutomationService {
                     }
                 }, true);
                 
-                // 셀렉터 생성 함수
+                // 셀렉터 생성 함수 (간단한 nth-of-type 포함 + CSS.escape 활용)
                 function generateSelector(element) {
+                    if (!element) return '';
+                    const esc = (window.CSS && CSS.escape) ? CSS.escape : (s => String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&'));
                     if (element.id) {
-                        return '#' + element.id;
+                        return '#' + esc(element.id);
                     }
-                    
-                    let selector = element.tagName.toLowerCase();
-                    
+
+                    const tag = element.tagName.toLowerCase();
+                    let base = tag;
+
                     if (element.className) {
                         const classes = element.className.split(' ').filter(c => c);
                         if (classes.length > 0) {
-                            selector += '.' + classes.join('.');
+                            const escClasses = classes.map(c => esc(c));
+                            base += '.' + escClasses.join('.');
                         }
                     }
-                    
+
                     const parent = element.parentElement;
                     if (parent && parent !== document.body) {
-                        const parentSelector = parent.id ? '#' + parent.id : parent.tagName.toLowerCase();
-                        selector = parentSelector + ' > ' + selector;
+                        let part = base;
+                        try {
+                            const siblings = Array.from(parent.children).filter(n => n.tagName && n.tagName.toLowerCase() === tag);
+                            if (siblings.length > 1) {
+                                const index = siblings.indexOf(element) + 1;
+                                if (index > 0) part += ':nth-of-type(' + index + ')';
+                            }
+                        } catch (e) { /* ignore */ }
+                        const parentSelector = parent.id ? ('#' + esc(parent.id)) : parent.tagName.toLowerCase();
+                        return parentSelector + ' > ' + part;
                     }
-                    
-                    return selector;
-                }
-            })();
-        """)
 
-        Napier.i("User interaction listeners injected", tag = Tags.BROWSER_AUTOMATION)
+                    return base;
+                }
+                return true;
+            })();
+        """) as? Boolean ?: false
+
+        if (injected) {
+            Napier.i("User interaction listeners injected", tag = Tags.BROWSER_AUTOMATION)
+        } else {
+            Napier.d("Listeners already present for: ${targetPage.url()}", tag = Tags.BROWSER_AUTOMATION)
+        }
+        return injected
     }
 
     private fun startUserInteractionPolling() {
@@ -901,7 +1060,7 @@ object BrowserAutomationService {
             // 리스너 상태 체크
             val listenersSetup = targetPage.evaluate("window.__vowserContributionListenersSetup")
             if (listenersSetup != true) {
-                Napier.w("Listeners not setup for ${targetPage.url()}, re-injecting...", tag = Tags.BROWSER_AUTOMATION)
+                Napier.d("Listeners not setup for ${targetPage.url()}, re-injecting...", tag = Tags.BROWSER_AUTOMATION)
                 injectUserInteractionListeners(targetPage)
                 return
             }
@@ -937,6 +1096,52 @@ object BrowserAutomationService {
 
                     // Clear processed click data
                     targetPage.evaluate("window.__vowserLastClick = null;")
+                }
+            }
+
+            // 네비 직후 손실 방지를 위해 localStorage에 임시 저장된 클릭 이벤트 복구
+            val persistedClick = targetPage.evaluate(
+                """
+                (() => {
+                    try {
+                        const raw = localStorage.getItem('__vowser_last_click');
+                        if (!raw) return null;
+                        const obj = JSON.parse(raw);
+                        return {
+                            selector: obj && obj.selector ? obj.selector : '',
+                            attributes: obj && obj.attributes ? obj.attributes : {},
+                            timestamp: obj && obj.timestamp ? obj.timestamp : Date.now()
+                        };
+                    } catch (e) { return null }
+                })()
+                """
+            )
+            if (persistedClick != null) {
+                try {
+                    val persistedMap = persistedClick as? Map<*, *>
+                    val timestamp = (persistedMap?.get("timestamp") as? Number)?.toLong() ?: 0L
+                    val pageTimestamp = pageTimestamps[targetPage]?.first ?: 0L
+                    if (timestamp > pageTimestamp) {
+                        val selector = persistedMap?.get("selector") as? String ?: ""
+                        val attributesMap = persistedMap?.get("attributes") as? Map<*, *> ?: emptyMap<String, String>()
+                        val attributes = attributesMap.mapKeys { it.key.toString() }.mapValues { it.value.toString() }
+
+                        recordContributionStep(
+                            targetPage.url(),
+                            targetPage.title(),
+                            "click",
+                            selector,
+                            attributes
+                        )
+
+                        val currentInputTimestamp = pageTimestamps[targetPage]?.second ?: 0L
+                        pageTimestamps[targetPage] = Pair(timestamp, currentInputTimestamp)
+                        updatePageActivity(targetPage)
+                    }
+                } catch (_: Exception) {
+                    // ignore parse errors
+                } finally {
+                    runCatching { targetPage.evaluate("localStorage.removeItem('__vowser_last_click')") }
                 }
             }
 
@@ -1015,6 +1220,8 @@ object BrowserAutomationService {
         htmlAttributes: Map<String, String>?
     ) {
         if (!isRecordingContributions || contributionRecordingCallback == null) return
+        // about: 및 빈 URL 내비게이션은 기록하지 않음
+        if (action == "navigate" && (url.isBlank() || url.startsWith("about:"))) return
 
         val step = ContributionStep(
             url = url,

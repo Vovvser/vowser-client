@@ -817,6 +817,7 @@ class AppViewModel(
         steps: List<ContributionStep>
     ) {
         try {
+            // 사용자가 기록한 스텝을 그대로 저장 (navigate 포함)
             if (steps.isEmpty()) {
                 Napier.w("No steps to save for session: $sessionId", tag = Tags.CONTRIBUTION_MODE)
                 return
