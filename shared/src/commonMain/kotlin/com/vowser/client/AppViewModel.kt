@@ -219,11 +219,15 @@ class AppViewModel(
 
     fun checkAuthStatus() {
         coroutineScope.launch {
-            _authState.value = AuthState.Loading
             val accessToken = tokenStorage.getAccessToken()
             if (accessToken == null) {
                 _authState.value = AuthState.NotAuthenticated
                 return@launch
+            }
+
+            val existingState = _authState.value
+            if (existingState !is AuthState.Authenticated) {
+                _authState.value = AuthState.Loading
             }
 
             val result = authRepository.getMe()
@@ -257,6 +261,12 @@ class AppViewModel(
     }
 
     fun login() {
+        val currentState = _authState.value
+        if (currentState is AuthState.Authenticated || currentState is AuthState.Loading) {
+            Napier.i("Login requested while already authenticated or loading; ignoring.", tag = Tags.AUTH)
+            return
+        }
+        _authState.value = AuthState.Loading
         startAuthCallbackServer()
         authManager.login()
     }
@@ -271,16 +281,30 @@ class AppViewModel(
             Napier.i("Token saved successfully: ${savedToken != null}", tag = Tags.AUTH)
             kotlinx.coroutines.delay(150)
 
-            checkAuthStatus()
+            val profileResult = authRepository.getMe()
+            profileResult.onSuccess { member ->
+                _authState.value = AuthState.Authenticated(member.name, member.email)
+                _userInfo.value = member
+            }.onFailure { error ->
+                Napier.w("Login succeeded but profile fetch failed: ${error.message}", error, tag = Tags.AUTH)
+                _authState.value = AuthState.Error(error.message ?: "로그인 상태 확인 실패")
+            }
         }
+        authManager.stopCallbackServer()
     }
 
     fun logout() {
         coroutineScope.launch {
-            authRepository.logout()
-            tokenStorage.clearTokens()
-            _authState.value = AuthState.NotAuthenticated
-            _userInfo.value = null
+            try {
+                authRepository.logout()
+            } catch (e: Exception) {
+                Napier.w("Logout request failed: ${e.message}", e, tag = Tags.AUTH)
+            } finally {
+                tokenStorage.clearTokens()
+                _authState.value = AuthState.NotAuthenticated
+                _userInfo.value = null
+                authManager.stopCallbackServer()
+            }
         }
     }
 
