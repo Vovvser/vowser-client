@@ -187,7 +187,7 @@ class AppViewModel(
         webSocketClient.onConnectionOpened = {
             coroutineScope.launch {
                 _connectionStatus.value = ConnectionStatus.Connected
-                addStatusLog("서버 연결 완료", StatusLogType.SUCCESS)
+                addStatusLog("서버 연결(${sessionId} 세션) 완료", StatusLogType.SUCCESS)
             }
         }
         webSocketClient.onConnectionClosed = { reason ->
@@ -202,9 +202,9 @@ class AppViewModel(
                 if (_connectionStatus.value != newStatus) {
                     _connectionStatus.value = newStatus
                     val message = if (newStatus == ConnectionStatus.Disconnected) {
-                        "서버 연결이 종료되었습니다."
+                        "서버 연결(${sessionId} 세션)이 종료되었습니다."
                     } else {
-                        "서버 연결이 비정상적으로 종료되었습니다."
+                        "서버 연결(${sessionId} 세션)이 비정상적으로 종료되었습니다."
                     }
                     addStatusLog(message, if (newStatus == ConnectionStatus.Disconnected) StatusLogType.WARNING else StatusLogType.ERROR)
                 }
@@ -526,7 +526,7 @@ class AppViewModel(
 
     fun reconnect() {
         coroutineScope.launch {
-            addStatusLog("서버 재연결 시도...", StatusLogType.INFO)
+            addStatusLog("서버 재연결(${sessionId} 세션) 시도...", StatusLogType.INFO)
             _connectionStatus.value = ConnectionStatus.Connecting
             webSocketClient.reconnect()
         }

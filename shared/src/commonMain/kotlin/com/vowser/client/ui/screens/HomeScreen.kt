@@ -190,7 +190,7 @@ fun HomeScreen(
                         searchQuery = "다음 페이지로 이동"
                         viewModel.setPendingCommand(searchQuery)
                         navigator.push(AppScreen.GRAPH)
-                    }) { CardContent("다음 페이지로 이동") }
+                    }) { CardContent("위키피디아로 이동") }
                 }
             }
 
@@ -215,7 +215,7 @@ fun HomeScreen(
                         searchQuery = "네이버 로맨스 웹툰 추천"
                         viewModel.setPendingCommand(searchQuery)
                         navigator.push(AppScreen.GRAPH)
-                    }) { CardContent("네이버 로맨스 웹툰 추천") }
+                    }) { CardContent("네이버 로맨스 웹툰 가기 ") }
                 }
             }
         }

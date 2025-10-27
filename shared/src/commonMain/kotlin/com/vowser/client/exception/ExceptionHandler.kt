@@ -98,12 +98,13 @@ class ExceptionHandler(
     ) {
         val dialogState = when (exception) {
             is NetworkException.ConnectionFailed -> {
-                DialogState.NetworkError(
-                    onRetry = {
-                        hideDialog()
-                        coroutineScope.launch { onRecovery() }
-                    }
-                )
+//                DialogState.NetworkError(
+//                    onRetry = {
+//                        hideDialog()
+//                        coroutineScope.launch { onRecovery() }
+//                    }
+//                )
+                return
             }
             is BrowserException -> {
                 DialogState.BrowserError(
@@ -117,14 +118,15 @@ class ExceptionHandler(
                 )
             }
             is ContributionException.DataTransmissionFailed -> {
-                DialogState.ContributionError(
-                    onRetry = {
-                        hideDialog()
-                        coroutineScope.launch { onRecovery() }
-                    },
-                    onLater = { hideDialog() },
-                    onGiveUp = { hideDialog() }
-                )
+//                DialogState.ContributionError(
+//                    onRetry = {
+//                        hideDialog()
+//                        coroutineScope.launch { onRecovery() }
+//                    },
+//                    onLater = { hideDialog() },
+//                    onGiveUp = { hideDialog() }
+//                )
+                return
             }
             is BrowserException.BrowserCrash -> {
                 DialogState.PlaywrightRestart(
@@ -173,8 +175,8 @@ class ExceptionHandler(
             }
 
             exception.message?.contains("memory", ignoreCase = true) == true ||
-            exception.message?.contains("heap", ignoreCase = true) == true ||
-            exception::class.simpleName?.contains("OutOfMemory", ignoreCase = true) == true -> {
+                    exception.message?.contains("heap", ignoreCase = true) == true ||
+                    exception::class.simpleName?.contains("OutOfMemory", ignoreCase = true) == true -> {
                 SystemException.OutOfMemory(exception)
             }
 
