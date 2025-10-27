@@ -433,8 +433,7 @@ class AppViewModel(
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
-                val element = elementName?.let { "\"$it\"" } ?: "요소"
-                "[$stepNumber]스텝 $element 를 클릭했습니다."
+                "[$stepNumber]스텝 엘리먼트 클릭이 입력되었습니다."
             }
 
             "navigate" -> {
@@ -449,8 +448,7 @@ class AppViewModel(
             }
 
             "type" -> {
-                val input = elementName?.let { "\"$it\"" } ?: "텍스트"
-                "[$stepNumber]스텝 $input 를 입력했습니다."
+                "[$stepNumber]스텝 입력 처리가 진행되었습니다."
             }
 
             "new_tab" -> {
