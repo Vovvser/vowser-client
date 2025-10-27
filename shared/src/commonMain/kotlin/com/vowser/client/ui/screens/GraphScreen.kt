@@ -143,7 +143,12 @@ fun GraphScreen(
                         activeNodeId = realTimeActiveNodeId ?: activeNodeId,
                         isContributionMode = false,
                         searchInfo = graphData.searchInfo,
-                        allMatchedPaths = graphData.allMatchedPaths
+                        allMatchedPaths = graphData.allMatchedPaths,
+                        modifier = Modifier
+                            .size(width = 1920.dp, height = 1080.dp)
+                            .align(Alignment.Center)
+                        ,
+                        contentScale = 1.0f
                     )
                 } else {
                     EmptyStateUI(
@@ -155,6 +160,8 @@ fun GraphScreen(
                         onClearStatusHistory = onClearStatusHistory,
                         onShowGraph = { if (graphData != null) showGraphView = true },
                         modifier = Modifier.fillMaxSize(),
+                        routeNodes = graphData?.nodes,
+                        activeNodeId = realTimeActiveNodeId,
                     )
                 }
 
@@ -253,6 +260,8 @@ private fun EmptyStateUI(
     onClearStatusHistory: () -> Unit,
     onShowGraph: () -> Unit,
     modifier: Modifier = Modifier,
+    routeNodes: List<com.vowser.client.ui.graph.GraphNode>? = null,
+    activeNodeId: String? = null,
 ) {
     val listState = rememberLazyListState()
 
@@ -273,7 +282,7 @@ private fun EmptyStateUI(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.Start,
         ) {
             // 재연결 버튼
             OutlinedButton(
@@ -308,9 +317,9 @@ private fun EmptyStateUI(
                 ) {
                     Text("그래프 보기")
                 }
-                Spacer(Modifier.width(AppTheme.Dimensions.paddingSmall))
             }
 
+            Spacer(modifier = Modifier.weight(1f))
 
             // 클리어 버튼
             OutlinedButton(
@@ -343,52 +352,72 @@ private fun EmptyStateUI(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             shape = RoundedCornerShape(AppTheme.Dimensions.borderRadiusXLarge),
         ) {
-            // 연결 상태 표시
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(top = AppTheme.Dimensions.paddingMedium, end = AppTheme.Dimensions.paddingMedium),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Canvas(
-                    modifier = Modifier
-                        .padding(end = AppTheme.Dimensions.paddingSmall)
-                        .size(12.dp)
-                ) {
-                    drawCircle(color = connectionStatus.displayColor)
+            Row(modifier = Modifier.fillMaxSize()) {
+                if (!routeNodes.isNullOrEmpty()) {
+                    val steps = routeNodes
+                    val activeIdx = steps.indexOfFirst { it.id == activeNodeId }.let { if (it >= 0) it else null }
+                    Box(
+                        modifier = Modifier
+                            .width(200.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(AppTheme.Dimensions.paddingMedium)
+                    ) {
+                        com.vowser.client.ui.graph.LineDiagram(
+                            steps = steps,
+                            activeIndex = activeIdx,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
-                Text(
-                    text = connectionStatus.displayText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
 
-            Column {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
-                    verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
-                ) {
-                    items(statusHistory) { logEntry ->
-                        StatusLogItem(logEntry)
+                Column(modifier = Modifier.weight(1f)) {
+                    // 연결 상태 표시
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(top = AppTheme.Dimensions.paddingMedium, end = AppTheme.Dimensions.paddingMedium),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Canvas(
+                            modifier = Modifier
+                                .padding(end = AppTheme.Dimensions.paddingSmall)
+                                .size(12.dp)
+                        ) {
+                            drawCircle(color = connectionStatus.displayColor)
+                        }
+                        Text(
+                            text = connectionStatus.displayText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
                     }
 
-                    // 개발자 모드에서만 receivedMessage 표시
-                    if (isDeveloperMode && receivedMessage != "No message") {
-                        item {
-                            StatusLogItem(
-                                StatusLogEntry(
-                                    timestamp = "서버",
-                                    message = receivedMessage,
-                                    type = StatusLogType.INFO
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        contentPadding = PaddingValues(AppTheme.Dimensions.paddingSmall),
+                        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingXSmall)
+                    ) {
+                        items(statusHistory) { logEntry ->
+                            StatusLogItem(logEntry)
+                        }
+
+                        // 개발자 모드에서만 receivedMessage 표시
+                        if (isDeveloperMode && receivedMessage != "No message") {
+                            item {
+                                StatusLogItem(
+                                    StatusLogEntry(
+                                        timestamp = "서버",
+                                        message = receivedMessage,
+                                        type = StatusLogType.INFO
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
@@ -448,34 +477,28 @@ private fun UserWaitDialog(
     onConfirm: () -> Unit
 ) {
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.background,
         onDismissRequest = { /* 사용자가 임의로 닫을 수 없음 */ },
         title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
-            ) {
-                Text(
-                    text = "⏸️",
-                    fontSize = 24.sp
-                )
-                Text(
-                    text = "사용자 작업 대기 중",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
+            Text(
+                text = "사용자 입력",
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.titleLarge
+            )
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingMedium)
+                verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
             ) {
                 Text(
-                    text = waitMessage,
+                    text = waitMessage.ifBlank { "입력 값이 필요합니다." },
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
-                    text = "작업을 완료하신 후 아래 버튼을 눌러주세요.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    text = "작업을 완료하신 후 확인을 눌러주세요.",
+                    color = MaterialTheme.colorScheme.background,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         },
@@ -483,11 +506,11 @@ private fun UserWaitDialog(
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.Colors.Success,
+                    containerColor = Color.Black,
                     contentColor = Color.White
                 )
             ) {
-                Text("완료")
+                Text("확인")
             }
         },
     )

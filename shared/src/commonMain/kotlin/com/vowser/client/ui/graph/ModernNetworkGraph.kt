@@ -3,8 +3,6 @@ package com.vowser.client.ui.graph
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
-import com.vowser.client.ui.theme.AppTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,10 +11,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,7 +35,9 @@ fun ModernNetworkGraph(
     activeNodeId: String? = null,
     isContributionMode: Boolean = false,
     searchInfo: com.vowser.client.visualization.SearchInfo? = null,
-    allMatchedPaths: List<com.vowser.client.api.dto.MatchedPathDetail> = emptyList()
+    allMatchedPaths: List<com.vowser.client.api.dto.MatchedPathDetail> = emptyList(),
+    modifier: Modifier = Modifier,
+    contentScale: Float = 1.0f,
 ) {
     val style = rememberGraphStyle(isContributionMode)
     val cs = MaterialTheme.colorScheme
@@ -47,9 +47,12 @@ fun ModernNetworkGraph(
     var selectedNode by remember { mutableStateOf<GraphNode?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
 
-    val positionedNodes = remember(nodes, edges, canvasSize) {
+    val densityScale = LocalDensity.current.density
+    val totalScale = densityScale * contentScale
+    val positionedNodes = remember(nodes, edges, canvasSize, densityScale) {
         if (canvasSize.width > 0 && canvasSize.height > 0) {
-            layoutNodesWithPhysics(nodes, edges, canvasSize)
+            val logicalSize = Size(canvasSize.width / densityScale, canvasSize.height / densityScale)
+            layoutNodesWithPhysics(nodes, edges, logicalSize)
         } else nodes
     }
 
@@ -57,13 +60,14 @@ fun ModernNetworkGraph(
         positionedNodes.find { it.id == activeNodeId }
     }
     val activeX = activeNode?.x ?: 0f
-    val maxScroll = remember(positionedNodes, canvasSize) {
+    val maxScroll = remember(positionedNodes, canvasSize, densityScale, contentScale) {
         val lastX = positionedNodes.lastOrNull()?.x ?: 0f
-        max(0f, lastX - canvasSize.width * 0.5f)
+        val logicalWidth = canvasSize.width / totalScale
+        max(0f, lastX - logicalWidth * 0.5f)
     }
-    val targetScrollOffset = remember(activeX, canvasSize, maxScroll, activeNodeId) {
+    val targetScrollOffset = remember(activeX, canvasSize, maxScroll, activeNodeId, densityScale, contentScale) {
         if (activeNodeId != null && activeX > 0f) {
-            (activeX - canvasSize.width * 0.5f).coerceIn(0f, maxScroll)
+            (activeX - (canvasSize.width / totalScale) * 0.5f).coerceIn(0f, maxScroll)
         } else 0f
     }
     val animatedScrollOffset by animateFloatAsState(
@@ -75,12 +79,12 @@ fun ModernNetworkGraph(
         label = "graph-auto-scroll"
     )
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier) {
         GraphCanvas(
             nodes = positionedNodes,
             edges = edges,
-            scale = 1f,
-            offset = Offset(-animatedScrollOffset, 0f),
+            scale = totalScale,
+            offset = Offset(-animatedScrollOffset * totalScale, 0f),
             highlightedPath = highlightedPath,
             activeNodeId = activeNodeId,
             isContributionMode = isContributionMode,
@@ -101,30 +105,13 @@ fun ModernNetworkGraph(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            GlassPanel(
+            SearchBadge(
+                query = searchInfo?.query,
                 modifier = Modifier
                     .wrapContentWidth()
                     .heightIn(min = 30.dp)
                     .zIndex(hudZ)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)
-                ) {
-                    Text(
-                        text = "검색:",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor
-                    )
-                    Text(
-                        text = searchInfo?.query ?: "-",
-                        fontSize = 14.sp,
-                        color = textColor
-                    )
-                }
-            }
+            )
 
             val activeIndex by remember(activeNodeId, nodes) {
                 mutableStateOf(nodes.indexOfFirst { it.id == activeNodeId })
@@ -153,27 +140,13 @@ fun ModernNetworkGraph(
 
                     Spacer(Modifier.height(10.dp))
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    StepProgressBar(
+                        totalSteps = totalSteps,
+                        currentStep = currentStep,
                         modifier = Modifier
-                            .wrapContentWidth()
+                            .width(320.dp)
                             .padding(horizontal = 8.dp)
-                    ) {
-                        repeat(totalSteps) { i ->
-                            Box(
-                                modifier = Modifier
-                                    .size(13.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (i < currentStep)
-                                            AppTheme.Colors.StatusBackground // 진행된 단계 색
-                                        else
-                                            Color.LightGray.copy(alpha = 0.3f) // 남은 단계 색
-                                    )
-                            )
-                        }
-                    }
+                    )
 
                     Spacer(Modifier.height(10.dp))
 

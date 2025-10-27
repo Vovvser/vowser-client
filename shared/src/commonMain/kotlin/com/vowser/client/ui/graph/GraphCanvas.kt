@@ -138,8 +138,8 @@ private fun DrawScope.drawUltraModernEdges(
     style: GraphStyle,
 ) {
     val nodeMap = nodes.associateBy { it.id }
-    val labelSp = (11f * scale).sp
-    val dashed = PathEffect.dashPathEffect(floatArrayOf(4f, 3f), 0f)
+    val labelSp = 11.sp
+    val dashed = PathEffect.dashPathEffect(floatArrayOf(4f * scale, 3f * scale), 0f)
 
     edges.forEach { edge ->
         val from = nodeMap[edge.from] ?: return@forEach
@@ -155,15 +155,14 @@ private fun DrawScope.drawUltraModernEdges(
         val c2 = Offset(to.x   * scale + offset.x, to.y   * scale + offset.y)
         val rFrom = from.type.size / 2f * scale
         val rTo   = to.type.size   / 2f * scale
-        val gap = 6f //원과 선 사이 간격
+        val gap = 6f * scale
         val (startEdge, endEdge) = circleEdgePoints(c1, c2, rFrom + gap, rTo + gap)
         val dx = endEdge.x - startEdge.x
         val dy = endEdge.y - startEdge.y
         val d  = hypot(dx, dy).coerceAtLeast(1e-3f)
         val ux = dx / d
         val uy = dy / d
-        // 화살촉 밑부분만큼 안쪽으로 라인 끝자락을 당겨서 자연스럽게 연결
-        val arrowBaseBack = 6f
+        val arrowBaseBack = 6f * scale
         val lineEnd = Offset(endEdge.x - ux * arrowBaseBack, endEdge.y - uy * arrowBaseBack)
         val effect = if (isHi || isContributionMode) null else dashed
 
@@ -173,19 +172,19 @@ private fun DrawScope.drawUltraModernEdges(
             else               -> style.edge
         }
         val w = if (isHi || isContributionMode) 3f else 2f
+        val wScaled = w * scale
 
-        // 바탕 라인(연한색) + 메인 라인(진한색)
         drawLine(
             color = style.edgeSoft,
             start = startEdge, end = lineEnd,
-            strokeWidth = w + 2f,
+            strokeWidth = wScaled + 2f * scale,
             cap = StrokeCap.Round,
             pathEffect = effect
         )
         drawLine(
             color = color,
             start = startEdge, end = lineEnd,
-            strokeWidth = w,
+            strokeWidth = wScaled,
             cap = StrokeCap.Round,
             pathEffect = effect
         )
@@ -195,13 +194,13 @@ private fun DrawScope.drawUltraModernEdges(
             tip = endEdge,
             angle = atan2(dy, dx),
             color = color,
-            width = w,
+            width = wScaled,
             softColor = style.edgeSoft,
-            arrowLen = 8f,                 // ← 길이 더 짧게
-            arrowAngleRad = (PI / 7).toFloat()   // 날개 각도(살짝 좁게/넓게 조절 가능)
+            arrowLen = 8f * scale,
+            arrowAngleRad = (PI / 7).toFloat()
         )
 
-        if (scale > 0.7f && !edge.label.isNullOrBlank()) {
+        if (!edge.label.isNullOrBlank()) {
             val mid = Offset((startEdge.x + endEdge.x) / 2f, (startEdge.y + endEdge.y) / 2f)
             val ts = TextStyle(
                 color = color.copy(alpha = 0.95f),
@@ -209,7 +208,7 @@ private fun DrawScope.drawUltraModernEdges(
                 fontWeight = if (isHi) FontWeight.Bold else FontWeight.Medium
             )
             val layout = textMeasurer.measure(edge.label, style = ts)
-            val pad = 4f
+            val pad = 4f * scale
             drawRoundRect(
                 color = backgroundColor,
                 topLeft = Offset(mid.x - layout.size.width / 2f - pad, mid.y - layout.size.height / 2f - pad),
@@ -233,7 +232,7 @@ private fun DrawScope.drawUltraModernNodes(
     textMeasurer: TextMeasurer,
     style: GraphStyle,
 ) {
-    val nodeLabelSp = (13f * scale).sp
+    val nodeLabelSp = 13.sp
 
     nodes.forEach { node ->
         val isHi = highlightedPath.contains(node.id)
@@ -266,8 +265,8 @@ private fun DrawScope.drawUltraModernNodes(
             else                           -> style.edge
         }
 
-        drawCircle(color = fill.copy(0.20f), radius = r + 10f, center = pos)
-        drawCircle(color = fill.copy(0.10f), radius = r + 18f, center = pos)
+        drawCircle(color = fill.copy(0.20f), radius = r + 10f * scale, center = pos)
+        drawCircle(color = fill.copy(0.10f), radius = r + 18f * scale, center = pos)
 
         if (node.type == NodeType.START) {
             val p = Path().apply {
@@ -284,9 +283,9 @@ private fun DrawScope.drawUltraModernNodes(
                     center = pos, radius = r
                 )
             )
-            drawPath(path = p, color = border, style = Stroke(width = if (isActive) 3.5f else 2.5f))
+            drawPath(path = p, color = border, style = Stroke(width = (if (isActive) 3.5f else 2.5f) * scale))
             // 아이콘(▶︎)
-            drawUltraNodeIcon(NodeType.START, pos, r * 0.6f, style.nodeIcon)
+            drawUltraNodeIcon(NodeType.START, pos, r * 0.6f, style.nodeIcon, scale)
         } else {
             // 본체
             drawCircle(
@@ -306,8 +305,8 @@ private fun DrawScope.drawUltraModernNodes(
                 radius = r, center = pos
             )
             // 듀얼 링
-            drawCircle(color = style.edgeSoft, radius = r + 3f, center = pos, style = Stroke(3f))
-            drawCircle(color = border,        radius = r,     center = pos, style = Stroke(if (isActive) 3.5f else 2.5f))
+            drawCircle(color = style.edgeSoft, radius = r + 3f * scale, center = pos, style = Stroke(3f * scale))
+            drawCircle(color = border,        radius = r,     center = pos, style = Stroke((if (isActive) 3.5f else 2.5f) * scale))
 
             // WEBSITE는 중앙 코어 도트 추가
             if (node.type == NodeType.WEBSITE) {
@@ -316,7 +315,7 @@ private fun DrawScope.drawUltraModernNodes(
 
             // ACTION은 ▶︎ 아이콘, 나머지는 타입별 아이콘
             val iconType = if (node.type == NodeType.ACTION) NodeType.START else node.type
-            drawUltraNodeIcon(iconType, pos, r * 0.60f, style.nodeIcon)
+            drawUltraNodeIcon(iconType, pos, r * 0.60f, style.nodeIcon, scale)
         }
 
         // 라벨
@@ -329,7 +328,7 @@ private fun DrawScope.drawUltraModernNodes(
             val txt = if (node.label.length > 15) node.label.take(12) + "..." else node.label
             val layout = textMeasurer.measure(txt, style = textStyle)
             val topLeft = Offset(pos.x - layout.size.width / 2f, pos.y + r + 8f)
-            val pad = 6f
+            val pad = 6f * scale
             drawRoundRect(
                 color = style.labelBg,
                 topLeft = Offset(topLeft.x - pad, topLeft.y - pad),
@@ -341,7 +340,8 @@ private fun DrawScope.drawUltraModernNodes(
     }
 }
 
-private fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float, iconColor: Color) {
+private fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size: Float, iconColor: Color, scale: Float) {
+    val sw = 2f * scale
     when (nodeType) {
         NodeType.NAVIGATE -> {
             drawPath(Path().apply {
@@ -350,21 +350,21 @@ private fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size
                 moveTo(center.x + size * 0.1f, center.y - size * 0.2f)
                 lineTo(center.x + size * 0.3f, center.y)
                 lineTo(center.x + size * 0.1f, center.y + size * 0.2f)
-            }, iconColor, style = Stroke(2f, cap = StrokeCap.Round))
+            }, iconColor, style = Stroke(sw, cap = StrokeCap.Round))
         }
         NodeType.CLICK -> {
-            drawCircle(iconColor, size * 0.3f, center, style = Stroke(2f))
+            drawCircle(iconColor, size * 0.3f, center, style = Stroke(sw))
             drawCircle(iconColor, size * 0.1f, center)
         }
         NodeType.INPUT -> {
             val rect = size * 0.6f
-            drawRoundRect(iconColor, Offset(center.x - rect / 2, center.y - rect / 3), Size(rect, rect * 0.6f), style = Stroke(2f), cornerRadius = CornerRadius(2f))
-            drawLine(iconColor, Offset(center.x - rect * 0.2f, center.y), Offset(center.x + rect * 0.2f, center.y), 2f)
+            drawRoundRect(iconColor, Offset(center.x - rect / 2, center.y - rect / 3), Size(rect, rect * 0.6f), style = Stroke(sw), cornerRadius = CornerRadius(2f))
+            drawLine(iconColor, Offset(center.x - rect * 0.2f, center.y), Offset(center.x + rect * 0.2f, center.y), sw)
         }
         NodeType.WAIT -> {
-            drawCircle(iconColor, size * 0.4f, center, style = Stroke(2f))
-            drawLine(iconColor, center, Offset(center.x, center.y - size * 0.3f), 2f)
-            drawLine(iconColor, center, Offset(center.x + size * 0.2f, center.y), 2f)
+            drawCircle(iconColor, size * 0.4f, center, style = Stroke(sw))
+            drawLine(iconColor, center, Offset(center.x, center.y - size * 0.3f), sw)
+            drawLine(iconColor, center, Offset(center.x + size * 0.2f, center.y), sw)
         }
         NodeType.START -> {
             val s = size * 0.6f
@@ -376,7 +376,7 @@ private fun DrawScope.drawUltraNodeIcon(nodeType: NodeType, center: Offset, size
             }, iconColor)
         }
         NodeType.WEBSITE -> {
-            drawCircle(iconColor, size * 0.4f, center, style = Stroke(2f))
+            drawCircle(iconColor, size * 0.4f, center, style = Stroke(sw))
             drawLine(iconColor, Offset(center.x, center.y - size * 0.4f), Offset(center.x, center.y + size * 0.4f), 2f)
             drawLine(iconColor, Offset(center.x - size * 0.4f, center.y), Offset(center.x + size * 0.4f, center.y), 2f)
         }
