@@ -837,9 +837,9 @@ class AppViewModel(
             webSocketClient.sendContributionMessage(message)
             addStatusLog("기여 데이터 전송 완료 (${message.steps.size}개 단계)", StatusLogType.SUCCESS)
         } catch (e: Exception) {
-            exceptionHandler.handleException(e, "Contribution data transmission") {
-                sendContributionMessage(message)
-            }
+            addStatusLog("기여 데이터 전송 실패: ${e.message}", StatusLogType.WARNING)
+            Napier.e("Failed to send contribution data: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
+            // TODO: 전송 실패 처리
         }
     }
 
