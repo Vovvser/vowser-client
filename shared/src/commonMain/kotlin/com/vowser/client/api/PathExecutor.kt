@@ -190,8 +190,10 @@ class PathExecutor {
         val previousStep = currentPath?.steps?.getOrNull(currentStepIndex - 1)
         val isPrevStepNavClick = if (previousStep != null) willNavigateOnClick(previousStep) else false
 
-        // 1. Navigate if necessary
-        if (shouldNavigateBeforeAction(step, isPrevStepNavClick)) {
+        // 1. Navigate if necessary (ensure navigate step always runs exactly once)
+        val needsNavigate = step.action.lowercase() == "navigate" ||
+                shouldNavigateBeforeAction(step, isPrevStepNavClick)
+        if (needsNavigate) {
             Napier.d("Step requires navigation to: ${step.url}", tag = Tags.BROWSER_AUTOMATION)
             executeNavigateStep(step)
             BrowserAutomationBridge.waitForNetworkIdle()
@@ -211,11 +213,11 @@ class PathExecutor {
             "input", "type" -> executeInputStep(step, getUserInput)
             "wait" -> executeWaitStep(step)
             "navigate" -> {
+                // Avoid duplicate navigation: pre-step navigation already handled it
                 Napier.d(
-                    "Explicit navigate action, handled by pre-step navigation check.",
+                    "Explicit navigate action; relying on pre-step navigation logic only (skip duplicate navigation).",
                     tag = Tags.BROWSER_AUTOMATION
                 )
-                executeNavigateStep(step) // ???
             }
             "select" -> {
                 executeSelectStep(step)
@@ -314,6 +316,11 @@ class PathExecutor {
      * Click 액션 실행
      */
     private suspend fun executeClickStep(step: PathStepDetail) {
+        // Skip redundant clicks: if the target URL equals current step URL
+        if (isSelfNavigatingClick(step)) {
+            Napier.i("Skipping click: target URL equals current URL (${step.url})", tag = Tags.BROWSER_AUTOMATION)
+            return
+        }
         val selectors = step.selectors
         val lastIndex = selectors.lastIndex
 
@@ -578,6 +585,22 @@ class PathExecutor {
             currentOnLog?.invoke("⚠️ 대기 콜백 없음 - 10초 자동 대기")
             delay(10000)
         }
+    }
+
+    /**
+     * Returns true if any selector indicates clicking a link that navigates to the same base URL
+     */
+    private fun isSelfNavigatingClick(step: PathStepDetail): Boolean {
+        val currentBase = extractBaseUrl(step.url)
+        val hrefExact = Regex("""href=['"]([^'"]+)['"]""")
+        step.selectors.forEach { sel ->
+            val m = hrefExact.find(sel)
+            if (m != null) {
+                val target = m.groupValues[1]
+                if (extractBaseUrl(target) == currentBase) return true
+            }
+        }
+        return false
     }
 
     private suspend fun executeSelectStep(step: PathStepDetail) {

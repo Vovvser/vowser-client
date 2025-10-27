@@ -240,7 +240,7 @@ object BrowserAutomationService {
         }
     }
 
-    suspend fun waitForNetworkIdle(timeout: Double = 10000.0) = withContext(Dispatchers.IO) {
+    suspend fun waitForNetworkIdle(timeout: Double = 3000.0) = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!::page.isInitialized) {
                 Napier.e("Cannot waitForNetworkIdle: page not initialized", tag = Tags.BROWSER_AUTOMATION)
@@ -395,61 +395,16 @@ object BrowserAutomationService {
                 element.hover()
                 Napier.d("Hovered over element", tag = Tags.BROWSER_AUTOMATION)
 
-                // Try element-context highlight first (works with :has-text and iframes)
-                try {
-                    element.evaluate(
-                        """
-                        (el)=>{
-                            try{
-                                const styleId='wtg-highlight-styles';
-                                if(!document.getElementById(styleId)){
-                                    const style=document.createElement('style');
-                                    style.id=styleId;
-                                    style.innerHTML="[data-wtg-highlighted=\"true\"] {"+
-                                        "box-shadow: 0 0 0 5px rgba(0,123,255,0.7) !important;"+
-                                        "background-color: rgba(0,123,255,0.1) !important;"+
-                                        "transition: box-shadow 0.2s, background-color 0.2s !important;"+
-                                    "}"+
-                                    "#wtg-click-indicator {"+
-                                        "position: absolute !important;"+
-                                        "background-color: #007bff !important;"+
-                                        "color: #fff !important;"+
-                                        "padding: 5px 10px !important;"+
-                                        "border-radius: 20px !important;"+
-                                        "font-size: 12px !important;"+
-                                        "font-weight: bold !important;"+
-                                        "white-space: nowrap !important;"+
-                                        "z-index: 2147483647 !important;"+
-                                        "pointer-events: none !important;"+
-                                        "opacity: 0;"+
-                                        "animation: wtg-fade-in 0.3s forwards !important;"+
-                                    "}"+
-                                    "@keyframes wtg-fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }";
-                                    document.head.appendChild(style);
-                                }
-                                document.querySelectorAll('[data-wtg-highlighted]').forEach(n=>{n.style.boxShadow='';n.style.backgroundColor='';n.removeAttribute('data-wtg-highlighted');});
-                                const ex=document.getElementById('wtg-click-indicator'); if(ex) ex.remove();
-                                if(!el) return;
-                                el.setAttribute('data-wtg-highlighted','true');
-                                const indicator=document.createElement('div');
-                                indicator.id='wtg-click-indicator';
-                                indicator.textContent='Click Target';
-                                document.body.appendChild(indicator); indicator.offsetWidth;
-                                const rect=el.getBoundingClientRect();
-                                let left=rect.right+window.scrollX+10; let top=rect.top+window.scrollY-indicator.offsetHeight-10;
-                                if(top<window.scrollY) top=rect.bottom+window.scrollY+10;
-                                if(left+indicator.offsetWidth>window.innerWidth+window.scrollX){
-                                    left=rect.left+window.scrollX-indicator.offsetWidth-10;
-                                    if(left<window.scrollX) left=window.scrollX+10;
-                                }
-                                indicator.style.left=left+'px'; indicator.style.top=top+'px';
-                            }catch(e){}
-                        }
-                        """
-                    )
-                    Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
-                } catch (e: Exception) {
-                    Napier.w("Element-context highlight failed: ${e.message}.", tag = Tags.BROWSER_AUTOMATION)
+                val isStandardSelector = !selector.contains(":has-text")
+                if (isStandardSelector) {
+                    try {
+                        page.evaluate(HIGHLIGHT_SCRIPT_CONTENT, selector)
+                        Napier.i("Applied highlight to element with selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    } catch (e: Exception) {
+                        Napier.w("Highlight failed: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+                    }
+                } else {
+                    Napier.w("Skipping highlight for non-standard selector: $selector", tag = Tags.BROWSER_AUTOMATION)
                 }
 
                 delay(300)
@@ -1046,6 +1001,11 @@ object BrowserAutomationService {
         targetPage.onClose {
             isPageActive = false
             notifyBrowserClosed("Page closed: ${targetPage.url()}")
+            // Ensure playwright/browser resources are stopped when the window is closed
+            serviceScope.launch {
+                runCatching { cleanup() }
+                    .onFailure { Napier.w("Cleanup after window close failed: ${it.message}", it, tag = Tags.BROWSER_AUTOMATION) }
+            }
         }
     }
 
