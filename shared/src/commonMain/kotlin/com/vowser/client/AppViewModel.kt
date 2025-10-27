@@ -262,10 +262,12 @@ class AppViewModel(
 
     fun login() {
         val currentState = _authState.value
-        if (currentState is AuthState.Authenticated || currentState is AuthState.Loading) {
-            Napier.i("Login requested while already authenticated or loading; ignoring.", tag = Tags.AUTH)
+        if (currentState is AuthState.Authenticated) {
+            Napier.i("Login requested while already authenticated; ignoring.", tag = Tags.AUTH)
             return
         }
+
+        authManager.stopCallbackServer()
         _authState.value = AuthState.Loading
         startAuthCallbackServer()
         authManager.login()
@@ -279,16 +281,8 @@ class AppViewModel(
             // 토큰 저장 확인
             val savedToken = tokenStorage.getAccessToken()
             Napier.i("Token saved successfully: ${savedToken != null}", tag = Tags.AUTH)
-            kotlinx.coroutines.delay(150)
-
-            val profileResult = authRepository.getMe()
-            profileResult.onSuccess { member ->
-                _authState.value = AuthState.Authenticated(member.name, member.email)
-                _userInfo.value = member
-            }.onFailure { error ->
-                Napier.w("Login succeeded but profile fetch failed: ${error.message}", error, tag = Tags.AUTH)
-                _authState.value = AuthState.Error(error.message ?: "로그인 상태 확인 실패")
-            }
+            _authState.value = AuthState.Loading
+            refreshUserInfo()
         }
         authManager.stopCallbackServer()
     }
@@ -315,11 +309,25 @@ class AppViewModel(
                 val result = authRepository.getMe()
                 result.onSuccess { memberResponse ->
                     _userInfo.value = memberResponse
+                    _authState.value = AuthState.Authenticated(memberResponse.name, memberResponse.email)
                     addStatusLog("유저 정보 조회 완료", StatusLogType.SUCCESS)
                     Napier.i("User info refreshed: ${memberResponse.email}", tag = Tags.AUTH)
                 }.onFailure { error ->
                     addStatusLog("유저 정보 조회 실패: ${error.message}", StatusLogType.ERROR)
                     Napier.e("Failed to refresh user info: ${error.message}", error, tag = Tags.AUTH)
+                    val shouldInvalidateTokens = when (error) {
+                        is ClientRequestException -> error.response.status == HttpStatusCode.Unauthorized
+                        is ServerResponseException -> error.response.status == HttpStatusCode.Unauthorized
+                        is ResponseException -> error.response.status == HttpStatusCode.Unauthorized
+                        else -> false
+                    }
+                    if (shouldInvalidateTokens) {
+                        tokenStorage.clearTokens()
+                        _authState.value = AuthState.NotAuthenticated
+                        _userInfo.value = null
+                    } else {
+                        _authState.value = AuthState.Error(error.message ?: "유저 정보를 불러오지 못했습니다.")
+                    }
                     exceptionHandler.handleException(error, "User info refresh") {
                         refreshUserInfo()
                     }
@@ -422,6 +430,10 @@ class AppViewModel(
 
     fun setContributionScreenActive(active: Boolean) {
         _isContributionScreenActive.value = active
+        if (!active) {
+            _awaitingContributionTask.value = false
+            _pendingContributionTask.value = null
+        }
     }
 
     private fun isContributionContextActive(): Boolean {
@@ -559,17 +571,17 @@ class AppViewModel(
                 _isSpeechProcessing.value = true
                 val result = speechRepository.transcribeAudio(audioBytes, sessionId, _selectedSttModes.value)
                 result.fold(
-                    onSuccess = { response ->
+                    onSuccess = { responseText ->
                         _recordingStatus.value = "Audio processed successfully"
                         addStatusLog("음성 처리 완료", StatusLogType.SUCCESS)
+                        val transcript = responseText.substringAfter("\"transcript\":\"")
+                            .substringBefore("\"")
+                            .trim()
                         Napier.i(
-                            "Audio transcription result: ${LogUtils.filterSensitive(response)}",
+                            "Audio transcription result: ${LogUtils.filterSensitive(transcript)}",
                             tag = Tags.MEDIA_SPEECH
                         )
 
-                        val transcript = response.substringAfter("\"transcript\":\"")
-                            .substringBefore("\"")
-                            .trim()
                         if (transcript.isNotEmpty()) {
                             handleSpeechTranscript(transcript)
                         }
@@ -580,22 +592,14 @@ class AppViewModel(
                             error,
                             context = "Audio transcription"
                         ) {
-                            val audioBytes = stopPlatformRecording()
-                            audioBytes?.let {
-                                val result = speechRepository.transcribeAudio(it, sessionId, _selectedSttModes.value)
-                                result.getOrThrow()
-                            }
+                            speechRepository.transcribeAudio(audioBytes, sessionId, _selectedSttModes.value).getOrThrow()
                         }
                     }
                 )
             } catch (e: Exception) {
                 _recordingStatus.value = "Error processing audio: ${e.message}"
                 exceptionHandler.handleException(e, "Audio processing") {
-                    val audioBytes = stopPlatformRecording()
-                    audioBytes?.let {
-                        val result = speechRepository.transcribeAudio(it, sessionId, _selectedSttModes.value)
-                        result.getOrThrow()
-                    }
+                    speechRepository.transcribeAudio(audioBytes, sessionId, _selectedSttModes.value).getOrThrow()
                 }
             } finally {
                 _isSpeechProcessing.value = false
@@ -642,10 +646,10 @@ class AppViewModel(
                     _recordingStatus.value = "Voice processed: ${voiceResult.transcript}"
                     addStatusLog("음성 인식됨: ${voiceResult.transcript}", StatusLogType.SUCCESS)
 
-                    val transcript = voiceResult.transcript?.trim()
-                    if (!transcript.isNullOrBlank()) {
-                        handleSpeechTranscript(transcript)
-                    }
+                    voiceResult.transcript
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { handleSpeechTranscript(it) }
                 } else {
                     _recordingStatus.value = "Voice processing failed: ${voiceResult.error?.message ?: "Unknown error"}"
                     addStatusLog("음성 인식 실패: ${voiceResult.error?.message ?: "Unknown error"}", StatusLogType.ERROR)
@@ -864,6 +868,8 @@ class AppViewModel(
             addStatusLog("기여 데이터 전송 실패: ${e.message}", StatusLogType.WARNING)
             Napier.e("Failed to send contribution data: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
             // TODO: 전송 실패 처리
+        } finally {
+            contributionModeService.clearPendingMessages()
         }
     }
 
