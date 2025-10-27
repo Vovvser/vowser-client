@@ -53,23 +53,41 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                     try {
                         Napier.i("Attempting token refresh...", tag = Tags.API)
 
-                        val response: ApiResponse<com.vowser.client.model.TokenResponse> = client.post("$baseUrl/api/auth/refresh") {
+                        val httpResponse = client.post("$baseUrl/api/auth/refresh") {
                             contentType(ContentType.Application.Json)
                             header("Authorization", "Bearer $refreshToken")
-                        }.body()
+                        }
 
-                        if (!response.success || response.data == null) {
-                            Napier.w("Token refresh failed - API response unsuccessful", tag = Tags.API)
+                        if (httpResponse.status == HttpStatusCode.Unauthorized) {
+                            Napier.w("Token refresh failed - unauthorized", tag = Tags.API)
                             tokenStorage.clearTokens()
                             return@refreshTokens null
                         }
 
-                        val tokenResponse = response.data
+                        if (httpResponse.status.value !in 200..299) {
+                            Napier.w("Token refresh failed - status ${httpResponse.status}", tag = Tags.API)
+                            return@refreshTokens null
+                        }
+
+                        val apiResponse = runCatching {
+                            httpResponse.body<ApiResponse<com.vowser.client.model.TokenResponse>>()
+                        }.getOrElse { parseError ->
+                            Napier.e("Token refresh response parsing failed: ${parseError.message}", parseError, tag = Tags.API)
+                            return@refreshTokens null
+                        }
+
+                        val tokenResponse = apiResponse.data
+                        if (!apiResponse.success || tokenResponse == null) {
+                            Napier.w("Token refresh failed - response missing token payload", tag = Tags.API)
+                            tokenStorage.clearTokens()
+                            return@refreshTokens null
+                        }
+
                         val accessToken = tokenResponse.accessToken
                         val newRefreshToken = tokenResponse.refreshToken
 
                         if (accessToken.isBlank() || newRefreshToken.isBlank()) {
-                            Napier.w("Token refresh failed - missing tokens in response", tag = Tags.API)
+                            Napier.w("Token refresh failed - missing tokens in response body", tag = Tags.API)
                             tokenStorage.clearTokens()
                             return@refreshTokens null
                         }
@@ -77,13 +95,12 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
                         tokenStorage.saveTokens(accessToken, newRefreshToken)
                         Napier.i("Token refreshed successfully", tag = Tags.API)
 
-                        BearerTokens(
-                            accessToken = accessToken,
-                            refreshToken = newRefreshToken
-                        )
+                        BearerTokens(accessToken = accessToken, refreshToken = newRefreshToken)
                     } catch (e: Exception) {
                         Napier.e("Token refresh failed: ${e.message}", e, tag = Tags.API)
-                        tokenStorage.clearTokens()
+                        if (e is io.ktor.client.plugins.ClientRequestException && e.response.status == HttpStatusCode.Unauthorized) {
+                            tokenStorage.clearTokens()
+                        }
                         null
                     }
                 }

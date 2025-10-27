@@ -8,9 +8,9 @@ import kotlinx.serialization.json.JsonNames
 
 @Serializable
 data class PathSubmission(
-    @SerialName("session_id") @JsonNames("sessionId")
+    @SerialName("sessionId") @JsonNames("session_id")
     val sessionId: String,
-    @SerialName("task_intent") @JsonNames("taskIntent")
+    @SerialName("taskIntent") @JsonNames("task_intent")
     val taskIntent: String,
     val domain: String,
     val steps: List<PathStepSubmission>
@@ -23,22 +23,22 @@ data class PathStepSubmission(
     val action: String,
     val selectors: List<String>,
     val description: String,
-    @SerialName("text_labels") @JsonNames("textLabels")
+    @SerialName("textLabels") @JsonNames("text_labels")
     val textLabels: List<String>? = emptyList(),
 
-    @SerialName("is_input") @JsonNames("isInput")
+    @SerialName("isInput") @JsonNames("is_input")
     val isInput: Boolean = false,
 
-    @SerialName("should_wait") @JsonNames("shouldWait")
+    @SerialName("shouldWait") @JsonNames("should_wait")
     val shouldWait: Boolean = false,
 
-    @SerialName("input_type") @JsonNames("inputType")
+    @SerialName("inputType") @JsonNames("input_type")
     val inputType: String? = null,
 
-    @SerialName("input_placeholder") @JsonNames("inputPlaceholder")
+    @SerialName("inputPlaceholder") @JsonNames("input_placeholder")
     val inputPlaceholder: String? = null,
 
-    @SerialName("wait_message") @JsonNames("waitMessage")
+    @SerialName("waitMessage") @JsonNames("wait_message")
     val waitMessage: String? = null
 )
 
@@ -56,15 +56,15 @@ data class PathSaveResult(
 
 @Serializable
 data class PathSaveDetails(
-    @SerialName("session_id") @JsonNames("sessionId")
+    @SerialName("sessionId") @JsonNames("session_id")
     val sessionId: String,
 
-    @SerialName("task_intent") @JsonNames("taskIntent")
+    @SerialName("taskIntent") @JsonNames("task_intent")
     val taskIntent: String,
 
     val domain: String,
 
-    @SerialName("steps_saved") @JsonNames("stepsSaved")
+    @SerialName("stepsSaved") @JsonNames("steps_saved")
     val stepsSaved: Int
 )
 
@@ -81,10 +81,10 @@ data class PathSearchResponse(
 data class PathSearchResult(
     val query: String,
 
-    @SerialName("total_matched") @JsonNames("totalMatched")
+    @SerialName("totalMatched") @JsonNames("total_matched")
     val totalMatched: Int? = 0,
 
-    @SerialName("matched_paths") @JsonNames("matchedPaths")
+    @SerialName("matchedPaths") @JsonNames("matched_paths")
     val matchedPaths: List<MatchedPathDetail>? = emptyList(),
 
     val performance: PerformanceMetrics
@@ -94,10 +94,10 @@ data class PathSearchResult(
 data class MatchedPathDetail(
     val domain: String,
 
-    @SerialName("task_intent") @JsonNames("taskIntent")
+    @SerialName("taskIntent") @JsonNames("task_intent")
     val taskIntent: String? = null,
 
-    @SerialName("relevance_score") @JsonNames("relevanceScore")
+    @SerialName("relevanceScore") @JsonNames("relevance_score")
     val relevanceScore: Double,
 
     val weight: Int,
@@ -113,27 +113,27 @@ data class PathStepDetail(
     val selectors: List<String>,
     val description: String,
 
-    @SerialName("is_input") @JsonNames("isInput")
+    @SerialName("isInput") @JsonNames("is_input")
     val isInput: Boolean? = null,
 
-    @SerialName("should_wait") @JsonNames("shouldWait")
+    @SerialName("shouldWait") @JsonNames("should_wait")
     val shouldWait: Boolean? = null,
 
-    @SerialName("text_labels") @JsonNames("textLabels")
+    @SerialName("textLabels") @JsonNames("text_labels")
     val textLabels: List<String>? = emptyList(),
 
-    @SerialName("input_type") @JsonNames("inputType")
+    @SerialName("inputType") @JsonNames("input_type")
     val inputType: String? = null,
 
-    @SerialName("input_placeholder") @JsonNames("inputPlaceholder")
+    @SerialName("inputPlaceholder") @JsonNames("input_placeholder")
     val inputPlaceholder: String? = null,
 
-    @SerialName("wait_message") @JsonNames("waitMessage")
+    @SerialName("waitMessage") @JsonNames("wait_message")
     val waitMessage: String? = null
 )
 
 @Serializable
 data class PerformanceMetrics(
-    @SerialName("search_time") @JsonNames("searchTime")
+    @SerialName("searchTime") @JsonNames("search_time")
     val searchTime: Long? = 0L
 )

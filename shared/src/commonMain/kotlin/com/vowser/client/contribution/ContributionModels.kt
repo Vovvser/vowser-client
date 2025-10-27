@@ -29,7 +29,7 @@ data class ContributionSession(
 data class ContributionMessage(
     val type: String = ContributionConstants.MESSAGE_TYPE,
     val sessionId: String,
-    val task: String,
+    val taskIntent: String,
     val steps: List<ContributionStep>,
     val isPartial: Boolean = false,
     val isComplete: Boolean = false,

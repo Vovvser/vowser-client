@@ -3,11 +3,12 @@ package com.vowser.client.api
 import com.vowser.client.api.dto.MatchedPathDetail
 import com.vowser.client.api.dto.PathStepDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
+import com.vowser.client.browserautomation.SelectOption
 import com.vowser.client.model.MemberResponse
 import com.vowser.client.websocket.dto.NavigationPath
-import com.vowser.client.websocket.dto.NavigationStep
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
+import com.vowser.client.websocket.dto.NavigationStep
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -37,6 +38,7 @@ class PathExecutor {
     private var currentUserInfo: MemberResponse? = null
     private var currentOnLog: ((String) -> Unit)? = null
     private var currentOnWaitForUser: (suspend (String) -> Unit)? = null
+    private var currentGetUserSelect: (suspend (PathStepDetail, List<SelectOption>) -> String)? = null
     private var executionJob: Job? = null
 
     /**
@@ -72,6 +74,7 @@ class PathExecutor {
         userInfo: MemberResponse? = null,
         onStepComplete: ((Int, Int, String) -> Unit)? = null,
         getUserInput: (suspend (PathStepDetail) -> String)? = null,
+        getUserSelect: (suspend (PathStepDetail, List<SelectOption>) -> String)? = null,
         onLog: ((String) -> Unit)? = null,
         onWaitForUser: (suspend (String) -> Unit)? = null
     ): PathExecutionResult {
@@ -87,9 +90,13 @@ class PathExecutor {
         currentUserInfo = userInfo
         currentOnLog = onLog
         currentOnWaitForUser = onWaitForUser
+        currentGetUserSelect = getUserSelect
 
         if (userInfo != null) {
-            Napier.i("🚀 Executing path with auto-fill: ${path.taskIntent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
+            Napier.i(
+                "🚀 Executing path with auto-fill: ${path.taskIntent} (${path.steps.size} steps)",
+                tag = Tags.BROWSER_AUTOMATION
+            )
         } else {
             Napier.i("🚀 Executing path: ${path.taskIntent} (${path.steps.size} steps)", tag = Tags.BROWSER_AUTOMATION)
         }
@@ -107,10 +114,16 @@ class PathExecutor {
 
                     try {
                         onStepComplete?.invoke(i + 1, path.steps.size, step.description)
-                        Napier.i("▶️  Step ${i + 1}/${path.steps.size} starting: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.i(
+                            "▶️  Step ${i + 1}/${path.steps.size} starting: ${step.description}",
+                            tag = Tags.BROWSER_AUTOMATION
+                        )
 
                         executeStep(step, getUserInput)
-                        Napier.i("✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+                        Napier.i(
+                            "✅ Step ${i + 1}/${path.steps.size} completed: ${step.description}",
+                            tag = Tags.BROWSER_AUTOMATION
+                        )
 
                         // 카카오톡 인증 완료 스텝 후 추가 딜레이
                         if (isKakaoAuthCompleteStep(step)) {
@@ -124,7 +137,11 @@ class PathExecutor {
                         Napier.w("🛑 Path execution cancelled at step ${i + 1}", tag = Tags.BROWSER_AUTOMATION)
                         throw e
                     } catch (e: Exception) {
-                        Napier.e("❌ Step ${i + 1}/${path.steps.size} failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                        Napier.e(
+                            "❌ Step ${i + 1}/${path.steps.size} failed: ${e.message}",
+                            e,
+                            tag = Tags.BROWSER_AUTOMATION
+                        )
                         return@withContext PathExecutionResult(
                             success = false,
                             stepsCompleted = i,
@@ -155,6 +172,7 @@ class PathExecutor {
                 currentUserInfo = null
                 currentOnLog = null
                 currentOnWaitForUser = null
+                currentGetUserSelect = null
                 executionJob = null
             }
         }
@@ -183,14 +201,27 @@ class PathExecutor {
         when (step.action) {
             "click" -> {
                 executeClickStep(step)
-                Napier.d("Click succeeded, unconditionally waiting for network to be idle...", tag = Tags.BROWSER_AUTOMATION)
+                Napier.d(
+                    "Click succeeded, unconditionally waiting for network to be idle...",
+                    tag = Tags.BROWSER_AUTOMATION
+                )
                 BrowserAutomationBridge.waitForNetworkIdle()
             }
+
             "input", "type" -> executeInputStep(step, getUserInput)
             "wait" -> executeWaitStep(step)
             "navigate" -> {
-                Napier.d("Explicit navigate action, handled by pre-step navigation check.", tag = Tags.BROWSER_AUTOMATION)
+                Napier.d(
+                    "Explicit navigate action, handled by pre-step navigation check.",
+                    tag = Tags.BROWSER_AUTOMATION
+                )
+                executeNavigateStep(step) // ???
             }
+            "select" -> {
+                executeSelectStep(step)
+                Napier.d("Select action detected, but not implemented. Skipping.", tag = Tags.BROWSER_AUTOMATION)
+            }
+
             else -> {
                 Napier.w("Unknown action type: ${step.action}", tag = Tags.BROWSER_AUTOMATION)
             }
@@ -220,7 +251,10 @@ class PathExecutor {
     private fun shouldNavigateBeforeAction(step: PathStepDetail, isPrevStepNavClick: Boolean): Boolean {
         // 이전 스텝이 페이지 전환을 유발하는 클릭이었다면, navigate하지 않음
         if (isPrevStepNavClick) {
-            Napier.d("Skipping navigation because previous step was a navigation-causing click.", tag = Tags.BROWSER_AUTOMATION)
+            Napier.d(
+                "Skipping navigation because previous step was a navigation-causing click.",
+                tag = Tags.BROWSER_AUTOMATION
+            )
             return false
         }
 
@@ -495,27 +529,20 @@ class PathExecutor {
         }
 
         // 다중 셀렉터 fallback
-        for ((index, selector) in step.selectors.withIndex()) {
-            val navigationStep = NavigationStep(
-                url = step.url,
-                title = step.description,
-                action = "type",
-                selector = selector,
-                htmlAttributes = mapOf("value" to inputValue)
-            )
-
-            val navigationPath = NavigationPath(
-                pathId = "single_step_${Clock.System.now().toEpochMilliseconds()}",
-                steps = listOf(navigationStep),
-                description = step.description
-            )
-
-            val success = BrowserAutomationBridge.executeNavigationPath(navigationPath)
-            if (success) {
+        step.selectors.forEachIndexed { index, selector ->
+            try {
+                BrowserAutomationBridge.setInputValue(selector, inputValue)
+                currentOnLog?.invoke("입력 완료: ${step.description} → $inputValue")
                 Napier.d("Input succeeded with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
+                if (step.shouldWait == true) {
+                    BrowserAutomationBridge.waitForNetworkIdle()
+                }
                 return
-            } else {
-                Napier.d("Input failed with selector[$index]: $selector", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: Exception) {
+                Napier.d("Input failed with selector[$index]: $selector - ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+                if (index == step.selectors.lastIndex) {
+                    throw e
+                }
             }
         }
 
@@ -547,6 +574,66 @@ class PathExecutor {
         }
     }
 
+    private suspend fun executeSelectStep(step: PathStepDetail) {
+        Napier.i("🍰 Select step detected: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
+
+        val selectors = step.selectors
+        if (selectors.isEmpty()) {
+            throw IllegalStateException("Select step has no selectors: ${step.description}")
+        }
+
+        var lastError: Exception? = null
+
+        for (selector in selectors) {
+            try {
+                val options = BrowserAutomationBridge.getSelectOptions(selector)
+                if (options.isEmpty()) {
+                    Napier.w("No options found for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                    continue
+                }
+
+                val resolvedValue = resolveSelectValue(step, options)
+                BrowserAutomationBridge.selectOption(selector, resolvedValue.value)
+                if (step.shouldWait == true) {
+                    BrowserAutomationBridge.waitForNetworkIdle()
+                }
+                currentOnLog?.invoke("선택 완료: ${resolvedValue.label}")
+                Napier.i("Selected option '${resolvedValue.label}' (value=${resolvedValue.value}) for selector $selector", tag = Tags.BROWSER_AUTOMATION)
+                return
+            } catch (e: CancellationException) {
+                Napier.w("Select step cancelled by user", tag = Tags.BROWSER_AUTOMATION)
+                throw e
+            } catch (e: Exception) {
+                Napier.e("Failed to select option for selector $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                lastError = e
+            }
+        }
+
+        throw lastError ?: IllegalStateException("다음 요소에서 선택할 수 있는 옵션을 찾지 못했습니다: ${step.description}")
+    }
+
+    private suspend fun resolveSelectValue(
+        step: PathStepDetail,
+        options: List<SelectOption>
+    ): SelectOption {
+        val placeholder = step.inputPlaceholder?.trim()?.ifEmpty { null }
+        val placeholderMatch = placeholder?.let { hint ->
+            options.firstOrNull {
+                it.label.trim() == hint || it.value.trim() == hint
+            }
+        }
+
+        if (step.isInput == true && currentGetUserSelect != null) {
+            val userSelectedValue = currentGetUserSelect?.invoke(step, options)
+            if (!userSelectedValue.isNullOrBlank()) {
+                return options.firstOrNull { it.value == userSelectedValue } ?: options.first()
+            }
+            throw CancellationException("User cancelled select input")
+        }
+
+        return placeholderMatch ?: options.firstOrNull { it.isSelected } ?: options.first()
+    }
+
     /**
      * 카카오톡 인증 완료 스텝인지 확인
      * - description에 "카카오톡" + "인증" + "완료" 포함
@@ -559,8 +646,8 @@ class PathExecutor {
         val selectors = step.selectors.map { it.lowercase() }
 
         val hasKakaoAuthComplete = description.contains("카카오톡") &&
-                                   description.contains("인증") &&
-                                   description.contains("완료")
+                description.contains("인증") &&
+                description.contains("완료")
 
         val hasAuthCompleteLabel = textLabels?.any {
             it.contains("인증") && it.contains("완료")
