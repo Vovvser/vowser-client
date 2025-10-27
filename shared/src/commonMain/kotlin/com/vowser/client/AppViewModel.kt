@@ -814,8 +814,8 @@ class AppViewModel(
 
             result.fold(
                 onSuccess = { response ->
-                    val savedSteps = response.data.result.stepsSaved
-                    addStatusLog("경로 저장 완료: $taskIntent ($savedSteps 단계)", StatusLogType.SUCCESS)
+                    val savedSteps = response.data?.result?.stepsSaved ?: 0
+                    addStatusLog("경로 저장 완료: $taskIntent (${savedSteps}단계)", StatusLogType.SUCCESS)
                     Napier.i(
                         "Path saved via REST API: $savedSteps steps for task '$taskIntent'",
                         tag = Tags.CONTRIBUTION_MODE

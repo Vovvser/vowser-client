@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package com.vowser.client.api.dto
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNames
@@ -46,12 +49,13 @@ data class PathStepSubmission(
 data class PathSaveResponse(
     val type: String = "path_save_result",
     val status: String,
-    val data: PathSaveResult
+    val data: PathSaveResult? = null,
+    val error: PathSaveError? = null
 )
 
 @Serializable
 data class PathSaveResult(
-    val result: PathSaveDetails
+    val result: PathSaveDetails? = null
 )
 
 @Serializable
@@ -66,6 +70,12 @@ data class PathSaveDetails(
 
     @SerialName("stepsSaved") @JsonNames("steps_saved")
     val stepsSaved: Int
+)
+
+@Serializable
+data class PathSaveError(
+    val message: String? = null,
+    val code: String? = null
 )
 
 // ===== 경로 검색 (GET /api/v1/paths/search) =====
