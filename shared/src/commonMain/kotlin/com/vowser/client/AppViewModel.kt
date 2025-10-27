@@ -219,11 +219,15 @@ class AppViewModel(
 
     fun checkAuthStatus() {
         coroutineScope.launch {
-            _authState.value = AuthState.Loading
             val accessToken = tokenStorage.getAccessToken()
             if (accessToken == null) {
                 _authState.value = AuthState.NotAuthenticated
                 return@launch
+            }
+
+            val existingState = _authState.value
+            if (existingState !is AuthState.Authenticated) {
+                _authState.value = AuthState.Loading
             }
 
             val result = authRepository.getMe()
@@ -257,6 +261,12 @@ class AppViewModel(
     }
 
     fun login() {
+        val currentState = _authState.value
+        if (currentState is AuthState.Authenticated || currentState is AuthState.Loading) {
+            Napier.i("Login requested while already authenticated or loading; ignoring.", tag = Tags.AUTH)
+            return
+        }
+        _authState.value = AuthState.Loading
         startAuthCallbackServer()
         authManager.login()
     }
@@ -271,16 +281,30 @@ class AppViewModel(
             Napier.i("Token saved successfully: ${savedToken != null}", tag = Tags.AUTH)
             kotlinx.coroutines.delay(150)
 
-            checkAuthStatus()
+            val profileResult = authRepository.getMe()
+            profileResult.onSuccess { member ->
+                _authState.value = AuthState.Authenticated(member.name, member.email)
+                _userInfo.value = member
+            }.onFailure { error ->
+                Napier.w("Login succeeded but profile fetch failed: ${error.message}", error, tag = Tags.AUTH)
+                _authState.value = AuthState.Error(error.message ?: "로그인 상태 확인 실패")
+            }
         }
+        authManager.stopCallbackServer()
     }
 
     fun logout() {
         coroutineScope.launch {
-            authRepository.logout()
-            tokenStorage.clearTokens()
-            _authState.value = AuthState.NotAuthenticated
-            _userInfo.value = null
+            try {
+                authRepository.logout()
+            } catch (e: Exception) {
+                Napier.w("Logout request failed: ${e.message}", e, tag = Tags.AUTH)
+            } finally {
+                tokenStorage.clearTokens()
+                _authState.value = AuthState.NotAuthenticated
+                _userInfo.value = null
+                authManager.stopCallbackServer()
+            }
         }
     }
 
@@ -433,8 +457,7 @@ class AppViewModel(
     fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
         val message = when (action) {
             "click" -> {
-                val element = elementName?.let { "\"$it\"" } ?: "요소"
-                "[$stepNumber]스텝 $element 를 클릭했습니다."
+                "[$stepNumber]스텝 엘리먼트 클릭이 입력되었습니다."
             }
 
             "navigate" -> {
@@ -449,8 +472,7 @@ class AppViewModel(
             }
 
             "type" -> {
-                val input = elementName?.let { "\"$it\"" } ?: "텍스트"
-                "[$stepNumber]스텝 $input 를 입력했습니다."
+                "[$stepNumber]스텝 입력 처리가 진행되었습니다."
             }
 
             "new_tab" -> {
@@ -816,8 +838,8 @@ class AppViewModel(
 
             result.fold(
                 onSuccess = { response ->
-                    val savedSteps = response.data.result.stepsSaved
-                    addStatusLog("경로 저장 완료: $taskIntent ($savedSteps 단계)", StatusLogType.SUCCESS)
+                    val savedSteps = response.data?.result?.stepsSaved ?: 0
+                    addStatusLog("경로 저장 완료: $taskIntent (${savedSteps}단계)", StatusLogType.SUCCESS)
                     Napier.i(
                         "Path saved via REST API: $savedSteps steps for task '$taskIntent'",
                         tag = Tags.CONTRIBUTION_MODE
@@ -839,9 +861,9 @@ class AppViewModel(
             webSocketClient.sendContributionMessage(message)
             addStatusLog("기여 데이터 전송 완료 (${message.steps.size}개 단계)", StatusLogType.SUCCESS)
         } catch (e: Exception) {
-            exceptionHandler.handleException(e, "Contribution data transmission") {
-                sendContributionMessage(message)
-            }
+            addStatusLog("기여 데이터 전송 실패: ${e.message}", StatusLogType.WARNING)
+            Napier.e("Failed to send contribution data: ${e.message}", e, tag = Tags.CONTRIBUTION_MODE)
+            // TODO: 전송 실패 처리
         }
     }
 

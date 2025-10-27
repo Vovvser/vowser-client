@@ -21,7 +21,7 @@ object UserInputMatcher {
             return null
         }
 
-        val labels = step.textLabels?.map { it.lowercase() }?.joinToString(" ") ?: ""
+        val labels = step.textLabels?.joinToString(" ") { it.lowercase() } ?: ""
         val selectors = step.selectors
 
         // 1. 이름 필드 매칭
@@ -67,7 +67,6 @@ object UserInputMatcher {
                 }
             }
         }
-
 
         return null
     }

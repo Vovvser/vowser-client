@@ -52,9 +52,17 @@ class PathApiClient(
             }
 
             if (response.status.isSuccess()) {
-                val result = json.decodeFromString<PathSaveResponse>(response.bodyAsText())
-                Napier.i("✅ Path saved successfully: ${result.data.result.stepsSaved} steps", tag = Tags.API)
-                Result.success(result)
+                val bodyText = response.bodyAsText()
+                val result = json.decodeFromString<PathSaveResponse>(bodyText)
+                if (result.status.equals("success", ignoreCase = true)) {
+                    val stepsSaved = result.data?.result?.stepsSaved ?: 0
+                    Napier.i("✅ Path saved successfully: $stepsSaved steps", tag = Tags.API)
+                    Result.success(result)
+                } else {
+                    val message = result.error?.message ?: "Unknown server error"
+                    Napier.e("❌ Failed to save path: $message", tag = Tags.API)
+                    Result.failure(Exception(message))
+                }
             } else {
                 val errorBody = response.bodyAsText()
                 Napier.e("❌ Failed to save path: ${response.status} - $errorBody", tag = Tags.API)
