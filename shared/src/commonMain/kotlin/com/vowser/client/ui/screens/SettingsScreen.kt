@@ -76,27 +76,27 @@ fun SettingsScreen(
                 }
 
                 // 접근성 설정 카드
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(maxWidth * 0.03f,
-                            maxHeight * 0.03f),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
-                        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium)
-                    ) {
-                        Text(
-                            text = "접근성 설정",
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-                        SettingItem("음성 속도", "1.0x")
-                        SettingItem("자동 하이라이트", "켜짐")
-                        SettingItem("애니메이션", "켜짐")
-                        SettingItem("키보드 단축키", "활성화")
-                    }
-                }
+//                Card(
+//                    modifier = Modifier.fillMaxWidth()
+//                        .padding(maxWidth * 0.03f,
+//                            maxHeight * 0.03f),
+//                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+//                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+//                ) {
+//                    Column(
+//                        modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
+//                        verticalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium)
+//                    ) {
+//                        Text(
+//                            text = "접근성 설정",
+//                            style = MaterialTheme.typography.headlineSmall
+//                        )
+//                        SettingItem("음성 속도", "1.0x")
+//                        SettingItem("자동 하이라이트", "켜짐")
+//                        SettingItem("애니메이션", "켜짐")
+//                        SettingItem("키보드 단축키", "활성화")
+//                    }
+//                }
             }
         }
     }

@@ -31,6 +31,7 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
         }
         install(Auth) {
             bearer {
+                sendWithoutRequest { true }
                 loadTokens {
                     val accessToken = tokenStorage.getAccessToken()
                     val refreshToken = tokenStorage.getRefreshToken()
