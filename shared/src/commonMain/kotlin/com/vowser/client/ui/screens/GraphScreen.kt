@@ -320,7 +320,6 @@ private fun EmptyStateUI(
                 Spacer(Modifier.width(AppTheme.Dimensions.paddingSmall))
             }
 
-            Spacer(modifier = Modifier.weight(1f))
 
             // 클리어 버튼
             OutlinedButton(
