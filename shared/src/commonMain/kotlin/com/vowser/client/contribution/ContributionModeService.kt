@@ -385,4 +385,9 @@ class ContributionModeService(
 
         Napier.i("🔄 Session reset - previousSessionId: ${previousSessionId ?: "none"}, previousSteps: $previousSteps", tag = Tags.BROWSER_AUTOMATION)
     }
+
+    fun clearPendingMessages() {
+        stepBuffer.clear()
+        lastSentIndex = 0
+    }
 }
