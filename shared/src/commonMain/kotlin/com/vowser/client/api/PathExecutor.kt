@@ -513,8 +513,14 @@ class PathExecutor {
             }
         }
 
-        // 2. 자동 입력 실패 시, getUserInput 콜백 사용
-        if (inputValue == null) {
+        // 2. 채워야 할 값이 있는 경우 input을 받지 않음
+        if(step.inputPlaceholder != null && step.inputPlaceholder.isNotEmpty()) {
+            inputValue = step.inputPlaceholder
+            currentOnLog?.invoke("✅ 자동 입력: ${step.description} → ${step.inputPlaceholder}")
+        }
+
+        // 3. 채워야 할 값이 없거나 자동 입력 실패 시, getUserInput 콜백 사용
+        else if (inputValue == null) {
             if (getUserInput == null) {
                 Napier.w("❌ Skipping input step: ${step.description}", tag = Tags.BROWSER_AUTOMATION)
                 return
