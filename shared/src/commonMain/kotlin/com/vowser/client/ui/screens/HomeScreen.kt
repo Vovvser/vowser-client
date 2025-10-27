@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vowser.client.AppViewModel
 import com.vowser.client.ui.components.HomeAppBar
+import com.vowser.client.ui.components.SttModeSelector
 import com.vowser.client.ui.theme.AppTheme
 import com.vowser.client.ui.navigation.LocalScreenNavigator
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -50,6 +51,7 @@ fun HomeScreen(
     val isRecording by viewModel.isRecording.collectAsState()
     val receivedMessage by viewModel.receivedMessage.collectAsState()
     val pendingCommand by viewModel.pendingCommand.collectAsState()
+    val selectedSttModes by viewModel.selectedSttModes.collectAsState()
     val isContributionScreenActive by viewModel.isContributionScreenActive.collectAsState()
 
     // 음성 인식 결과 처리
@@ -59,11 +61,15 @@ fun HomeScreen(
             !command.isNullOrBlank() &&
             receivedMessage != "No message" &&
             receivedMessage.isNotBlank() &&
-            selectedMode == SearchMode.EXECUTE &&
             !isContributionScreenActive
         ) {
-            viewModel.setPendingCommand(command)
-            navigator.push(AppScreen.GRAPH)
+            when (selectedMode) {
+                SearchMode.SEARCH -> { /* TODO : 검색*/ }
+                SearchMode.EXECUTE -> {
+                    viewModel.setPendingCommand(command)
+                    navigator.push(AppScreen.GRAPH)
+                }
+            }
         }
     }
     Scaffold(
@@ -91,6 +97,7 @@ fun HomeScreen(
             Modifier
                 .fillMaxSize()
         ) {
+
             BoxWithConstraints(
                 Modifier
                     .fillMaxSize()
@@ -153,15 +160,22 @@ fun HomeScreen(
                 }
 
                 // 하단 검색창
-                Box(
-                    Modifier
+                Column(
+                    modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(
                             horizontal = maxWidth * 0.1f,
                             vertical = maxHeight * 0.05f
-                        )
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    SttModeSelector(
+                        selectedMode = selectedSttModes.firstOrNull(),
+                        onModeSelect = { mode -> viewModel.toggleSttMode(mode) },
+                        isVisible = !isRecording,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
