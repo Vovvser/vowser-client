@@ -850,8 +850,8 @@ class AppViewModel(
                     )
                 },
                 onFailure = { error ->
-                    addStatusLog("경로 저장 실패: ${error.message}", StatusLogType.WARNING)
-                    Napier.e("Failed to save path via REST API: ${error.message}", error, tag = Tags.CONTRIBUTION_MODE)
+//                    addStatusLog("경로 저장 실패: ${error.message}", StatusLogType.WARNING)
+//                    Napier.e("Failed to save path via REST API: ${error.message}", error, tag = Tags.CONTRIBUTION_MODE)
                 }
             )
         } catch (e: Exception) {

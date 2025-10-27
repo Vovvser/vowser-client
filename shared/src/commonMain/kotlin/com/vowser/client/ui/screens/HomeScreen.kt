@@ -96,12 +96,18 @@ fun HomeScreen(
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
-        ) {
+                .padding(30.dp, 80.dp, 0.dp, 0.dp),
+            ) {
+
+            Text("인기 경로",
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = AppTheme.Typography.titleLarge)
+            Spacer(modifier = Modifier.size(16.dp))
 
             BoxWithConstraints(
                 Modifier
                     .fillMaxSize()
-                    .padding(maxWidth * 0.05f, maxHeight * 0.15f, maxWidth * 0.05f, 0.dp),
+                    .padding(top = 20.dp)
             ) {
                 val srtQuery = "SRT 예매 자동화 (Python Playwright)"
 
@@ -110,7 +116,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxSize(),
                     contentPadding = PaddingValues(
-                        start = AppTheme.Dimensions.paddingLarge,
+                        start = AppTheme.Dimensions.paddingMedium,
                         end = AppTheme.Dimensions.paddingMedium,
                         top = AppTheme.Dimensions.paddingLarge,
                         bottom = minHeight - (maxHeight * 0.8f),
@@ -145,8 +151,9 @@ fun HomeScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        "🚉💺",
-                                        fontSize = 48.sp,
+                                        "SRT 예매",
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        fontSize = AppTheme.Typography.titleLarge,
                                     )
                                 }
                                 Text(
