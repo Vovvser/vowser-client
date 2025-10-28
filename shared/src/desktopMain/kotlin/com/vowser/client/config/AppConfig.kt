@@ -11,6 +11,35 @@ class AppConfig private constructor() {
     val backendUrl: String
         get() = properties.getProperty("backend.url", DEFAULT_BACKEND_URL)
 
+    val browserZoom: Double
+        get() = properties.getProperty("browser.zoom")
+            ?.toDoubleOrNull()
+            ?.let { it.coerceIn(0.25, 3.0) }
+            ?: 1.0
+
+    val chromiumDeviceScaleFactor: Double
+        get() = properties.getProperty("chromium.deviceScaleFactor")
+            ?.toDoubleOrNull()
+            ?.takeIf { it > 0 } ?: 1.0
+
+    val chromiumStartFullscreen: Boolean
+        get() = properties.getProperty("chromium.startFullscreen")?.toBoolean() ?: false
+
+    val browserFitToWindow: Boolean
+        get() = properties.getProperty("browser.fitToWindow")?.toBoolean() ?: false
+
+
+
+    val chromiumWindowSize: Pair<Int, Int>
+        get() {
+            val raw = properties.getProperty("chromium.windowSize")?.trim()
+            if (!raw.isNullOrBlank()) {
+                val parts = raw.lowercase().replace("*", "x").split("x").mapNotNull { it.trim().toIntOrNull() }
+                if (parts.size == 2 && parts[0] > 0 && parts[1] > 0) return parts[0] to parts[1]
+            }
+            return 1920 to 1080
+        }
+
     companion object {
         private const val DEFAULT_BACKEND_URL = "http://localhost:8080"
         private const val CONFIG_FILENAME = "config.properties"
@@ -53,6 +82,12 @@ class AppConfig private constructor() {
     fun printConfig() {
         Napier.i("=== AppConfig ===", tag = Tags.CONFIG)
         Napier.i("backend.url: $backendUrl", tag = Tags.CONFIG)
+        Napier.i("browser.zoom: $browserZoom", tag = Tags.CONFIG)
+        Napier.i("chromium.deviceScaleFactor: $chromiumDeviceScaleFactor", tag = Tags.CONFIG)
+        Napier.i("chromium.startFullscreen: $chromiumStartFullscreen", tag = Tags.CONFIG)
+        Napier.i("browser.fitToWindow: $browserFitToWindow", tag = Tags.CONFIG)
+
+        Napier.i("chromium.windowSize: ${chromiumWindowSize.first}x${chromiumWindowSize.second}", tag = Tags.CONFIG)
         Napier.i("=================", tag = Tags.CONFIG)
     }
 }
