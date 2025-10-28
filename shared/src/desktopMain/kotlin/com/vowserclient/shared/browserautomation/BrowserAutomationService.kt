@@ -2,12 +2,16 @@ package com.vowser.client.browserautomation
 
 import com.microsoft.playwright.Browser
 import com.microsoft.playwright.BrowserType
+import com.microsoft.playwright.BrowserContext
+import com.microsoft.playwright.options.ViewportSize
 import com.microsoft.playwright.Locator
 import com.microsoft.playwright.Page
 import com.microsoft.playwright.Playwright
 import com.microsoft.playwright.PlaywrightException
 import com.vowser.client.contribution.ContributionStep
+import com.vowser.client.config.AppConfig
 import com.vowser.client.contribution.ContributionConstants
+import com.google.gson.JsonObject
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
 import kotlinx.coroutines.Dispatchers
@@ -26,11 +30,13 @@ object BrowserAutomationService {
 
     private lateinit var playwright: Playwright
     private lateinit var browser: Browser
+    private lateinit var context: BrowserContext
     private lateinit var page: Page
     private val mutex = Mutex()
 
     private var contributionRecordingCallback: ((ContributionStep) -> Unit)? = null
-    private var browserClosedCallback: (() -> Unit)? = null
+    private var browserClosedCallback: (() -> Unit)? = null // contribution-mode specific
+    private var generalBrowserClosedCallback: (() -> Unit)? = null
     private var isRecordingContributions = false
     private var pollingJob: Job? = null
     private var memoryCleanupJob: Job? = null
@@ -53,6 +59,10 @@ object BrowserAutomationService {
         browserClosedCallback = callback
     }
 
+    fun setGeneralBrowserClosedCallback(callback: (() -> Unit)?) {
+        generalBrowserClosedCallback = callback
+    }
+
     suspend fun initialize() = withContext(Dispatchers.IO) {
         mutex.withLock {
 
@@ -71,23 +81,39 @@ object BrowserAutomationService {
                     if (::browser.isInitialized) {
                         runCatching { browser.close() }
                     }
+                    val config = AppConfig.getInstance()
+                    val launchArgs = mutableListOf(
+                        "--no-first-run",
+                        "--no-default-browser-check",
+                        "--disable-background-timer-throttling",
+                        "--disable-backgrounding-occluded-windows",
+                        "--disable-renderer-backgrounding",
+                        "--disable-features=TranslateUI",
+                        "--disable-ipc-flooding-protection",
+                        "--disable-accessibility-api",
+                        "--disable-dev-shm-usage",
+                        "--no-sandbox",
+                        "--disable-web-security",
+                        "--disable-blink-features=AutomationControlled"
+                    )
+
+                    if (config.chromiumStartFullscreen) {
+                        launchArgs.add("--start-fullscreen")
+                    }
+
+                    val dsf = config.chromiumDeviceScaleFactor
+                    if (dsf != 1.0) {
+                        launchArgs.add("--high-dpi-support=1")
+                        launchArgs.add("--force-device-scale-factor=$dsf")
+                    }
+
+                    val (w, h) = config.chromiumWindowSize
+                    launchArgs.add("--window-size=${w},${h}")
+
                     browser = playwright.chromium().launch(
                         BrowserType.LaunchOptions()
                             .setHeadless(false)
-                            .setArgs(listOf(
-                                "--no-first-run",
-                                "--no-default-browser-check",
-                                "--disable-background-timer-throttling",
-                                "--disable-backgrounding-occluded-windows",
-                                "--disable-renderer-backgrounding",
-                                "--disable-features=TranslateUI",
-                                "--disable-ipc-flooding-protection",
-                                "--disable-accessibility-api",
-                                "--disable-dev-shm-usage",
-                                "--no-sandbox",
-                                "--disable-web-security",
-                                "--disable-blink-features=AutomationControlled"
-                            ))
+                            .setArgs(launchArgs)
                     )
                     isBrowserActive = true
                     browser.onDisconnected {
@@ -98,7 +124,7 @@ object BrowserAutomationService {
                     }
                 }
 
-                // Check page initialization
+                // Check page/context initialization
                 var needNewPage = false
                 if (!::page.isInitialized || !isPageActive) {
                     needNewPage = true
@@ -115,10 +141,18 @@ object BrowserAutomationService {
                 }
 
                 if (needNewPage) {
-                    page = browser.newPage()
+                    // Close previous context if any
+                    runCatching { if (::context.isInitialized) context.close() }
+
+                    // Create context with no fixed viewport so viewport follows window size
+                    val ctxOptions = Browser.NewContextOptions().setViewportSize(null as ViewportSize?)
+                    context = browser.newContext(ctxOptions)
+                    page = context.newPage()
                     registerPageCloseWatcher(page)
                     setupContributionRecording()
                     page.waitForLoadState()
+                    // Apply configured zoom after initial load
+                    applyConfiguredPageZoom()
                     isPageActive = true
                     isExpectingClose = false
                 }
@@ -139,6 +173,90 @@ object BrowserAutomationService {
         }
     }
 
+    private fun applyConfiguredPageZoom(targetPage: Page? = null) {
+        val p = targetPage ?: runCatching { page }.getOrNull() ?: return
+        val config = AppConfig.getInstance()
+
+
+        if (config.browserFitToWindow) {
+            installFitToWindow(p)
+            return
+        }
+
+        val zoom = config.browserZoom
+        if (zoom == 1.0) return
+
+        // Try DevTools Emulation.setPageScaleFactor first
+        runCatching {
+            val session = p.context().newCDPSession(p)
+            val params = JsonObject().apply { addProperty("pageScaleFactor", zoom) }
+            session.send("Emulation.setPageScaleFactor", params)
+            Napier.i("Applied page scale via CDP: $zoom", tag = Tags.BROWSER_AUTOMATION)
+        }.onFailure { cdpErr ->
+            Napier.w("CDP page scale failed: ${cdpErr.message}. Falling back to CSS zoom.", tag = Tags.BROWSER_AUTOMATION)
+            // Fallback to CSS zoom
+            runCatching {
+                p.evaluate("(z) => { try { document.documentElement.style.zoom = z; } catch (e) {} }", zoom)
+                Napier.i("Applied page zoom via CSS: $zoom", tag = Tags.BROWSER_AUTOMATION)
+            }.onFailure { cssErr ->
+                Napier.w("CSS zoom apply failed: ${cssErr.message}", tag = Tags.BROWSER_AUTOMATION)
+            }
+        }
+    }
+
+    private fun installFitToWindow(targetPage: Page) {
+        val script = """
+            (() => {
+              function computeContentSize() {
+                const de = document.documentElement;
+                const b = document.body || document.createElement('body');
+                const w = Math.max(de.scrollWidth, de.clientWidth, b.scrollWidth || 0);
+                const h = Math.max(de.scrollHeight, de.clientHeight, b.scrollHeight || 0);
+                return { w, h };
+              }
+
+              function applyFit() {
+                try {
+                  const ww = window.innerWidth;
+                  const wh = window.innerHeight;
+                  const s = computeContentSize();
+                  if (!ww || !wh || !s.w || !s.h) return;
+                  const zx = ww / s.w;
+                  const zy = wh / s.h;
+                  const z = Math.max(0.25, Math.min(3.0, Math.min(zx, zy)));
+                  // Prefer CSS zoom for simplicity
+                  document.documentElement.style.zoom = z;
+                  document.body && (document.body.style.zoom = z);
+                } catch (e) {}
+              }
+
+              // Debounce to avoid thrashing
+              let __vowserFitTimer = null;
+              function scheduleFit() {
+                if (__vowserFitTimer) cancelAnimationFrame(__vowserFitTimer);
+                __vowserFitTimer = requestAnimationFrame(applyFit);
+              }
+
+              window.addEventListener('resize', scheduleFit, { passive: true });
+              const ro = new ResizeObserver(scheduleFit);
+              try { ro.observe(document.documentElement); } catch (e) {}
+              try { document.body && ro.observe(document.body); } catch (e) {}
+
+              // Initial application
+              scheduleFit();
+            })();
+        """.trimIndent()
+
+        runCatching {
+            targetPage.evaluate(script)
+            Napier.i("Installed fit-to-window zoom script", tag = Tags.BROWSER_AUTOMATION)
+        }.onFailure { e ->
+            Napier.w("Failed to install fit-to-window: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
+        }
+    }
+
+
+
     suspend fun cleanup() = withContext(Dispatchers.IO) {
         mutex.withLock {
             isExpectingClose = true
@@ -148,9 +266,8 @@ object BrowserAutomationService {
             serviceScope.coroutineContext.cancelChildren()
 
             try {
-                if (::page.isInitialized && !page.isClosed) {
-                    page.close()
-                }
+                if (::page.isInitialized && !page.isClosed) { page.close() }
+                if (::context.isInitialized) { context.close() }
             } catch (e: Exception) {
                 Napier.w("Failed to close page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
@@ -192,10 +309,18 @@ object BrowserAutomationService {
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     recordContributionStep(url, page.title(), "navigate", null, null)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                Napier.d("Navigation cancelled to $url", tag = Tags.BROWSER_AUTOMATION)
+                throw e
             } catch (e: PlaywrightException) {
                 Napier.e("Navigation failed to $url: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("Navigation error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                val msg = e.message ?: ""
+                if (msg.contains("Target page, context or browser has been closed", ignoreCase = true)) {
+                    Napier.w("Navigation aborted (target closed) to $url", tag = Tags.BROWSER_AUTOMATION)
+                } else {
+                    Napier.e("Navigation error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                }
             }
         }
     }
@@ -212,10 +337,17 @@ object BrowserAutomationService {
                 } else {
                     AdaptiveWaitManager.waitForPageLoad(page, "go back")
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: PlaywrightException) {
                 Napier.e("Go back failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("Go back error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                val msg = e.message ?: ""
+                if (msg.contains("Target page, context or browser has been closed", ignoreCase = true)) {
+                    Napier.w("Go back aborted (target closed)", tag = Tags.BROWSER_AUTOMATION)
+                } else {
+                    Napier.e("Go back error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                }
             }
         }
     }
@@ -232,10 +364,17 @@ object BrowserAutomationService {
                 } else {
                     AdaptiveWaitManager.waitForPageLoad(page, "go forward")
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: PlaywrightException) {
                 Napier.e("Go forward failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             } catch (e: Exception) {
-                Napier.e("Go forward error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                val msg = e.message ?: ""
+                if (msg.contains("Target page, context or browser has been closed", ignoreCase = true)) {
+                    Napier.w("Go forward aborted (target closed)", tag = Tags.BROWSER_AUTOMATION)
+                } else {
+                    Napier.e("Go forward error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
+                }
             }
         }
     }
@@ -250,6 +389,8 @@ object BrowserAutomationService {
                 Napier.d("Waiting for network idle state with ${timeout}ms timeout...", tag = Tags.BROWSER_AUTOMATION)
                 page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE, Page.WaitForLoadStateOptions().setTimeout(timeout))
                 Napier.i("Network is idle.", tag = Tags.BROWSER_AUTOMATION)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Napier.w("waitForNetworkIdle failed or timed out: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
@@ -293,6 +434,9 @@ object BrowserAutomationService {
                 val result = executeHoverHighlightClick(locator, selector)
                 Napier.d("--- hoverAndClickElement END ---", tag = Tags.BROWSER_AUTOMATION)
                 return@withContext result
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                Napier.d("hoverAndClickElement cancelled for selector: $selector", tag = Tags.BROWSER_AUTOMATION)
+                throw e
             } catch (e: PlaywrightException) {
                 Napier.e("Failed to hoverAndClickElement $selector: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 Napier.d("--- hoverAndClickElement END ---", tag = Tags.BROWSER_AUTOMATION)
@@ -637,14 +781,17 @@ object BrowserAutomationService {
                 runCatching { newPage.waitForLoadState() }
                 val targetUrl = runCatching { newPage.url() }.getOrElse { popupUrl }
                 if (targetUrl.isNotBlank() && targetUrl != "about:blank") {
-                    page.navigate(targetUrl)
-                    recordContributionStep(
-                        targetUrl,
-                        page.title(),
-                        "navigate",
-                        null,
-                        mapOf("from_popup" to "true")
-                    )
+                    runCatching { page.navigate(targetUrl) }
+                    val title = runCatching { page.title() }.getOrElse { "" }
+                    runCatching {
+                        recordContributionStep(
+                            targetUrl,
+                            title,
+                            "navigate",
+                            null,
+                            mapOf("from_popup" to "true")
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 Napier.w("Failed to redirect popup into same tab: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
@@ -655,21 +802,28 @@ object BrowserAutomationService {
 
         // Detect page navigation (URL change)
         page.onFrameNavigated { frame ->
-            if (frame == page.mainFrame()) {
-                Napier.i("Frame navigated to: ${frame.url()}", tag = Tags.BROWSER_AUTOMATION)
-                // about:blank 등은 기록을 생략하여 노이즈 감소
-                val url = frame.url()
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    recordContributionStep(
-                        url,
-                        frame.page().title(),
-                        "navigate",
-                        null,
-                        null
-                    )
+            try {
+                if (frame == page.mainFrame()) {
+                    val url = runCatching { frame.url() }.getOrElse { "" }
+                    Napier.i("Frame navigated to: $url", tag = Tags.BROWSER_AUTOMATION)
+                    // about:blank 등은 기록을 생략하여 노이즈 감소
+                    if (isRecordingContributions && (url.startsWith("http://") || url.startsWith("https://"))) {
+                        val title = runCatching { frame.page().title() }.getOrElse { "" }
+                        runCatching {
+                            recordContributionStep(
+                                url,
+                                title,
+                                "navigate",
+                                null,
+                                null
+                            )
+                        }
+                    }
+                    // 네비 직후에도 리스너가 즉시 준비되도록 재주입
+                    runCatching { injectUserInteractionListeners(frame.page()) }
                 }
-                // 네비 직후에도 리스너가 즉시 준비되도록 재주입
-                runCatching { injectUserInteractionListeners(frame.page()) }
+            } catch (e: Exception) {
+                Napier.w("onFrameNavigated handler error: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
         }
 
@@ -678,6 +832,7 @@ object BrowserAutomationService {
             try {
                 Napier.i("Page loaded, injecting listeners for: ${page.url()}", tag = Tags.BROWSER_AUTOMATION)
                 injectUserInteractionListeners()
+                applyConfiguredPageZoom()
             } catch (e: Exception) {
                 Napier.w("Failed to inject user interaction listeners: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
@@ -688,6 +843,7 @@ object BrowserAutomationService {
             try {
                 Napier.d("DOMContentLoaded, injecting listeners for: ${page.url()}", tag = Tags.BROWSER_AUTOMATION)
                 injectUserInteractionListeners()
+                applyConfiguredPageZoom()
             } catch (e: Exception) {
                 Napier.w("Failed to inject listeners on DOMContentLoaded: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
             }
@@ -723,6 +879,7 @@ object BrowserAutomationService {
                 try {
                     Napier.i("New page loaded, injecting listeners for: ${newPage.url()}", tag = Tags.BROWSER_AUTOMATION)
                     injectUserInteractionListeners(newPage)
+                    applyConfiguredPageZoom(newPage)
                 } catch (e: Exception) {
                     Napier.w("Failed to inject listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
                 }
@@ -987,13 +1144,27 @@ object BrowserAutomationService {
 
     private fun notifyBrowserClosed(reason: String) {
         if (isExpectingClose) return
-        if (!isRecordingContributions) return
 
-        Napier.w("Contribution browser closed unexpectedly: $reason", tag = Tags.BROWSER_AUTOMATION)
-        isPageActive = false
-        isRecordingContributions = false
+        // Always notify general callback (non-contribution) if set
         serviceScope.launch {
-            browserClosedCallback?.invoke()
+            try {
+                generalBrowserClosedCallback?.invoke()
+            } catch (_: Exception) { }
+        }
+
+        // Contribution-mode specific handling and callback
+        if (isRecordingContributions) {
+            Napier.w("Contribution browser closed unexpectedly: $reason", tag = Tags.BROWSER_AUTOMATION)
+            isPageActive = false
+            isRecordingContributions = false
+            serviceScope.launch {
+                try {
+                    browserClosedCallback?.invoke()
+                } catch (_: Exception) { }
+            }
+        } else {
+            Napier.w("Browser window closed: $reason", tag = Tags.BROWSER_AUTOMATION)
+            isPageActive = false
         }
     }
 

@@ -62,6 +62,11 @@ actual object BrowserAutomationBridge {
         BrowserAutomationService.setContributionBrowserClosedCallback(callback)
     }
 
+    actual fun setBrowserClosedCallback(callback: (() -> Unit)?) {
+        Napier.i("Setting general browser closed callback", tag = Tags.BROWSER_AUTOMATION)
+        BrowserAutomationService.setGeneralBrowserClosedCallback(callback)
+    }
+
     actual suspend fun cleanupContribution() {
         Napier.i("Cleaning up contribution browser resources", tag = Tags.BROWSER_AUTOMATION)
         BrowserAutomationService.cleanup()

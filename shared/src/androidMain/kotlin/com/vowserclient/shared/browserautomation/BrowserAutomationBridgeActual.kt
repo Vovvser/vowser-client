@@ -25,6 +25,14 @@ actual object BrowserAutomationBridge {
     actual fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit) {
     }
 
+    actual fun setContributionBrowserClosedCallback(callback: (() -> Unit)?) {
+        Napier.i("Android: setContributionBrowserClosedCallback - Not implemented", tag = Tags.BROWSER_AUTOMATION)
+    }
+
+    actual fun setBrowserClosedCallback(callback: (() -> Unit)?) {
+        Napier.i("Android: setBrowserClosedCallback - Not implemented", tag = Tags.BROWSER_AUTOMATION)
+    }
+
     actual suspend fun waitForNetworkIdle() {
     }
 
