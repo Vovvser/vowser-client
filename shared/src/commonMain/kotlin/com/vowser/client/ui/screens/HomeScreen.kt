@@ -176,14 +176,14 @@ fun HomeScreen(
                         searchQuery = "한국장애인복지시설협회 장애인 시설 검색"
                         viewModel.setPendingCommand(searchQuery)
                         navigator.push(AppScreen.GRAPH)
-                    }) { CardContent("한국장애인복지시설협회 장애인 시설 검색") }
+                    }) { CardContent("한국 장애인 복지시설협회\n장애인 시설 검색") }
 
                     Card(modifier = Modifier.weight(1f), onClick = {
                         selectedMode = SearchMode.EXECUTE
                         searchQuery = "중앙보조기기센터 보조기기 검색"
                         viewModel.setPendingCommand(searchQuery)
                         navigator.push(AppScreen.GRAPH)
-                    }) { CardContent("중앙보조기기센터 보조기기 검색") }
+                    }) { CardContent("중앙보조기기센터\n보조기기 검색") }
 
                     Card(modifier = Modifier.weight(1f), onClick = {
                         selectedMode = SearchMode.EXECUTE
