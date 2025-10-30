@@ -51,10 +51,6 @@ fun App(viewModel: AppViewModel) {
         viewModel.checkAuthStatus()
     }
 
-    // 사용자 대기 상태 구독
-    val isWaitingForUser by viewModel.isWaitingForUser.collectAsState()
-    val waitMessage by viewModel.waitMessage.collectAsState()
-
     // 사용자 입력 대기 상태 구독
     val isWaitingForUserInput by viewModel.isWaitingForUserInput.collectAsState()
     val inputRequest by viewModel.inputRequest.collectAsState()

@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vowser.client.ui.theme.AppTheme
-import kotlinx.coroutines.delay
 
 /**
  * 예외처리 및 로딩 상태를 위한 컴포넌트
@@ -321,78 +320,6 @@ private fun isRetryable(errorState: ErrorState): Boolean {
 }
 
 @Composable
-fun NetworkConnectionIndicator(
-    connectionStatus: String,
-    modifier: Modifier = Modifier,
-    onReconnect: (() -> Unit)? = null
-) {
-    val isConnected = connectionStatus.lowercase().contains("connected")
-    val isConnecting = connectionStatus.lowercase().contains("connecting")
-
-    AnimatedVisibility(
-        visible = !isConnected,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
-        modifier = modifier
-    ) {
-        Card(
-            modifier = Modifier
-                .padding(AppTheme.Dimensions.paddingSmall),
-            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = AppTheme.Dimensions.spacingMedium, vertical = AppTheme.Dimensions.paddingSmall),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.paddingSmall)
-            ) {
-                val contentColor = if (isConnecting) AppTheme.Colors.Warning else AppTheme.Colors.Error
-
-                if (isConnecting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall),
-                        strokeWidth = AppTheme.Dimensions.cardElevationLow,
-                        color = contentColor
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = "Disconnected",
-                        tint = contentColor,
-                        modifier = Modifier.size(AppTheme.Dimensions.iconSizeSmall)
-                    )
-                }
-
-                Text(
-                    text = if (isConnecting) "연결 중..." else "연결 끊김",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = AppTheme.Typography.bodySmall,
-                    fontWeight = FontWeight.Medium
-                )
-
-                if (!isConnecting && onReconnect != null) {
-                    TextButton(
-                        onClick = onReconnect,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.padding(0.dp)
-                    ) {
-                        Text(
-                            text = "재연결",
-                            fontSize = AppTheme.Typography.overline,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun ErrorBoundary(
     errorState: ErrorState,
     onRetry: (() -> Unit)? = null,
@@ -535,68 +462,6 @@ private fun ErrorFallbackUI(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun ToastMessage(
-    message: String,
-    type: ToastType = ToastType.INFO,
-    isVisible: Boolean,
-    duration: Long = 3000L,
-    onDismiss: () -> Unit
-) {
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            delay(duration)
-            onDismiss()
-        }
-    }
-
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut()
-    ) {
-        Card(
-            modifier = Modifier
-                .padding(AppTheme.Dimensions.paddingMedium),
-            shape = RoundedCornerShape(AppTheme.Dimensions.borderRadius),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            Row(
-                modifier = Modifier.padding(AppTheme.Dimensions.paddingMedium),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppTheme.Dimensions.spacingMedium)
-            ) {
-                val iconColor = when (type) {
-                    ToastType.SUCCESS -> AppTheme.Colors.Success
-                    ToastType.ERROR -> AppTheme.Colors.Error
-                    ToastType.WARNING -> AppTheme.Colors.Warning
-                    ToastType.INFO -> AppTheme.Colors.Info
-                }
-                Icon(
-                    imageVector = when (type) {
-                        ToastType.SUCCESS -> Icons.Default.CheckCircle
-                        ToastType.ERROR -> Icons.Default.Warning
-                        ToastType.WARNING -> Icons.Default.Warning
-                        ToastType.INFO -> Icons.Default.Info
-                    },
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(AppTheme.Dimensions.iconSizeMedium)
-                )
-
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = AppTheme.Typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
     }

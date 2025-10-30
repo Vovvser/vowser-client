@@ -18,7 +18,6 @@ import com.vowser.client.model.MemberResponse
 import com.vowser.client.visualization.GraphVisualizationData
 import com.vowser.client.websocket.BrowserControlWebSocketClient
 import com.vowser.client.websocket.ConnectionStatus
-import com.vowser.client.websocket.dto.CallToolRequest
 import com.vowser.client.websocket.dto.VoiceProcessingResult
 import com.vowser.client.websocket.dto.toMatchedPathDetail
 import com.vowser.client.browserautomation.BrowserAutomationBridge
@@ -167,7 +166,7 @@ class AppViewModel(
         coroutineScope = coroutineScope,
         onSendMessage = { message -> sendContributionMessage(message) },
         onUILog = { stepNumber, action, elementName, url ->
-            addContributionLog(stepNumber, action, elementName, url)
+            addContributionLog(stepNumber, action, url)
         }
     )
     val contributionStatus = contributionModeService.status
@@ -475,7 +474,7 @@ class AppViewModel(
         setPendingCommand(transcript)
     }
 
-    fun addContributionLog(stepNumber: Int, action: String, elementName: String?, url: String?) {
+    fun addContributionLog(stepNumber: Int, action: String, url: String?) {
         val message = when (action) {
             "click" -> {
                 "[$stepNumber]스텝 엘리먼트 클릭이 입력되었습니다."
@@ -521,15 +520,6 @@ class AppViewModel(
                     connectWebSocket()
                 }
             }
-        }
-    }
-
-    fun sendToolCall(toolName: String, args: Map<String, String>) {
-        coroutineScope.launch {
-            /**
-             * TODO - 새로 바뀐 구조로 추가 예정
-             */
-            webSocketClient.sendToolCall(CallToolRequest(toolName, args))
         }
     }
 
