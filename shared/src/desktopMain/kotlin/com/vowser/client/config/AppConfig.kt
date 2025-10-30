@@ -1,6 +1,7 @@
 package com.vowser.client.config
 
 import com.vowser.client.logging.Tags
+import com.vowser.client.desktop.ScreenUtil
 import io.github.aakira.napier.Napier
 import java.io.File
 import java.io.FileInputStream
@@ -10,6 +11,39 @@ class AppConfig private constructor() {
 
     val backendUrl: String
         get() = properties.getProperty("backend.url", DEFAULT_BACKEND_URL)
+
+    val browserZoom: Double
+        get() = properties.getProperty("browser.zoom")
+            ?.toDoubleOrNull()
+            ?.let { it.coerceIn(0.25, 3.0) }
+            ?: 1.0
+
+    val chromiumDeviceScaleFactor: Double
+        get() = properties.getProperty("chromium.deviceScaleFactor")
+            ?.toDoubleOrNull()
+            ?.takeIf { it > 0 } ?: 1.0
+
+    val chromiumStartFullscreen: Boolean
+        get() = properties.getProperty("chromium.startFullscreen")?.toBoolean() ?: false
+
+    val browserFitToWindow: Boolean
+        get() = properties.getProperty("browser.fitToWindow")?.toBoolean() ?: false
+
+
+
+    val chromiumWindowSizeRaw: String?
+        get() = properties.getProperty("chromium.windowSize")?.trim()
+
+    val chromiumWindowSize: Pair<Int, Int>
+        get() {
+            val raw = chromiumWindowSizeRaw
+            if (!raw.isNullOrBlank()) {
+                val parts = raw.lowercase().replace("*", "x").split("x").mapNotNull { it.trim().toIntOrNull() }
+                if (parts.size == 2 && parts[0] > 0 && parts[1] > 0) return parts[0] to parts[1]
+            }
+            val b = ScreenUtil.currentPointerScreenBounds()
+            return b.width to b.height
+        }
 
     companion object {
         private const val DEFAULT_BACKEND_URL = "http://localhost:8080"
@@ -53,6 +87,12 @@ class AppConfig private constructor() {
     fun printConfig() {
         Napier.i("=== AppConfig ===", tag = Tags.CONFIG)
         Napier.i("backend.url: $backendUrl", tag = Tags.CONFIG)
+        Napier.i("browser.zoom: $browserZoom", tag = Tags.CONFIG)
+        Napier.i("chromium.deviceScaleFactor: $chromiumDeviceScaleFactor", tag = Tags.CONFIG)
+        Napier.i("chromium.startFullscreen: $chromiumStartFullscreen", tag = Tags.CONFIG)
+        Napier.i("browser.fitToWindow: $browserFitToWindow", tag = Tags.CONFIG)
+
+        Napier.i("chromium.windowSize: ${chromiumWindowSize.first}x${chromiumWindowSize.second}", tag = Tags.CONFIG)
         Napier.i("=================", tag = Tags.CONFIG)
     }
 }

@@ -11,6 +11,7 @@ expect object BrowserAutomationBridge {
     suspend fun waitForNetworkIdle()
     fun setContributionRecordingCallback(callback: (ContributionStep) -> Unit)
     fun setContributionBrowserClosedCallback(callback: (() -> Unit)?)
+    fun setBrowserClosedCallback(callback: (() -> Unit)?)
     suspend fun cleanupContribution()
     suspend fun getSelectOptions(selector: String): List<SelectOption>
     suspend fun selectOption(selector: String, value: String)

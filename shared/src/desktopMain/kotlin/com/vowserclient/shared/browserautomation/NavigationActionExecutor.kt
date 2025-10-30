@@ -13,6 +13,8 @@ class NavigateActionExecutor : NavigationActionExecutor {
         return try {
             browserActions.navigate(step.url)
             true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Navigate action failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
             false
@@ -25,6 +27,8 @@ class ClickActionExecutor : NavigationActionExecutor {
         return step.selector?.let { selector ->
             try {
                 browserActions.click(selector, timeout)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Napier.e("Click action failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 false
@@ -43,6 +47,8 @@ class TypeActionExecutor : NavigationActionExecutor {
                 val textToType = step.htmlAttributes?.get("value") ?: step.htmlAttributes?.get("text") ?: ""
                 browserActions.type(selector, textToType)
                 true
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Napier.e("Type action failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 false
@@ -57,7 +63,11 @@ class TypeActionExecutor : NavigationActionExecutor {
 class SubmitActionExecutor : NavigationActionExecutor {
     override suspend fun execute(browserActions: BrowserActions, step: NavigationStep, timeout: Double?): Boolean {
         return step.selector?.let { selector ->
-            ClickActionExecutor().execute(browserActions, step, timeout)
+            try {
+                ClickActionExecutor().execute(browserActions, step, timeout)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            }
         } ?: run {
             Napier.e("Selector is null for submit action.", tag = Tags.BROWSER_AUTOMATION)
             false

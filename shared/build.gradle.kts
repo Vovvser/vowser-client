@@ -54,7 +54,6 @@ kotlin {
             }
         }
         val desktopMain by getting {
-            dependsOn(commonMain)
             dependencies {
                 implementation(compose.desktop.common)
 

@@ -215,6 +215,10 @@ class AppViewModel(
         setupWebSocketCallbacks()
         connectWebSocket()
         setupContributionMode()
+        // 일반 실행 모드에서도 브라우저 창 닫힘 시 즉시 중단
+        BrowserAutomationBridge.setBrowserClosedCallback {
+            cancelActiveAutomation()
+        }
     }
 
     fun checkAuthStatus() {
@@ -340,6 +344,9 @@ class AppViewModel(
 
     fun executeQuery(query: String) {
         coroutineScope.launch {
+            // 새 쿼리 실행 전, 현재 자동화를 즉시 중단
+            runCatching { pathExecutor.cancelExecution() }
+            cancelActiveAutomation()
             handleVoiceCommand(query)
         }
     }
@@ -1004,6 +1011,10 @@ class AppViewModel(
                     tag = Tags.BROWSER_AUTOMATION
                 )
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // 취소는 정상 흐름으로 처리 (오류 로그 방지)
+            Napier.i("Voice command path execution cancelled", tag = Tags.BROWSER_AUTOMATION)
+            throw e
         } catch (e: Exception) {
             addStatusLog("경로 실행 오류: ${e.message}", StatusLogType.ERROR)
             Napier.e("Error executing voice command path: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
@@ -1059,6 +1070,9 @@ class AppViewModel(
             } else {
                 addStatusLog("실패 (${result.failedAt}/${result.totalSteps}): ${result.error}", StatusLogType.ERROR)
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Napier.i("Full path execution cancelled", tag = Tags.BROWSER_AUTOMATION)
+            throw e
         } catch (e: Exception) {
             addStatusLog("경로 실행 오류: ${e.message}", StatusLogType.ERROR)
         } finally {
