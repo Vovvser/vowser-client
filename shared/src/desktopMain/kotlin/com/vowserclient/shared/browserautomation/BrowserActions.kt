@@ -32,16 +32,4 @@ class BrowserActions(private val browserAutomationService: BrowserAutomationServ
         browserAutomationService.typeText(selector, text, Random.nextLong(50, 151).toDouble()) // 각 문자 입력 사이에 무작위 지연 추가
         delayRandomly()
     }
-
-    suspend fun goBack() {
-        delayRandomly()
-        browserAutomationService.goBack()
-        delayRandomly()
-    }
-
-    suspend fun goForward() {
-        delayRandomly()
-        browserAutomationService.goForward()
-        delayRandomly()
-    }
 }

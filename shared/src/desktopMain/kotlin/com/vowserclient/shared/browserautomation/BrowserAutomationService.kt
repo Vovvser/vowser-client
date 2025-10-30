@@ -144,17 +144,14 @@ object BrowserAutomationService {
                 }
 
                 if (needNewPage) {
-                    // Close previous context if any
                     runCatching { if (::context.isInitialized) context.close() }
 
-                    // Create context with no fixed viewport so viewport follows window size
                     val ctxOptions = Browser.NewContextOptions().setViewportSize(null as ViewportSize?)
                     context = browser.newContext(ctxOptions)
                     page = context.newPage()
                     registerPageCloseWatcher(page)
                     setupContributionRecording()
                     page.waitForLoadState()
-                    // Apply configured zoom after initial load
                     applyConfiguredPageZoom()
                     isPageActive = true
                     isExpectingClose = false
@@ -164,7 +161,6 @@ object BrowserAutomationService {
 
             } catch (e: Exception) {
                 Napier.e("BrowserAutomationService: Critical initialization failure: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-                // Complete cleanup and restart
                 try {
                     if (::browser.isInitialized) browser.close()
                     if (::playwright.isInitialized) playwright.close()
@@ -321,60 +317,6 @@ object BrowserAutomationService {
                     Napier.w("Navigation aborted (target closed) to $url", tag = Tags.BROWSER_AUTOMATION)
                 } else {
                     Napier.e("Navigation error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-                }
-            }
-        }
-    }
-
-    suspend fun goBack() = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            if (!::page.isInitialized) {
-                Napier.e("Cannot go back: page not initialized", tag = Tags.BROWSER_AUTOMATION)
-                return@withContext
-            }
-            try {
-                val response = page.goBack()
-                if (response == null) {
-                } else {
-                    AdaptiveWaitManager.waitForPageLoad(page, "go back")
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: PlaywrightException) {
-                Napier.e("Go back failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-            } catch (e: Exception) {
-                val msg = e.message ?: ""
-                if (msg.contains("Target page, context or browser has been closed", ignoreCase = true)) {
-                    Napier.w("Go back aborted (target closed)", tag = Tags.BROWSER_AUTOMATION)
-                } else {
-                    Napier.e("Go back error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-                }
-            }
-        }
-    }
-
-    suspend fun goForward() = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            if (!::page.isInitialized) {
-                Napier.e("Cannot go forward: page not initialized", tag = Tags.BROWSER_AUTOMATION)
-                return@withContext
-            }
-            try {
-                val response = page.goForward()
-                if (response == null) {
-                } else {
-                    AdaptiveWaitManager.waitForPageLoad(page, "go forward")
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: PlaywrightException) {
-                Napier.e("Go forward failed: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-            } catch (e: Exception) {
-                val msg = e.message ?: ""
-                if (msg.contains("Target page, context or browser has been closed", ignoreCase = true)) {
-                    Napier.w("Go forward aborted (target closed)", tag = Tags.BROWSER_AUTOMATION)
-                } else {
-                    Napier.e("Go forward error: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
                 }
             }
         }
@@ -868,43 +810,6 @@ object BrowserAutomationService {
         }
     }
 
-    private fun setupNewPageTracking(newPage: Page) {
-        try {
-            registerPageCloseWatcher(newPage)
-            trackedPages.add(newPage)
-            pageTimestamps[newPage] = Pair(0L, 0L)
-            updatePageActivity(newPage)
-
-            // 새 페이지 로드 시 리스너 주입
-            newPage.onLoad {
-                try {
-                    Napier.i("New page loaded, injecting listeners for: ${newPage.url()}", tag = Tags.BROWSER_AUTOMATION)
-                    injectUserInteractionListeners(newPage)
-                    applyConfiguredPageZoom(newPage)
-                } catch (e: Exception) {
-                    Napier.w("Failed to inject listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
-                }
-            }
-
-            // 새 페이지의 콘솔 로그 리스너
-            newPage.onConsoleMessage { message ->
-                if (message.text().contains("Vowser") || message.text().contains("🖱️") || message.text().contains("⌨️")) {
-                    Napier.i("New Tab Console: ${message.text()}", tag = Tags.BROWSER_AUTOMATION)
-                }
-            }
-
-            // 새 페이지에 즉시 리스너 주입 시도
-            try {
-                injectUserInteractionListeners(newPage)
-            } catch (e: Exception) {
-                Napier.w("Failed to inject initial listeners for new page: ${e.message}", tag = Tags.BROWSER_AUTOMATION)
-            }
-
-        } catch (e: Exception) {
-            Napier.e("Failed to setup new page tracking: ${e.message}", e, tag = Tags.BROWSER_AUTOMATION)
-        }
-    }
-
     private fun injectUserInteractionListeners(targetPage: Page = page): Boolean {
         if (!isRecordingContributions) return false
 
@@ -1271,7 +1176,6 @@ object BrowserAutomationService {
                         updatePageActivity(targetPage)
                     }
                 } catch (_: Exception) {
-                    // ignore parse errors
                 } finally {
                     runCatching { targetPage.evaluate("localStorage.removeItem('__vowser_last_click')") }
                 }
@@ -1579,7 +1483,6 @@ object BrowserAutomationService {
                             inactivePages.add(page)
                         }
                     } catch (e: Exception) {
-                        // Add to cleanup list if page access fails
                         inactivePages.add(page)
                     }
                 }

@@ -437,7 +437,7 @@ private fun StatusLogItem(entry: StatusLogEntry) {
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val (color, icon) = when (entry.type) {
+        val (_, icon) = when (entry.type) {
             StatusLogType.SUCCESS -> AppTheme.Colors.Success to "✓"
             StatusLogType.ERROR -> AppTheme.Colors.Error to "✗"
             StatusLogType.WARNING -> AppTheme.Colors.Warning to "⚠"

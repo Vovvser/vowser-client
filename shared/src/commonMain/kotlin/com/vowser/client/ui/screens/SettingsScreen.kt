@@ -103,27 +103,6 @@ fun SettingsScreen(
 }
 
 /**
- * 개별 설정 항목 컴포넌트
- */
-@Composable
-private fun SettingItem(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-/**
  * 토글 설정 항목 컴포넌트
  */
 @Composable
