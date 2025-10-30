@@ -9,6 +9,7 @@ import io.ktor.client.call.*
 import io.ktor.client.plugins.auth.*
 import io.ktor.client.plugins.auth.providers.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -20,6 +21,13 @@ fun createHttpClient(tokenStorage: TokenStorage, baseUrl: String = "http://local
     return HttpClient {
         followRedirects = false // 리다이렉트 자동 추적 방지
         expectSuccess = false
+
+        defaultRequest {
+            val accessToken = tokenStorage.getAccessToken()
+            if (!accessToken.isNullOrBlank()) {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+        }
 
         install(ContentNegotiation) {
             json(Json {

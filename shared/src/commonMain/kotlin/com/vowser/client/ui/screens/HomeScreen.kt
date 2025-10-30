@@ -145,17 +145,17 @@ fun HomeScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Card(modifier = Modifier.weight(1f), onClick = {
                         selectedMode = SearchMode.EXECUTE
-                        val q = "SRT 예매 자동화 (Python Playwright)"
+                        val q = "SRT 예매"
                         searchQuery = q; viewModel.setPendingCommand(q); navigator.push(AppScreen.GRAPH)
                     }) { CardContent("SRT 예매") }
                     Card(modifier = Modifier.weight(1f), onClick = {
                         selectedMode = SearchMode.EXECUTE
-                        val q = "주민등록등본 발급해줘"
+                        val q = "주민등록등본 발급"
                         searchQuery = q; viewModel.setPendingCommand(q); navigator.push(AppScreen.GRAPH)
                     }) { CardContent("주민등록등본 발급") }
                     Card(modifier = Modifier.weight(1f), onClick = {
                         selectedMode = SearchMode.EXECUTE
-                        val q = "오늘 날씨 보여줘"
+                        val q = "네이버 오늘 날씨"
                         searchQuery = q; viewModel.setPendingCommand(q); navigator.push(AppScreen.GRAPH)
                     }) { CardContent("오늘 날씨") }
                 }

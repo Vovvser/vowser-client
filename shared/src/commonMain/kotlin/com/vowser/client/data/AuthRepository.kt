@@ -6,6 +6,9 @@ import com.vowser.client.model.TokenResponse
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.plugins.auth.*
+import io.ktor.client.plugins.auth.providers.*
+import io.ktor.client.plugins.plugin
 
 class AuthRepository(
     private val httpClient: HttpClient,
@@ -47,5 +50,12 @@ class AuthRepository(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    fun clearAuthTokens() {
+        httpClient.plugin(Auth)
+            .providers
+            .filterIsInstance<BearerAuthProvider>()
+            .forEach { it.clearToken() }
     }
 }

@@ -281,6 +281,7 @@ class AppViewModel(
         coroutineScope.launch {
             Napier.i("Saving tokens after login success", tag = Tags.AUTH)
             tokenStorage.saveTokens(accessToken, refreshToken)
+            authRepository.clearAuthTokens()
 
             // 토큰 저장 확인
             val savedToken = tokenStorage.getAccessToken()
@@ -299,6 +300,7 @@ class AppViewModel(
                 Napier.w("Logout request failed: ${e.message}", e, tag = Tags.AUTH)
             } finally {
                 tokenStorage.clearTokens()
+                authRepository.clearAuthTokens()
                 _authState.value = AuthState.NotAuthenticated
                 _userInfo.value = null
                 authManager.stopCallbackServer()
@@ -1011,7 +1013,7 @@ class AppViewModel(
                     tag = Tags.BROWSER_AUTOMATION
                 )
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             // 취소는 정상 흐름으로 처리 (오류 로그 방지)
             Napier.i("Voice command path execution cancelled", tag = Tags.BROWSER_AUTOMATION)
             throw e
@@ -1070,7 +1072,7 @@ class AppViewModel(
             } else {
                 addStatusLog("실패 (${result.failedAt}/${result.totalSteps}): ${result.error}", StatusLogType.ERROR)
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             Napier.i("Full path execution cancelled", tag = Tags.BROWSER_AUTOMATION)
             throw e
         } catch (e: Exception) {
