@@ -1,6 +1,7 @@
 package com.vowser.client.config
 
 import com.vowser.client.logging.Tags
+import com.vowser.client.desktop.ScreenUtil
 import io.github.aakira.napier.Napier
 import java.io.File
 import java.io.FileInputStream
@@ -30,14 +31,18 @@ class AppConfig private constructor() {
 
 
 
+    val chromiumWindowSizeRaw: String?
+        get() = properties.getProperty("chromium.windowSize")?.trim()
+
     val chromiumWindowSize: Pair<Int, Int>
         get() {
-            val raw = properties.getProperty("chromium.windowSize")?.trim()
+            val raw = chromiumWindowSizeRaw
             if (!raw.isNullOrBlank()) {
                 val parts = raw.lowercase().replace("*", "x").split("x").mapNotNull { it.trim().toIntOrNull() }
                 if (parts.size == 2 && parts[0] > 0 && parts[1] > 0) return parts[0] to parts[1]
             }
-            return 1920 to 1080
+            val b = ScreenUtil.currentPointerScreenBounds()
+            return b.width to b.height
         }
 
     companion object {

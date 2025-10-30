@@ -11,6 +11,7 @@ import com.microsoft.playwright.PlaywrightException
 import com.vowser.client.contribution.ContributionStep
 import com.vowser.client.config.AppConfig
 import com.vowser.client.contribution.ContributionConstants
+import com.vowser.client.desktop.ScreenUtil
 import com.google.gson.JsonObject
 import io.github.aakira.napier.Napier
 import com.vowser.client.logging.Tags
@@ -108,6 +109,8 @@ object BrowserAutomationService {
                     }
 
                     val (w, h) = config.chromiumWindowSize
+                    val screen = ScreenUtil.currentPointerScreenBounds()
+                    launchArgs.add("--window-position=${screen.x},${screen.y}")
                     launchArgs.add("--window-size=${w},${h}")
 
                     browser = playwright.chromium().launch(
@@ -186,7 +189,6 @@ object BrowserAutomationService {
         val zoom = config.browserZoom
         if (zoom == 1.0) return
 
-        // Try DevTools Emulation.setPageScaleFactor first
         runCatching {
             val session = p.context().newCDPSession(p)
             val params = JsonObject().apply { addProperty("pageScaleFactor", zoom) }
@@ -194,7 +196,6 @@ object BrowserAutomationService {
             Napier.i("Applied page scale via CDP: $zoom", tag = Tags.BROWSER_AUTOMATION)
         }.onFailure { cdpErr ->
             Napier.w("CDP page scale failed: ${cdpErr.message}. Falling back to CSS zoom.", tag = Tags.BROWSER_AUTOMATION)
-            // Fallback to CSS zoom
             runCatching {
                 p.evaluate("(z) => { try { document.documentElement.style.zoom = z; } catch (e) {} }", zoom)
                 Napier.i("Applied page zoom via CSS: $zoom", tag = Tags.BROWSER_AUTOMATION)
