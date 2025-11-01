@@ -1,5 +1,5 @@
 name: 'Feature Request'
-description: Request a new Svelte feature
+description: Request a new Vowser feature
 labels: [enhancement]
 body:
   - type: markdown
